@@ -1,0 +1,32 @@
+# Copie para config.yaml e ajuste pra SUA marca/avatar. O config.yaml nao vai pro git.
+
+brand:
+  primary_color: "#FA4E04"        # cor de destaque (header, CTA)
+  lettering_color: "#DE7A5C"      # cor do lettering serif
+  caption_font: "Nunito"          # fonte da legenda (em fonts/)
+  lettering_font_lead: "PlayfairDisplay"
+  lettering_font_key: "DMSerifDisplay"
+
+avatar:
+  provider: heygen
+  avatar_id: "SEU_AVATAR_ID"      # crie o avatar no HeyGen e cole o id aqui
+
+voice:
+  mode: real                      # SEMPRE voz real (audio gravado). TTS = tell de IA.
+
+captions:
+  preset: tay                     # ver presets/captions/
+  # y por formato e derivado automaticamente; sobrescreva so se precisar calibrar:
+  # position: { "9x16": 1410, "1x1": 793 }
+
+lettering:
+  style: serif_glow
+
+music:
+  file: "music/minha_trilha.mp3"  # voce poe a sua (royalty-free). NAO versionar.
+  volume: 0.10
+  ducking: true
+
+formats: ["9x16", "1x1"]          # 9:16 stories/reels, 1:1 feed
+speed: 1.2                        # aceleracao final do video
+output_dir: "output"

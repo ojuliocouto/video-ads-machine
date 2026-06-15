@@ -1,0 +1,31 @@
+# Segredos e config local (NUNCA versionar)
+.env
+config.yaml
+*.key
+.submagic_key
+google-tokens.json
+google-credentials.json
+
+# Midia e artefatos (pesados)
+output/
+inputs/
+_tmp*/
+*.mp4
+*.mov
+*.wav
+*.mp3
+!examples/sample-music-cc0.mp3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# OS
+.DS_Store

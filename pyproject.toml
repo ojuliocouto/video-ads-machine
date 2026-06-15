@@ -1,0 +1,32 @@
+[project]
+name = "video-ads-machine"
+version = "0.1.0"
+description = "Pipeline open-source para gerar video ads com avatar IA: roteiro + voz real -> avatar -> legenda/lettering/PiP/trilha -> 9:16 e 1:1"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Julio Couto" }]
+dependencies = [
+  "pyyaml>=6.0",
+  "pillow>=10.0",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+# alinhamento de legenda: escolha 1 backend
+mlx = ["parakeet-mlx"]              # Apple Silicon (mac M1+)
+whisper = ["faster-whisper>=1.0"]   # Windows/Linux/mac Intel
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+vam = "vam.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
