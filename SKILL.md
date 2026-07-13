@@ -53,7 +53,7 @@ Walk the user through EVERY `[FAIL]`, one at a time, in simple language:
 | ffmpeg | absent, or broken build (no libass, or dyld library error) | Give the exact install/reinstall command for their OS (the doctor prints it) |
 | ffprobe | ships with ffmpeg | Same fix as ffmpeg |
 | fonts | bundled `fonts/` directory missing its .ttf files | Re-clone the repo or restore `fonts/` |
-| caption alignment | WARN only; needed to time captions | Apple Silicon: `pip install parakeet-mlx`; elsewhere: `pip install 'faster-whisper>=1.0'` |
+| caption alignment | WARN only; needed to time captions | Apple Silicon: `python3 -m pip install --user parakeet-mlx`; elsewhere: `python3 -m pip install --user 'faster-whisper>=1.0'` |
 | HEYGEN_API_KEY | key missing or rejected | See the HeyGen notes below |
 | avatar_id | id not found in the account, or looks landscape | See the HeyGen notes below |
 | drive | only checked when `drive_folder` is set | Fix `GOOGLE_OAUTH_TOKEN_FILE` per `docs/accounts.md`, or remove `drive_folder` |
@@ -192,13 +192,14 @@ each insert instruction to its file:
 }
 ```
 
-### Step 2: write the build file and run
+### Step 2: add the project section and run
 
-Create the build YAML: it is the user's `config.yaml` content plus a
-`project` section (relative paths resolve against the build file's location):
+Use a single file: add a `project` section to the same `config.yaml` you
+created in Step 2 above (relative paths resolve against the config file's
+location). No separate build file:
 
 ```yaml
-avatar_id: "YOUR_AVATAR_ID"      # and any other config.yaml settings
+avatar_id: "YOUR_AVATAR_ID"      # plus the rest of config.yaml (brand, etc.)
 
 project:
   name: my-ad
@@ -214,7 +215,7 @@ on the same cleaned voice.
 Run it and show the output to the user as it progresses:
 
 ```bash
-vam build build.yaml
+vam build config.yaml
 ```
 
 Heads-up before running: the avatar render (G2) takes several minutes per
@@ -289,7 +290,7 @@ build as done.
 
 ```bash
 vam doctor [--config config.yaml]   # environment and account checks with fixes
-vam build build.yaml                # full gated pipeline
+vam build config.yaml               # full gated pipeline
 vam clean-audio in.m4a out.mp3      # voice hygiene alone (audition the cleanup)
 vam caption base.mp4 out.mp4 --align words.json [--style S] [--format 9x16|1x1]
 vam version

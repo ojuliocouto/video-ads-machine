@@ -6,7 +6,7 @@ License: Apache 2.0. Python 3.9+. Runs locally on macOS or Linux (ffmpeg does th
 
 ## What it is
 
-- A command-line pipeline: `vam build build.yaml` takes your config, your annotated script and your raw voice recording, and produces final MP4 files.
+- A command-line pipeline: `vam build config.yaml` takes your config, your annotated script and your raw voice recording, and produces final MP4 files.
 - Brand-agnostic and account-agnostic: your HeyGen avatar id, brand color, logo, Drive folder and speed factor all live in a YAML config you own. Nothing brand-specific is hardcoded.
 - Built around a real voice. The avatar is lip-synced to a recording of an actual person (HeyGen audio input). Captions show the script text verbatim, never a raw transcription.
 - Gated. Eight quality gates (G0 to G7) check every stage and stop the build with a concrete fix-it message on the first failure. A build is only "done" when the JSON manifest says every gate passed.
@@ -31,7 +31,7 @@ Pipeline, in order:
 
 1. **Voice hygiene** (`vam.audio`): ffmpeg `silencedetect` finds real pauses by energy; only silences longer than `audio.big_sil` (default 0.55s) are shortened, leaving a natural `keep_pause` (default 0.26s). Words are never cut because cuts happen in the middle of silences, with a micro-fade at each splice.
 2. **Avatar generation** (`vam.heygen`): the cleaned voice is uploaded to HeyGen and rendered with the Avatar V engine (realistic lip-sync). The engine is locked in code: requesting any other engine raises an error unless you set an explicit override (see Troubleshooting).
-3. **Montage** (`vam.montage`): the script is parsed into scenes, the avatar audio is transcribed (faster-whisper) and the script words are aligned to real word timestamps, so every scene cut lands on a word boundary. Scenes are rendered (full-screen presenter with slow zoom, B-roll inserts over a blurred fill, giant serif letterings, logo card), chained with short dissolves, and the continuous avatar audio is reattached so lip-sync never drifts. Inserts get a circular picture-in-picture of the presenter.
+3. **Montage** (`vam.montage`): the script is parsed into scenes, the avatar audio is transcribed (parakeet-mlx on Apple Silicon, or faster-whisper elsewhere) and the script words are aligned to real word timestamps, so every scene cut lands on a word boundary. Scenes are rendered (full-screen presenter with slow zoom, B-roll inserts over a blurred fill, giant serif letterings, logo card), chained with short dissolves, and the continuous avatar audio is reattached so lip-sync never drifts. Inserts get a circular picture-in-picture of the presenter.
 4. **Captions** (`vam.captions`): word-by-word editorial captions, timed from the alignment but showing the script words verbatim. Burned twice: on the 9:16 master and on a 1:1 square composite (blurred cover background, full 9:16 frame fitted, captions scaled proportionally).
 5. **Acceleration** (`vam.accelerate`): the finished video is sped up by `accelerate` (default 1.2x) with pitch preserved (setpts + atempo).
 6. **Delivery** (`vam.drive`, optional): finals are uploaded to your Google Drive folder with the resumable protocol, then the folder is listed to verify each file actually landed.
@@ -63,7 +63,7 @@ A build file may list several avatar looks under `avatars:`. Each variant runs t
 | `HEYGEN_API_KEY` | Included with the above | API access (app.heygen.com, Space Settings, API) | Yes |
 | ffmpeg + ffprobe, built with libass | Free | All local rendering and caption burning | Yes |
 | Python 3.9+ | Free | Runs the pipeline | Yes |
-| faster-whisper | Free | Word-level alignment for scene cuts and captions | Yes |
+| Alignment backend: `parakeet-mlx` (Apple Silicon) or `faster-whisper` (elsewhere) | Free | Word-level alignment for scene cuts and captions | Yes, install one |
 | Google OAuth token (Drive scope `drive.file`) | Free | Upload finals to your Drive folder | Optional |
 
 Important about HeyGen: **API credits are separate from plan credits.** A paid plan with plenty of regular credits can still have zero API credits, and then every render fails. `vam doctor` checks your remaining API credit before you record anything.
@@ -73,12 +73,14 @@ You also need a way to record a clean voice take: a decent microphone in a quiet
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USER/video-ads-machine.git
+git clone https://github.com/ojuliocouto/video-ads-machine.git
 cd video-ads-machine
-pip install -e .
+python3 -m pip install --upgrade pip     # an old pip can silently break the install
+python3 -m pip install -e .
 
-# alignment backend (used by montage and captions)
-pip install '.[whisper]'      # installs faster-whisper
+# alignment backend (used by montage and captions): install ONE
+python3 -m pip install '.[mlx]'          # Apple Silicon: parakeet-mlx (faster)
+python3 -m pip install '.[whisper]'      # Windows / Linux / Intel Mac: faster-whisper
 ```
 
 ffmpeg:
@@ -105,7 +107,7 @@ cp config.example.yaml config.yaml
 vam doctor
 
 # 4) Build
-vam build build.yaml
+vam build config.yaml
 ```
 
 `vam doctor` validates: Python deps, a real 1-frame ffmpeg render through the libass subtitles filter (catches broken installs that pass `-version` checks), ffprobe, the bundled fonts, the alignment backend, your HeyGen key (including remaining API credit), that your `avatar_id` actually exists in your account (and warns when the look appears landscape), and your Drive token when `drive_folder` is configured. Exit code 0 means you are ready.
@@ -240,7 +242,7 @@ The pipeline is only as good as the voice take. Rules that come from production 
 
 **Captions out of sync or wrong scene cuts.** The alignment model may have struggled with the audio. Try `VAM_WHISPER_MODEL=medium`, and check that the script matches what was actually spoken.
 
-**"faster-whisper is not installed".** `pip install '.[whisper]'`. It is required by the montage and caption steps.
+**"faster-whisper is not installed" (or no alignment backend).** Install one: `python3 -m pip install '.[mlx]'` on Apple Silicon, or `python3 -m pip install '.[whisper]'` elsewhere. A backend is required by the montage and caption steps.
 
 **You genuinely need a non Avatar V engine.** The engine is locked because Avatar V is what delivers realistic lip-sync. If an avatar look provably does not support it, set `HEYGEN_ENGINE_OVERRIDE=<engine>` and request that same engine explicitly, accepting the loss of realism. Without both, the lock holds.
 

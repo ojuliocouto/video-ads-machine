@@ -193,6 +193,8 @@ Nas cenas de lettering, você controla o texto exibido com dois marcadores:
 
 Repare: a fala de cada linha, lida em sequência, forma o texto corrido que você gravou na etapa 3. Linhas em branco e anotações fora de colchetes são ignoradas, então pode deixar comentários no meio.
 
+**Aviso sobre este exemplo:** ele tem duas cenas de insert (as linhas `[tela do produto em uso]` e `[tela do conector...]`). Cena de insert precisa de um vídeo seu e de uma entrada no `inputs/inserts.json` (veja mais abaixo). Se você quer só testar rápido com a sua voz, comece com um roteiro só de cenas de apresentador e lettering, sem insert. O arquivo `examples/roteiro.example.txt` do projeto é exatamente esse tipo de exemplo, e builda só com a voz.
+
 ### Pegadinha do insert (importante)
 
 Na instrução de um insert (b-roll), **nunca use as palavras `avatar` ou `apresentador`**. Se você escrever algo como `[b-roll com o apresentador na tela]`, o sistema classifica a cena como avatar em tela cheia, e o seu b-roll some. Descreva o CONTEÚDO da imagem: `[gravação de tela do painel]`, `[depoimento de cliente]`, `[unboxing do produto]`. O build detecta esse erro no preflight (gate G0) e avisa a linha exata.
