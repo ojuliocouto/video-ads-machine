@@ -23,24 +23,43 @@ Ponto inegociável do sistema: **a voz é sempre uma gravação real da sua voz*
 
 ## 2. O que você precisa ANTES de começar
 
-### 2.1 Conta HeyGen paga, com crédito de API
+### 2.1 Conta HeyGen com crédito de API
 
-O HeyGen é o serviço que transforma sua voz gravada em vídeo do avatar. Você precisa de:
+O HeyGen é o serviço que transforma sua voz gravada em vídeo do avatar. A boa notícia: o caminho mínimo é mais barato do que parece.
 
-1. **Conta paga** em [app.heygen.com](https://app.heygen.com).
-2. **Crédito de API**, que é uma coisa SEPARADA do crédito do plano.
+1. **Crie a conta** em [app.heygen.com](https://app.heygen.com). A conta **gratuita já permite criar 1 avatar próprio** (Digital Twin). Você só precisa de plano pago (Creator, a partir de US$ 29/mês) se quiser também usar o editor do site ou processamento prioritário; pro nosso pipeline, não é obrigatório.
+2. **Compre crédito de API**, que é uma coisa SEPARADA e avulsa (pay-as-you-go): você escolhe um valor em dólar e pronto, sem assinatura. Como referência de julho/2026: US$ 1 rende cerca de 1 minuto de vídeo de avatar em 1080p (motores mais novos, como o Avatar IV, custam mais por minuto). Pra começar, US$ 10 a 20 dão bastante margem de testes. Confira os valores atuais na página de preços da API do HeyGen antes de comprar.
 
-**Atenção, isso confunde todo mundo:** o crédito que vem no seu plano (o que você usa dentro do site do HeyGen) **não serve** pra gerar vídeo por API. O crédito de API é comprado à parte, dentro do próprio painel do HeyGen, em **Space Settings > API** (ou na área de Subscriptions, seção do plano de API). Se o crédito de API estiver zerado, toda geração falha, mesmo com o plano cheio de créditos. O comando `vam doctor` (etapa 4) mostra quanto crédito de API você ainda tem.
+**Atenção, isso confunde todo mundo:** o crédito que vem num plano pago (o que você usa dentro do site) **não serve** pra gerar vídeo por API. O crédito de API é comprado à parte, no painel do HeyGen, em **Space Settings > API**. Se o crédito de API estiver zerado, toda geração falha, mesmo com o plano cheio de créditos. O comando `vam doctor` (etapa 4) mostra quanto crédito de API você ainda tem.
 
-### 2.2 Criar o seu avatar no HeyGen
+### 2.2 Ter um avatar: criar o seu OU usar um pronto
 
-Dentro do HeyGen, crie o seu avatar personalizado (a área de Avatars tem o passo a passo deles). Você vai gravar um vídeo curto de treino, e aqui mora o detalhe mais importante:
+Você tem dois caminhos, e os dois funcionam com o pipeline.
 
-> **Grave o vídeo de treino EM PÉ, no formato RETRATO (celular na vertical).**
->
-> O pipeline gera vídeo vertical 9:16. Se você treinar o avatar com um vídeo deitado (paisagem), o resultado final sai cortado ou com enquadramento errado. E tem uma pegadinha conhecida: a pré-visualização do avatar no site às vezes aparece em paisagem mesmo quando está tudo certo, então o que vale é o vídeo de treino que VOCÊ gravou. Na dúvida, confirme no HeyGen que aquele avatar suporta retrato/9:16 antes de gastar crédito.
+**Caminho A: criar o SEU avatar (recomendado pra anúncio, é a sua cara e a sua marca)**
 
-Depois de criado, abra o avatar na área **Avatars** e copie o **id** dele (uma sequência de letras e números). Você vai colar esse id no seu arquivo de configuração na etapa 6.
+1. No site, vá em **Avatars > Create New Avatar > Digital Twin**.
+2. Grave o vídeo de treino. O que importa:
+   - **EM PÉ, formato RETRATO** (celular na vertical). O pipeline gera vídeo 9:16; avatar treinado deitado sai cortado ou com enquadramento errado.
+   - **De 2 a 5 minutos** de gravação contínua, sem cortes (5 minutos treina melhor).
+   - **1080p a 30fps no mínimo** (4K se der), luz clara e uniforme, fundo simples e parado, ambiente silencioso.
+   - **Fale durante a gravação** (a voz do treino é usada pra calibrar o lip-sync), olhe pra câmera, gesticule natural mantendo as mãos no quadro.
+3. Grave o **vídeo de consentimento** que o HeyGen pede (é uma frase curta confirmando que você autoriza a criação do avatar).
+4. **Aguarde o processamento: de 10 a 30 minutos.** Aproveite pra seguir as etapas 3 e 4 deste guia enquanto espera.
+5. Pronto: abra o avatar na área **Avatars** e copie o **id** dele (uma sequência de letras e números). É ele que vai no config na etapa 6.
+
+Pegadinha conhecida: a pré-visualização do avatar no site às vezes aparece em paisagem mesmo quando está tudo certo. O que vale é o vídeo de treino que VOCÊ gravou. Na dúvida, confirme que o avatar suporta retrato/9:16 antes de gastar crédito.
+
+**Caminho B: usar um avatar PRONTO do HeyGen (pra testar o pipeline hoje, sem esperar)**
+
+A sua chave de API já enxerga centenas de avatares públicos do HeyGen. Depois da etapa 4 (instalação), rode:
+
+```bash
+vam avatars              # lista os avatares disponíveis
+vam avatars studio       # filtra por nome
+```
+
+Escolha um, confira o visual dele em app.heygen.com > Avatars (prefira um look em RETRATO) e cole o `avatar_id` no config. Serve demais pra validar o fluxo inteiro antes do seu avatar ficar pronto; pro anúncio de verdade, o caminho A é o que constrói marca.
 
 ### 2.3 Pegar a API key do HeyGen
 

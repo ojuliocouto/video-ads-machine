@@ -217,3 +217,27 @@ def generate_avatar(audio_path, out_path, cfg, engine=None):
     audio_url = _upload_audio(audio_path, key)
     vid = _submit_v3(audio_url, avatar_id, eng, key)
     return _poll_download(vid, out_path, key)
+
+AVATARS_URL = "https://api.heygen.com/v2/avatars"
+
+
+def list_avatars(key=None, search=None):
+    """List the avatar looks visible to the API key.
+
+    Includes both the user's own avatars and HeyGen's ready-made public
+    avatars, so a student WITHOUT a custom avatar can pick a stock one.
+    Returns [{avatar_id, avatar_name, gender, preview_image_url}].
+    """
+    key = key or _api_key()
+    data = _req(AVATARS_URL, headers={"X-Api-Key": key})
+    avatars = (data.get("data") or {}).get("avatars") or []
+    if search:
+        needle = search.lower()
+        avatars = [a for a in avatars
+                   if needle in (a.get("avatar_name") or "").lower()
+                   or needle in (a.get("avatar_id") or "").lower()]
+    return [{"avatar_id": a.get("avatar_id"),
+             "avatar_name": a.get("avatar_name"),
+             "gender": a.get("gender"),
+             "preview_image_url": a.get("preview_image_url")}
+            for a in avatars]

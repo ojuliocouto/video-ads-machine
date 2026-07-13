@@ -37,8 +37,9 @@ else. Do not start a production run with a red doctor.
 ### Step 1: install and run the doctor
 
 ```bash
-pip install -e .        # from the repo root, once
-vam doctor
+python3 -m pip install --user --upgrade pip   # old pips silently break the install
+python3 -m pip install --user -e .            # from the repo root, once
+vam doctor        # or: python3 -m vam doctor   (if 'vam' is not on PATH)
 ```
 
 `vam doctor` prints one line per check, each `[OK]`, `[WARN]` or `[FAIL]`,
@@ -48,7 +49,7 @@ Walk the user through EVERY `[FAIL]`, one at a time, in simple language:
 
 | Check | What it means | How you help |
 |---|---|---|
-| python deps | pyyaml missing | Run `pip install -e .` for the user |
+| python deps | pyyaml missing | Run `python3 -m pip install --user -e .` for the user |
 | ffmpeg | absent, or broken build (no libass, or dyld library error) | Give the exact install/reinstall command for their OS (the doctor prints it) |
 | ffprobe | ships with ffmpeg | Same fix as ffmpeg |
 | fonts | bundled `fonts/` directory missing its .ttf files | Re-clone the repo or restore `fonts/` |
@@ -68,6 +69,35 @@ HeyGen notes you must know when helping:
   API credit in the HeyGen dashboard before building.
 - The `avatar_id` must belong to the same account as the API key. The user
   finds it at app.heygen.com > Avatars, opening THEIR avatar.
+
+**If the user has NO HeyGen account yet**, guide them through it (in their
+language) before anything else:
+
+1. Create the account at app.heygen.com. The FREE account already includes
+   one custom avatar slot (Digital Twin); a paid plan (Creator, ~US$29/mo as
+   of mid-2026) is only needed for the in-app editor and priority processing,
+   NOT for this pipeline.
+2. Buy API credit (pay-as-you-go, no subscription needed) at Space Settings >
+   API. Reference: about US$1 per minute of 1080p avatar video (newer engines
+   cost more per minute); US$10-20 is a comfortable start. Tell them to check
+   HeyGen's current API pricing page, prices change.
+
+**If the user has an account but NO avatar yet**, offer the two paths:
+
+- **Path A, their own avatar (best for ads)**: at app.heygen.com go to
+  Avatars > Create New Avatar > Digital Twin. Recording rules that matter:
+  PORTRAIT orientation (phone upright), 2 to 5 minutes of one continuous
+  take (no cuts), 1080p30 or better, bright even light, plain static
+  background, quiet room, SPEAK during the take (it calibrates lip-sync),
+  eyes to camera. HeyGen then asks for a short consent video and processes
+  for 10 to 30 minutes: continue the rest of the onboarding while it runs.
+- **Path B, a ready-made HeyGen avatar (test the pipeline today)**: run
+  `vam avatars` (optionally `vam avatars <name>` to filter). It lists every
+  look the key can use, including HeyGen public stock avatars. Have the user
+  check the look's preview at app.heygen.com > Avatars, prefer PORTRAIT
+  looks, and paste the chosen avatar_id into config.yaml. Good for
+  validating the whole flow while Path A processes; for the real ad, their
+  own avatar is what builds the brand.
 - If the doctor warns the avatar preview looks landscape: the pipeline renders
   9:16 vertical. Ask the user to confirm in HeyGen that the avatar look
   supports portrait before burning credits on a long render.

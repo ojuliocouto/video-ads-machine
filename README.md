@@ -16,7 +16,7 @@ License: Apache 2.0. Python 3.9+. Runs locally on macOS or Linux (ffmpeg does th
 
 Set your expectations before you invest time:
 
-- It is not free to run. Avatar generation requires a paid HeyGen plan **plus API credits**, which HeyGen bills separately from plan credits. Every build spends API credit.
+- It is not free to run. Avatar generation requires HeyGen **API credits** (pay-as-you-go, roughly US$1 per minute of 1080p as of mid-2026), billed separately from any plan credits. A free HeyGen account already includes one custom avatar slot; a paid plan is optional. Every build spends API credit.
 - It is not text-to-speech. There is no TTS mode on purpose: a synthetic voice is the number-one tell of AI content. You must record the script with a real voice, and the quality of the final ad is bounded by the quality of that recording.
 - It is not forgiving of bad audio. The silence-trimming step (de-breath) is energy-based; a noisy or echoey recording hides the pauses from the detector and the pipeline will refuse to continue (gate G1). See the recording guide below.
 - It is not an editor. There is no timeline, no preview UI, no manual tweaking of individual frames. You control the output through the script annotations and the config file.
@@ -59,7 +59,7 @@ A build file may list several avatar looks under `avatars:`. Each variant runs t
 
 | Resource | Cost | Role | Required |
 |---|---|---|---|
-| HeyGen account with a trained avatar | Paid plan + API credits | Generates the lip-synced avatar from your voice | Yes |
+| HeyGen account with an avatar | Free account works; API credits required (pay-as-you-go) | Generates the lip-synced avatar from your voice. No custom avatar yet? `vam avatars` lists ready-made looks your key can use | Yes |
 | `HEYGEN_API_KEY` | Included with the above | API access (app.heygen.com, Space Settings, API) | Yes |
 | ffmpeg + ffprobe, built with libass | Free | All local rendering and caption burning | Yes |
 | Python 3.9+ | Free | Runs the pipeline | Yes |

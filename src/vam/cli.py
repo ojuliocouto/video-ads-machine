@@ -45,6 +45,32 @@ def cmd_caption(a):
     print("OK", a.out, f"(style={a.style} format={a.format} words={len(words)})")
 
 
+def cmd_avatars(a):
+    """List avatar looks so a student without a custom avatar picks one."""
+    from . import heygen
+    from .config import _load_env
+    _load_env(".env")  # same convention as vam build / vam doctor
+    try:
+        avatars = heygen.list_avatars(search=a.search)
+    except Exception as exc:
+        print(f"could not list avatars: {exc}", file=sys.stderr)
+        print("(is HEYGEN_API_KEY set? run 'vam doctor')", file=sys.stderr)
+        return 1
+    if not avatars:
+        print("no avatar matched." if a.search else "no avatars visible.")
+        return 0
+    total = len(avatars)
+    for row in avatars[:a.limit]:
+        print(f"{row['avatar_id']}  {row['avatar_name'] or '?'}"
+              f"{'  [' + row['gender'] + ']' if row.get('gender') else ''}")
+    if total > a.limit:
+        print(f"... and {total - a.limit} more (use a search term or --limit)")
+    print(f"\n{total} avatar look(s). Paste the chosen avatar_id into "
+          "config.yaml. Check the preview on app.heygen.com > Avatars and "
+          "prefer PORTRAIT looks (the pipeline renders 9:16).")
+    return 0
+
+
 def cmd_build(a):
     """Run the full pipeline; a failed gate exits with code 1 and a clear reason."""
     try:
@@ -77,7 +103,7 @@ def cmd_clean_audio(a):
     print(json.dumps(metrics, indent=2, ensure_ascii=False, default=str))
 
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(prog="vam", description="Video Ads Machine")
     sub = p.add_subparsers(dest="cmd")
 
@@ -89,6 +115,15 @@ def main():
                             "(default: ./config.yaml when present)")
 
     sub.add_parser("version", help="print the version")
+
+    av = sub.add_parser(
+        "avatars",
+        help="list the avatar looks your HeyGen key can use "
+             "(your own + HeyGen's ready-made ones)")
+    av.add_argument("search", nargs="?", default=None,
+                    help="filter by name or id (optional)")
+    av.add_argument("--limit", type=int, default=40,
+                    help="max rows to print (default 40)")
 
     b = sub.add_parser("build", help="full pipeline: config + script + voice -> final videos")
     b.add_argument("config", help="path to your config.yaml")
@@ -106,12 +141,14 @@ def main():
     c.add_argument("--style", default=caps.DEFAULT)
     c.add_argument("--format", default="9x16", choices=list(caps.FORMATS))
 
-    a = p.parse_args()
+    a = p.parse_args(argv)
     if a.cmd in ("doctor", "setup"):
         sys.exit(doctor.run(config_path=a.config))
     if a.cmd == "version":
         print(f"video-ads-machine {__version__}")
         return
+    if a.cmd == "avatars":
+        return cmd_avatars(a)
     if a.cmd == "build":
         return cmd_build(a)
     if a.cmd == "clean-audio":

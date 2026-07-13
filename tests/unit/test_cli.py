@@ -128,3 +128,28 @@ def test_version_prints_version(monkeypatch, capsys):
     _argv(monkeypatch, "version")
     cli.main()
     assert "video-ads-machine" in capsys.readouterr().out
+
+
+def test_avatars_lists_and_hints(monkeypatch, capsys):
+    from vam import cli
+
+    fake = [{"avatar_id": "abc123", "avatar_name": "Studio Look",
+             "gender": "male", "preview_image_url": "http://x/p.jpg"}]
+    monkeypatch.setattr("vam.heygen.list_avatars", lambda search=None: fake)
+    rc = cli.main(["avatars"])
+    out = capsys.readouterr().out
+    assert rc in (0, None)
+    assert "abc123" in out and "Studio Look" in out
+    assert "PORTRAIT" in out
+
+
+def test_avatars_handles_missing_key(monkeypatch, capsys):
+    from vam import cli
+
+    def boom(search=None):
+        raise RuntimeError("HEYGEN_API_KEY not set")
+    monkeypatch.setattr("vam.heygen.list_avatars", boom)
+    rc = cli.main(["avatars"])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "vam doctor" in err
