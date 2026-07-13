@@ -128,6 +128,8 @@ cp config.example.yaml config.yaml
 
 **Se o comando `vam` não for encontrado** depois de instalar: o instalador colocou ele numa pasta fora do PATH (acontece direto no Mac). Não precisa consertar o PATH: use a forma equivalente `python3 -m vam` em todos os comandos deste guia (ex: `python3 -m vam doctor`).
 
+**Se você instalou o `faster-whisper`** (Windows, Linux ou Mac Intel): no seu PRIMEIRO build, ele baixa um modelo de uns 500 MB. É normal e acontece só uma vez. Se o build parecer parado na etapa da legenda na primeira vez, é o download rodando, deixe terminar.
+
 Agora abra o arquivo `.env` num editor de texto e cole a sua API key:
 
 ```
@@ -243,7 +245,9 @@ audio:               # limpeza da voz gravada (padrões validados, raramente mud
 
 accelerate: 1.2      # aceleração final do vídeo (1.0 = sem acelerar)
 
-# Opcional: subir os finais pra uma pasta sua do Google Drive
+# Opcional (avançado): subir os finais sozinho pra uma pasta sua do Google Drive.
+# Você NÃO precisa disto: por padrão os vídeos ficam na pasta build/ e você sobe
+# na mão. Só ligue se souber gerar um token OAuth do Google (veja docs/accounts.md).
 # drive_folder: "https://drive.google.com/drive/folders/SUA_PASTA"
 
 language: pt

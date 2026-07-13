@@ -175,6 +175,19 @@ vam version
 
 `words.json` for standalone captioning is word-level timing: `[["word", start, end], ...]` in seconds. Caption style presets live in `STYLES` in `src/vam/captions.py`; adding a style is adding one dict entry.
 
+## Use it as a Claude Code skill (optional)
+
+The repo ships a `SKILL.md`. Installed as a [Claude Code](https://claude.com/claude-code) skill, it lets an agent walk a beginner through the whole thing in plain language: creating the HeyGen account, picking or training an avatar, running `vam doctor` until green, writing `config.yaml`, and reading the build manifest.
+
+To install it for your own account, copy the skill into your personal skills directory:
+
+```bash
+mkdir -p ~/.claude/skills/video-ads-machine
+cp SKILL.md ~/.claude/skills/video-ads-machine/
+```
+
+Then, in Claude Code, ask for a video ad and the skill guides the rest. (Course operators can instead bundle `SKILL.md` in whatever way they distribute skills to students; the file is self-contained.)
+
 ## Configuration reference
 
 All fields of `config.example.yaml`. Every field except `avatar_id` has a production-validated default, so a minimal config is a single line.
