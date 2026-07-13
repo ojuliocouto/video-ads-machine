@@ -87,20 +87,27 @@ Abra o terminal e rode, linha por linha:
 
 ```bash
 # 1) Baixar o projeto
-git clone https://github.com/YOUR_GITHUB_USER/video-ads-machine.git
+git clone https://github.com/ojuliocouto/video-ads-machine.git
 cd video-ads-machine
 
-# 2) Instalar
-pip install -e .
+# 2) Atualizar o pip ANTES de instalar (o pip antigo do Mac quebra a instalação)
+python3 -m pip install --user --upgrade pip
 
-# 3) Instalar UM backend de alinhamento de legenda (escolha o seu caso)
-pip install parakeet-mlx        # Mac com chip Apple (M1, M2, M3...)
-pip install 'faster-whisper>=1.0'  # Windows, Linux ou Mac Intel
+# 3) Instalar
+python3 -m pip install --user -e .
 
-# 4) Criar seus arquivos de configuração a partir dos exemplos
+# 4) Instalar UM backend de alinhamento de legenda (escolha o seu caso)
+python3 -m pip install --user parakeet-mlx        # Mac com chip Apple (M1, M2, M3...)
+python3 -m pip install --user 'faster-whisper>=1.0'  # Windows, Linux ou Mac Intel
+
+# 5) Criar seus arquivos de configuração a partir dos exemplos
 cp .env.example .env
 cp config.example.yaml config.yaml
 ```
+
+**Importante (Mac):** use sempre `python3 -m pip` (o comando `pip` sozinho não existe no Mac). E o passo 2 não é opcional: sem atualizar o pip, a instalação termina "com sucesso" mas quebrada.
+
+**Se o comando `vam` não for encontrado** depois de instalar: o instalador colocou ele numa pasta fora do PATH (acontece direto no Mac). Não precisa consertar o PATH: use a forma equivalente `python3 -m vam` em todos os comandos deste guia (ex: `python3 -m vam doctor`).
 
 Agora abra o arquivo `.env` num editor de texto e cole a sua API key:
 

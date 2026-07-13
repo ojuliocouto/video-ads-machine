@@ -408,12 +408,34 @@ def align_words(recognized, narr_words):
     return [(times[i][0], times[i][1], narr_words[i]) for i in range(len(narr_words))]
 
 
+def write_alignment(words, cfg):
+    """Persist recognized words as <workdir>/alignment.json.
+
+    Format: {"tokens": [{start, end, text}]} in avatar-time, the shape
+    vam.captions reads. Each text gets a leading space so the sub-word
+    merge in captions keeps one token per word.
+    """
+    os.makedirs(cfg.workdir, exist_ok=True)
+    path = os.path.join(cfg.workdir, "alignment.json")
+    payload = {"tokens": [{"start": s, "end": e, "text": " " + w}
+                          for s, e, w in words]}
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False)
+    return path
+
+
 def align(avatar, narr_words, cfg, tmp):
-    """Extract the avatar audio, transcribe it and align the script to it."""
+    """Extract the avatar audio, transcribe it and align the script to it.
+
+    Also persists the raw recognized words as <workdir>/alignment.json,
+    which vam.captions consumes to time the captions word by word.
+    """
     wav = os.path.join(tmp, "avatar_16k.wav")
     run_ffmpeg(["ffmpeg", "-y", "-i", avatar, "-vn", "-ac", "1", "-ar", "16000", wav],
                label="extract avatar audio")
-    return align_words(transcribe_words(wav, cfg), narr_words)
+    recognized = transcribe_words(wav, cfg)
+    write_alignment(recognized, cfg)
+    return align_words(recognized, narr_words)
 
 
 # ------------------------------------------------------------------- inserts

@@ -80,7 +80,7 @@ def _api_key():
     if not key:
         raise HeyGenError(
             "HEYGEN_API_KEY not set. Export your HeyGen API key "
-            "(HeyGen dashboard > Settings > API) or put it in your .env file."
+            "(app.heygen.com > Space Settings > API) or put it in your .env file."
         )
     return key
 
@@ -132,7 +132,7 @@ def check_credit(key):
         raise HeyGenError(
             "HeyGen API credit is 0, cannot generate the avatar video.\n"
             "Note: API credits are SEPARATE from your HeyGen plan credits. Even on a "
-            "paid plan you must have API credits (HeyGen dashboard > Settings > API / "
+            "paid plan you must have API credits (app.heygen.com > Space Settings > API / "
             "Subscriptions > API plan). Add API credits and try again."
         )
     return quota

@@ -166,8 +166,27 @@ def check_fonts(fonts_dir=None):
 def check_alignment():
     """A word-alignment backend for verbatim captions (WARN only: optional)."""
     is_mac_arm = platform.system() == "Darwin" and platform.machine() == "arm64"
-    if is_mac_arm and (_importable("parakeet_mlx") or shutil.which("parakeet-mlx")):
-        return CheckResult("caption alignment", "OK", "parakeet-mlx (Apple Silicon)")
+    pk_bin = shutil.which("parakeet-mlx") or os.path.expanduser(
+        "~/.local/bin/parakeet-mlx")
+    if is_mac_arm and (_importable("parakeet_mlx") or os.path.exists(pk_bin)):
+        # Presence is not enough: a stale install (removed venv) leaves a
+        # broken launcher behind ("bad interpreter"). Actually run it.
+        try:
+            probe = subprocess.run([pk_bin, "--help"], capture_output=True,
+                                   text=True, timeout=30)
+            if probe.returncode == 0:
+                return CheckResult(
+                    "caption alignment", "OK", "parakeet-mlx (Apple Silicon)")
+            detail = (probe.stderr or probe.stdout or "").strip()[:160]
+        except Exception as exc:
+            detail = str(exc)[:160]
+        return CheckResult(
+            "caption alignment", "FAIL",
+            f"parakeet-mlx is installed but does not run: {detail}",
+            "Reinstall it: pip install --force-reinstall parakeet-mlx "
+            "(or, if you use uv: uv tool install --force parakeet-mlx). "
+            "Alternatively install the portable backend: "
+            "pip install 'faster-whisper>=1.0'")
     if _importable("faster_whisper"):
         return CheckResult("caption alignment", "OK", "faster-whisper")
     hint = ("pip install parakeet-mlx  (Apple Silicon)" if is_mac_arm
@@ -343,8 +362,15 @@ def run_checks(config_path=None):
         path = "config.yaml"
     if path:
         try:
-            from .config import load as load_config
-            cfg = load_config(path)
+            # Build files carry extra sections ('project', 'avatars') on top
+            # of the pipeline config; validate through the same loader the
+            # build uses so doctor and build never disagree.
+            from .build import _load_build_file
+            try:
+                cfg, _project, _variants = _load_build_file(path)
+            except Exception:
+                from .config import load as load_config
+                cfg = load_config(path)
         except Exception as exc:  # ConfigError or anything else the file causes
             results.append(CheckResult(
                 "config", "FAIL", str(exc),

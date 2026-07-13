@@ -143,6 +143,11 @@ def _load_build_file(config_path):
             f"Build file not found: {config_path}\n"
             "Pass the path to your build YAML (see the vam.build docstring "
             "for the schema).")
+    # Load secrets from the .env sitting next to the build file (same
+    # behaviour as vam.config.load / vam doctor), so HEYGEN_API_KEY and
+    # GOOGLE_OAUTH_TOKEN_FILE work no matter where the command runs from.
+    config._load_env(os.path.join(
+        os.path.dirname(os.path.abspath(config_path)), ".env"))
     with open(config_path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
     if not isinstance(raw, dict):
@@ -298,8 +303,15 @@ def _g1_audio(gates, project, cfg):
 def _g2_avatar(gates, variant, clean, clean_dur, cfg_v):
     print(f"== G2 avatar render [{variant['name']}] ==")
     out = os.path.join(cfg_v.workdir, "avatar.mp4")
-    # vam.heygen already locks the engine; no engine is passed on purpose.
-    heygen.generate_avatar(clean, out, cfg_v)
+    # Avatar cache: HeyGen renders cost API credits, so a re-run after a
+    # later gate failed must NOT pay again. Reuse the previous render when
+    # it matches the cleaned audio; delete avatar.mp4 to force a new one.
+    if os.path.exists(out) and abs(ffutil.duration(out) - clean_dur) <= AVATAR_DUR_TOL:
+        print(f"   (reusing cached avatar {out}: duration matches the "
+              "cleaned voice; delete the file to force a new render)")
+    else:
+        # vam.heygen already locks the engine; no engine is passed on purpose.
+        heygen.generate_avatar(clean, out, cfg_v)
     ad = ffutil.duration(out)
     gates.check(
         "avatar_matches_clean_audio", abs(ad - clean_dur) <= AVATAR_DUR_TOL,

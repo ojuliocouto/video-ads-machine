@@ -58,6 +58,11 @@ def cmd_build(a):
     except gate_fail as exc:
         print(f"BUILD BLOCKED: {exc}", file=sys.stderr)
         sys.exit(1)
+    except Exception as exc:  # noqa: BLE001 - students must never see a traceback
+        print(f"BUILD BLOCKED: {exc}", file=sys.stderr)
+        print("(run 'vam doctor' to check your environment and accounts)",
+              file=sys.stderr)
+        sys.exit(1)
     print(json.dumps(manifest, indent=2, ensure_ascii=False, default=str))
 
 
