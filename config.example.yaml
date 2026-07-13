@@ -1,32 +1,62 @@
-# Copie para config.yaml e ajuste pra SUA marca/avatar. O config.yaml nao vai pro git.
+# video-ads-machine configuration
+#
+# Copy this file to config.yaml and fill in YOUR values.
+# config.yaml is gitignored: it holds your brand/account settings, never
+# commit it. API keys do NOT go here; they go in .env (see .env.example).
+#
+# Every field except avatar_id has a production-validated default, so a
+# minimal config.yaml can be just the avatar_id line.
 
+# --- REQUIRED -------------------------------------------------------------
+# Your HeyGen avatar id. Create/train your avatar at https://app.heygen.com,
+# open it under Avatars and copy the id (also available via GET /v2/avatars).
+avatar_id: "YOUR_AVATAR_ID"
+
+# --- Brand ----------------------------------------------------------------
 brand:
-  primary_color: "#FA4E04"        # cor de destaque (header, CTA)
-  lettering_color: "#DE7A5C"      # cor do lettering serif
-  caption_font: "Nunito"          # fonte da legenda (em fonts/)
-  lettering_font_lead: "PlayfairDisplay"
-  lettering_font_key: "DMSerifDisplay"
+  # Color of the highlighted "key" word in on-screen letterings.
+  # NOTE: ASS subtitle format uses BGR hex (blue-green-red), not RGB.
+  # '4AA6FF' is just the shipped example (a warm orange); use your brand color.
+  key_color_bgr: "4AA6FF"
+  # Optional PNG logo (transparent background) overlaid on logo blocks.
+  # logo_path: "./assets/your-brand-logo.png"
 
-avatar:
-  provider: heygen
-  avatar_id: "SEU_AVATAR_ID"      # crie o avatar no HeyGen e cole o id aqui
-
-voice:
-  mode: real                      # SEMPRE voz real (audio gravado). TTS = tell de IA.
-
-captions:
-  preset: tay                     # ver presets/captions/
-  # y por formato e derivado automaticamente; sobrescreva so se precisar calibrar:
-  # position: { "9x16": 1410, "1x1": 793 }
-
+# --- Lettering (big serif text blocks) -------------------------------------
 lettering:
-  style: serif_glow
+  # 'foil' = metallic gradient on the key word (validated default)
+  # 'solid' = flat brand color
+  style: foil
+  # Vertical position of the key line on the 1080x1920 canvas.
+  # Defaults were tuned to clear the Instagram Reels UI; override only
+  # if you need to recalibrate.
+  y_key: 1690
+  # Key line position when a logo block sits above it.
+  y_key_with_logo: 1500
 
-music:
-  file: "music/minha_trilha.mp3"  # voce poe a sua (royalty-free). NAO versionar.
-  volume: 0.10
-  ducking: true
+# --- Audio hygiene (silence trimming on the recorded voice track) -----------
+audio:
+  # Silences longer than this (seconds) are shortened.
+  big_sil: 0.55
+  # Natural pause (seconds) left in place of each shortened silence.
+  keep_pause: 0.26
+  # Silence threshold in dBFS; breaths sit below this level.
+  sil_db: -30
 
-formats: ["9x16", "1x1"]          # 9:16 stories/reels, 1:1 feed
-speed: 1.2                        # aceleracao final do video
-output_dir: "output"
+# --- Pipeline ---------------------------------------------------------------
+# Final speed-up factor applied to the finished video (pitch preserved).
+# 1.0 = no speed-up. 1.2 is the validated default.
+accelerate: 1.2
+
+# Optional: Google Drive folder (URL or folder id) where final videos are
+# uploaded. Requires GOOGLE_OAUTH_TOKEN_FILE in .env. Omit to skip upload.
+# drive_folder: "https://drive.google.com/drive/folders/YOUR_FOLDER_ID"
+
+# Directory with the .ttf fonts used by captions/letterings.
+# Defaults to the fonts/ directory bundled with this repo.
+# fonts_dir: "./fonts"
+
+# Language hint for captions/letterings (ISO 639-1).
+language: pt
+
+# Directory for intermediate build artifacts.
+workdir: "./build"

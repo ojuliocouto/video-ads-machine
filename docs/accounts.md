@@ -7,7 +7,6 @@
 
 ## Opcional
 - **Google Sheets API** (gratis): so se o roteiro vier de planilha. OAuth (client id/secret no `.env`). Senao, use roteiro YAML local.
-- **uazapi** (pago): notificacao de progresso no WhatsApp. `UAZAPI_*` no `.env`.
 - **Chrome** (gratis): lettering avancado.
 
 ## Musica

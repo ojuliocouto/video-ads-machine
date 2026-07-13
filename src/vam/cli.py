@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""CLI do Video Ads Machine.
+"""Command-line interface of the Video Ads Machine.
 
-Comandos:
-  vam doctor / vam setup       preflight: checa e guia instalacao de deps/MCPs/plugins
-  vam caption <base> <out>     queima legenda num video (engine validado)
+Commands:
+  vam doctor [--config X]       environment/account checks with fixes (run this first)
+  vam setup                     alias of doctor
+  vam build <config.yaml>       full pipeline (voice -> avatar -> montage -> captions)
+  vam clean-audio <in> <out>    voice hygiene only (shorten the big silences)
+  vam caption <base> <out>      burn a caption track on an existing video
   vam version
-  vam build <roteiro>          (roadmap) pipeline completo roteiro->video
 """
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -27,47 +30,89 @@ def _burn(base_in, out, ass):
          "-movflags", "+faststart", out],
         capture_output=True, text=True)
     if r.returncode != 0:
-        print("erro ffmpeg:\n", r.stderr[-1200:]); sys.exit(1)
+        print("ffmpeg error:\n", r.stderr[-1200:])
+        sys.exit(1)
 
 
 def cmd_caption(a):
-    # align: JSON com [[palavra, start, end], ...] (reel-time, em segundos)
+    # align: JSON file with [[word, start, end], ...] (reel-time, seconds)
     words = [tuple(w) for w in json.load(open(a.align))]
     if a.style not in caps.STYLES:
-        print(f"estilo '{a.style}' nao existe: {', '.join(caps.STYLES)}"); sys.exit(1)
+        print(f"style '{a.style}' does not exist: {', '.join(caps.STYLES)}")
+        sys.exit(1)
     ass = caps.build_ass(words, a.style, "/tmp/vam_cap.ass", fmt=a.format)
     _burn(a.base, a.out, ass)
-    print("OK", a.out, f"(estilo={a.style} formato={a.format} palavras={len(words)})")
+    print("OK", a.out, f"(style={a.style} format={a.format} words={len(words)})")
+
+
+def cmd_build(a):
+    """Run the full pipeline; a failed gate exits with code 1 and a clear reason."""
+    try:
+        build_mod = importlib.import_module("vam.build")
+    except ImportError as exc:
+        print(f"the build module could not be loaded: {exc}", file=sys.stderr)
+        sys.exit(1)
+    gate_fail = getattr(build_mod, "GateFail", Exception)
+    try:
+        manifest = build_mod.build(a.config)
+    except gate_fail as exc:
+        print(f"BUILD BLOCKED: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(manifest, indent=2, ensure_ascii=False, default=str))
+
+
+def cmd_clean_audio(a):
+    """Voice hygiene standalone: useful to audition the cleaned take by itself."""
+    from . import audio
+    cfg = None
+    if a.config:
+        from .config import load as load_config
+        cfg = load_config(a.config)
+    metrics = audio.clean_voice(a.src, a.dst, cfg)
+    print(json.dumps(metrics, indent=2, ensure_ascii=False, default=str))
 
 
 def main():
     p = argparse.ArgumentParser(prog="vam", description="Video Ads Machine")
     sub = p.add_subparsers(dest="cmd")
 
-    sub.add_parser("doctor", help="preflight: checa e guia instalacao")
-    sub.add_parser("setup", help="alias de doctor")
-    sub.add_parser("version", help="versao")
+    for name in ("doctor", "setup"):
+        d = sub.add_parser(name, help="environment/account checks with fixes"
+                           + (" (alias of doctor)" if name == "setup" else ""))
+        d.add_argument("--config", default=None,
+                       help="config YAML to validate avatar_id/Drive against "
+                            "(default: ./config.yaml when present)")
 
-    c = sub.add_parser("caption", help="queima legenda num video")
-    c.add_argument("base"); c.add_argument("out")
-    c.add_argument("--align", required=True, help="JSON [[palavra,start,end],...]")
+    sub.add_parser("version", help="print the version")
+
+    b = sub.add_parser("build", help="full pipeline: config + script + voice -> final videos")
+    b.add_argument("config", help="path to your config.yaml")
+
+    ca = sub.add_parser("clean-audio", help="shorten the big silences of a voice take")
+    ca.add_argument("src", help="input audio (the raw voice recording)")
+    ca.add_argument("dst", help="output audio (cleaned)")
+    ca.add_argument("--config", default=None,
+                    help="config YAML for custom audio thresholds (optional)")
+
+    c = sub.add_parser("caption", help="burn a caption track on a video")
+    c.add_argument("base")
+    c.add_argument("out")
+    c.add_argument("--align", required=True, help="JSON [[word,start,end],...]")
     c.add_argument("--style", default=caps.DEFAULT)
     c.add_argument("--format", default="9x16", choices=list(caps.FORMATS))
 
-    b = sub.add_parser("build", help="(roadmap) pipeline completo")
-    b.add_argument("roteiro", nargs="?")
-
     a = p.parse_args()
     if a.cmd in ("doctor", "setup"):
-        sys.exit(doctor.run())
+        sys.exit(doctor.run(config_path=a.config))
     if a.cmd == "version":
-        print(f"video-ads-machine {__version__}"); return
+        print(f"video-ads-machine {__version__}")
+        return
+    if a.cmd == "build":
+        return cmd_build(a)
+    if a.cmd == "clean-audio":
+        return cmd_clean_audio(a)
     if a.cmd == "caption":
         return cmd_caption(a)
-    if a.cmd == "build":
-        print("build (pipeline completo roteiro->video) esta no roadmap. Veja README/ROADMAP.")
-        print("Por enquanto: rode `vam doctor` e use `vam caption`. Modulos avatar/align/compose em construcao.")
-        return
     p.print_help()
 
 
