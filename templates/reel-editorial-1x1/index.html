@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* Tipografia editorial embutida (offline, sem Google Fonts):
+         corpo Inter leve (300-600), destaque Playfair Display Italic. woff2 latinos em fonts/. */
+      @font-face { font-family:"Inter"; font-weight:300; font-style:normal; font-display:block; src:url("fonts/inter-300.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/inter-400.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/inter-600.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:700; font-style:normal; font-display:block; src:url("fonts/inter-700.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:800; font-style:normal; font-display:block; src:url("fonts/inter-800.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:500; font-style:italic; font-display:block; src:url("fonts/playfair-italic-500.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:600; font-style:italic; font-display:block; src:url("fonts/playfair-italic-600.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:700; font-style:italic; font-display:block; src:url("fonts/playfair-italic-700.woff2") format("woff2"); }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1080px; height:1080px; overflow:hidden; background:#05060a; }
+      @font-face { font-family:"Montserrat"; font-weight:500; font-style:normal; font-display:block; src:url("fonts/montserrat-500.woff2") format("woff2"); }
+      @font-face { font-family:"Montserrat"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/montserrat-600.woff2") format("woff2"); }
+      body { font-family:"Inter", sans-serif; font-weight:300; }
+
+      #a-roll { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:grayscale(var(--bw,0)); }
+
+      /* ---------- GRADE QUENTE CINEMATOGRAFICA (acima da imagem, abaixo do texto z<34) ---------- */
+      #grade { position:absolute; inset:0; z-index:20; pointer-events:none;
+        background:
+          radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%),
+          linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%);
+        mix-blend-mode: soft-light; }
+      #vignette { position:absolute; inset:0; z-index:21; pointer-events:none;
+        background: radial-gradient(80% 74% at 50% 42%, transparent 50%, rgba(0,0,0,0.32) 100%); }
+
+      /* ---------- OPENING HOOK (editorial) ---------- */
+      /* hook agora abre SOBRE a pessoa (a-roll), so um scrim pra legibilidade */
+      /* text-align:center e o conserto do defeito que o Julio pegou em 12/08: o bloco
+         estava centrado como CAIXA, mas o texto dentro dele saia alinhado a esquerda.
+         Com KEY de uma linha ninguem via; com duas linhas ficava torto.
+         O scrim tambem subiu de opacidade: o KEY branco caia sobre a camiseta do
+         Thales, que e meio-tom, e sumia. */
+      #hook { position:absolute; inset:0; z-index:44;
+        /* Mesma correcao do 9x16 (auditoria 12/08): scrim do hook mais leve. Fix de
+           template SEMPRE nos dois templates na mesma hora. */
+        background:radial-gradient(120% 42% at 50% 60%, rgba(4,5,10,.66) 0%, rgba(4,5,10,.44) 52%, rgba(4,5,10,0) 88%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        text-align:center; gap:4px; padding:0 100px; }
+      #hook .eyebrow { font-family:"Inter"; font-weight:500; font-size:30px; letter-spacing:8px;
+        color:rgba(255,255,255,.94); text-transform:uppercase; margin-bottom:34px;
+        text-shadow:0 2px 16px rgba(0,0,0,.9); }
+      #hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;
+        font-size:72px; line-height:1.06; letter-spacing:-.5px;
+        text-shadow:0 3px 22px rgba(0,0,0,.6); }
+      #hook .accent { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:600; font-style:italic;
+        color:#fff; font-size:118px; line-height:1.02; letter-spacing:-1px;
+        text-wrap:balance; text-shadow:0 8px 34px rgba(0,0,0,.5); }
+
+      /* ---------- GRID WIPE ---------- */
+      #grid-pixelate-overlay { position:absolute; inset:0; z-index:60; pointer-events:none; display:grid; }
+      #grid-pixelate-overlay .grid-cell { background:#05060a; transform-origin:center center; }
+
+      /* ---------- B-ROLL scrim + card (neutralizado) ---------- */
+      .broll-scrim { position:absolute; inset:0; z-index:12;
+        background:radial-gradient(120% 80% at 50% 42%, #14151f 0%, #0a0b12 55%, #05060a 100%); }
+      .broll-scrim::after { content:""; position:absolute; inset:0;
+        background:radial-gradient(62% 34% at 50% 40%, rgba(255,255,255,.06), transparent 72%); }
+      .broll-vid { position:absolute; left:36px; width:1008px; top:180px; height:640px; z-index:14;
+        border-radius:24px; object-fit:contain; background:#0b0d14;
+        border:1.5px solid rgba(255,255,255,.16);
+        box-shadow:0 30px 90px rgba(0,0,0,.6); }
+      /* PILULA DE LABEL: REMOVIDA (28/08/2026). Mesma decisao do 9x16, e ela precisa
+         estar NOS DOIS templates: o quadrado e gerado pelo mesmo gen_ad_v2, entao
+         deixar so um deles limpo faria o 1x1 sair com o elemento que o 9x16 nao tem.
+         Motivo completo no comentario do reel-editorial/index.html. */
+      .broll-tag { display:none; }
+
+      /* ---------- LOWER THIRD (TOP) ---------- */
+      #lt { position:absolute; left:60px; top:70px; z-index:40;
+        display:flex; align-items:center; gap:20px;
+        padding:18px 36px 18px 20px; border-radius:22px;
+        background:rgba(12,13,20,.6); border:1px solid rgba(255,255,255,.14);
+        box-shadow:0 20px 50px rgba(0,0,0,.45); backdrop-filter:blur(8px); }
+      #lt .ava { width:70px; height:70px; border-radius:50%;
+        background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.28); display:flex; align-items:center;
+        justify-content:center; font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-style:italic; font-weight:600; font-size:38px; color:#fff; }
+      #lt .name { font-family:"Inter"; font-weight:600; font-size:46px; color:#fff; line-height:1; letter-spacing:.2px; }
+      #lt .role { font-family:"Inter"; font-weight:400; font-size:28px; color:rgba(255,255,255,.62); margin-top:8px; }
+
+      /* ---------- MID LETTERINGS (editorial) ---------- */
+      /* letterings ancorados na faixa do PEITO (nao no centro/rosto) pra nao cair na boca */
+      .lett { position:absolute; inset:0; z-index:34; pointer-events:none;
+        display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+        gap:6px; padding:0 100px 300px;
+        background:rgba(2,3,6,.55);  /* tela esmaecida no pico, igual 9x16 (28/08) */ }
+      .lett .lead { font-family:"Inter"; font-weight:400; font-size:28px; letter-spacing:6px;
+        color:rgba(255,255,255,.62); text-transform:uppercase; margin-bottom:12px;
+        text-shadow:0 2px 12px rgba(0,0,0,.6); }
+      .lett .key { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:700; font-style:italic;
+        font-size:100px; line-height:1.04; letter-spacing:-.5px; text-align:center; color:#fff;
+        text-shadow:0 6px 30px rgba(0,0,0,.55); }
+
+      /* ---------- CAPTIONS (legenda editorial) ---------- */
+      #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
+      #caps .cgrp { position:absolute; left:0; right:0; bottom:230px; padding:26px 110px;
+        display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 30px;  /* pico 1,14 come o vao: gap acompanha (28/08) */
+        /* SEM SCRIM (27/08/2026), alinhando com o 9x16. O scrim entrou aqui em 12/08
+           e em 19/08 o 9x16 tirou o dele por ordem da Jheni ("essa sombra embaixo me
+           da panico, deixa esteticamente pobre"). O 1x1 nao acompanhou e ficou oito
+           dias com a mancha que ela reprovou: fix nao portado, agora na direcao
+           contraria. Quem garante a leitura sobre b-roll claro e o contorno por glifo
+           (paint-order acima), que e o mesmo criterio que o 9x16 ja provou. */ }
+      /* MESMA LEGENDA DO 9x16 (27/08/2026). Este template ficou pra tras no
+         redesenho de 26/08 e continuava com Montserrat 600 e palavra-chave em Playfair
+         italico MENOR que o corpo, os dois defeitos que o Julio chamou de "grosseiro".
+         Fix de template SEMPRE nos dois templates na mesma hora, e desta vez nao foi.
+         Tipografia e estados sao iguais; so o TAMANHO muda, porque o quadro 1:1 tem
+         1080 de altura contra 1920 e a mesma fonte ocuparia o dobro da tela. */
+      #caps .cw { font-family:"Inter"; font-weight:800; font-size:62px;
+        color:#F5EFE6; letter-spacing:-0.02em; line-height:1.14;
+        paint-order:stroke fill; -webkit-text-stroke:0.065em rgba(6,7,12,.92);
+        text-shadow:0 2px 5px rgba(0,0,0,.55), 0 8px 26px rgba(0,0,0,.42); }
+      #caps .cw.kw { color:#E87D4E; }
+      /* PREENCHIMENTO LINEAR, NAO SALTO (29/08/2026, Julio por audio: "nao gosto
+         desse estilo onde a legenda sobe, fica pulando... gosto quando e uma cor, vai
+         preenchendo ela, de forma linear").
+         Cada palavra tem duas camadas do MESMO texto, na mesma caixa: `base` apagada e
+         `fill` acesa por cima. O GSAP corta a de cima com `clip-path` da esquerda pra
+         direita, entao a cor entra varrendo a palavra.
+         Historico do que ja foi reprovado aqui, pra nao voltar: escala por palavra
+         (colidia com a vizinha, "paginacompletamente" com 7px de vao), micro-pulo de
+         1,03 ("pulando mas muito pequeno") e salto vertical de 12 a 16px (este pedido).
+         A caixa NAO muda de tamanho em nenhum momento: as duas camadas ocupam o mesmo
+         espaco e so a mascara se move, entao nada reflui e nenhuma palavra empurra a
+         outra. */
+      #caps .cw { position:relative; display:inline-block; }
+      #caps .cw .base, #caps .cw .fill { display:block; }
+      #caps .cw .fill { position:absolute; left:0; top:0; white-space:pre;
+        clip-path:inset(0 100% 0 0); }
+      /* OPACIDADE DA CAMADA APAGADA: 52% -> 70% (29/08/2026, medido no build 32).
+         Com 52% o gate de contraste achou 30 faixas abaixo do piso, contra 9 no build
+         anterior: a palavra AINDA NAO FALADA caia para 3,2:1 sobre fundo escuro. O
+         espectador le a linha inteira, nao so a palavra do momento, entao palavra por
+         vir ilegivel e defeito, nao hierarquia.
+         70% e o meio entre os 52% que reprovaram e os 82% do desenho antigo, que nunca
+         teve reclamacao de leitura. A varredura de 70% para 100% continua visivel: foi
+         conferida no quadro, letra por letra, em "paginas". */
+      #caps .cw .base { color:rgba(245,239,230,.70); }
+      #caps .cw .fill { color:#F5EFE6; }
+      #caps .cw.kw .base { color:rgba(232,125,78,.62); }
+      #caps .cw.kw .fill { color:#E87D4E; }
+      /* sobre insert claro a tinta inverte, e as duas camadas invertem junto */
+      #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.62); }
+      #caps .cgrp-claro .cw .fill { color:#12141A; }
+      #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.62); }
+      #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
+
+      /* tres estados por palavra, igual ao 9x16. O piso de 0,82 nao desce: o gate-ad
+         conta texto por alpha>190 e abaixo de 0,80 ele para de enxergar a legenda. */
+      /* OPACIDADE CHEIA NA PALAVRA (29/08/2026). Este `.cw` tinha `opacity:.82`, que
+         era o estado "por dizer" do desenho ANTIGO: o GSAP subia pra 1 na palavra ativa
+         e devolvia pra 0,90 depois. Com o preenchimento linear a animacao de opacidade
+         saiu, e o 0,82 do CSS ficou valendo o tempo inteiro: medi o alpha do MOV e o
+         MAXIMO era 210 de 255, ou seja a legenda inteira renderizava a 82%.
+         Efeito colateral que denunciou: o gate de contraste, que mede tinta com alpha
+         cheio, passou a nao achar UMA faixa de legenda no anuncio todo e devolveu
+         "0 faixas" com PASSA. Gate que fica cego e pior que gate que reprova.
+         O apagado agora mora na COR da camada `.base`, nao na opacidade da palavra. */
+      #caps .cw { opacity:1; transform-origin:50% 82%; will-change:transform; }
+      #caps .cw.on  { opacity:1; }
+      #caps .cw.off { opacity:.90; }
+      /* ---------- LOGO DO EVENTO ---------- */
+      #ev-logo { position:absolute; bottom:48px; left:50%;
+        width:520px; height:auto; z-index:48; filter:drop-shadow(0 8px 30px rgba(0,0,0,.55)); }
+
+      /* ---------- CTA (editorial) ---------- */
+      /* bottom:300px (original) colidia com a boca do avatar no reframe 1:1 (zoom-out +
+      blur nas laterais, calibrado 20/07 pro ad08): o rosto ocupa ~45% do quadro nessa
+      tecnica de reframe (proporcao natural da gravacao 9:16 original), entao o CTA
+      precisa descer mais perto do logo pra sobrar peito/camisa embaixo do queixo. */
+      #cta { position:absolute; left:0; right:0; bottom:180px; z-index:46;
+        display:flex; flex-direction:column; align-items:center; gap:30px; }
+      #cta .lead { font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:6px;
+        color:rgba(255,255,255,.62); text-transform:uppercase; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+      #cta .pill { display:flex; align-items:center; gap:22px;
+        padding:26px 64px; border-radius:100px;
+        background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.38); color:#fff;
+        font-family:"Inter"; font-weight:500; font-size:46px; letter-spacing:2px;
+        text-transform:none; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4); }
+      #cta .arrow { font-size:58px; color:rgba(255,255,255,.6); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-l0mb" id="root" data-composition-id="main" data-start="0" data-duration="55.36" data-width="1080" data-height="1080">
+
+      <video data-hf-id="hf-myrg" id="a-roll" class="clip" src="avatar.mp4" muted playsinline data-start="0" data-duration="55.36" data-track-index="0"></video>
+      <audio data-hf-id="hf-wpe7" id="a-roll-audio" src="avatar.mp4" data-start="0" data-duration="55.36" data-track-index="2" data-volume="1"></audio>
+
+      <!-- GRADE QUENTE + VINHETA (sempre on, entre imagem e texto) -->
+      <div data-hf-id="hf-9j86" id="grade"></div>
+      <div data-hf-id="hf-h7i3" id="vignette"></div>
+
+      <!-- OPENING HOOK -->
+      <div data-hf-id="hf-niga" id="hook" class="clip" data-start="0" data-duration="2.5" data-track-index="44">
+        <div data-hf-id="hf-pdlc" class="hook-inner" style="display:flex;flex-direction:column;align-items:center;margin-top:30px;">
+          <div data-hf-id="hf-bc1a" class="eyebrow">uma skill de</div>
+          <div data-hf-id="hf-8q5w" class="l1">criação de</div>
+          <div data-hf-id="hf-ons9" class="accent">páginas</div>
+        </div>
+      </div>
+
+      <!-- GRID WIPE -->
+      <div data-hf-id="hf-zbi1" id="grid-pixelate-overlay"></div>
+
+      <!-- B-ROLLS (injected) -->
+      <div data-hf-id="hf-e70y" id="b1_scrim" class="broll-scrim clip" data-start="2.5" data-duration="3.0" data-track-index="11"></div>
+      <div data-hf-id="hf-84xv" id="b1_tag" class="broll-tag clip" data-start="2.5" data-duration="3.0" data-track-index="50"><span data-hf-id="hf-6wed" class="rec"></span><span data-hf-id="hf-bc1c" class="t">skill de front-end</span></div>
+      <video data-hf-id="hf-118q" id="b1_vid" class="broll-vid clip" src="broll01.mp4" muted playsinline data-start="2.5" data-duration="3.0" data-track-index="10"></video>
+      <div data-hf-id="hf-glk2" id="b2_scrim" class="broll-scrim clip" data-start="5.6" data-duration="4.0" data-track-index="13"></div>
+      <div data-hf-id="hf-dkm7" id="b2_tag" class="broll-tag clip" data-start="5.6" data-duration="4.0" data-track-index="52"><span data-hf-id="hf-19ll" class="rec"></span><span data-hf-id="hf-cfcv" class="t">página de vendas</span></div>
+      <video data-hf-id="hf-i86p" id="b2_vid" class="broll-vid clip" src="broll02.mp4" muted playsinline data-start="5.6" data-duration="4.0" data-track-index="12"></video>
+      <div data-hf-id="hf-85bn" id="b3_scrim" class="broll-scrim clip" data-start="10.9" data-duration="4.7" data-track-index="15"></div>
+      <div data-hf-id="hf-3n2m" id="b3_tag" class="broll-tag clip" data-start="10.9" data-duration="4.7" data-track-index="54"><span data-hf-id="hf-2gio" class="rec"></span><span data-hf-id="hf-aa59" class="t">conector no claude</span></div>
+      <video data-hf-id="hf-xc03" id="b3_vid" class="broll-vid clip" src="broll03.mp4" muted playsinline data-start="10.9" data-duration="4.7" data-track-index="14"></video>
+      <div data-hf-id="hf-d8gz" id="b4_scrim" class="broll-scrim clip" data-start="18.9" data-duration="4.06" data-track-index="17"></div>
+      <div data-hf-id="hf-mz36" id="b4_tag" class="broll-tag clip" data-start="18.9" data-duration="4.06" data-track-index="56"><span data-hf-id="hf-227n" class="rec"></span><span data-hf-id="hf-0cz9" class="t">publicar · otimizar</span></div>
+      <video data-hf-id="hf-q57m" id="b4_vid" class="broll-vid clip" src="broll04.mp4" muted playsinline data-start="18.9" data-duration="4.06" data-track-index="16"></video>
+      <div data-hf-id="hf-t17b" id="b5_scrim" class="broll-scrim clip" data-start="35.36" data-duration="5.1" data-track-index="19"></div>
+      <div data-hf-id="hf-wvqa" id="b5_tag" class="broll-tag clip" data-start="35.36" data-duration="5.1" data-track-index="58"><span data-hf-id="hf-02oi" class="rec"></span><span data-hf-id="hf-0pw9" class="t">montando um time de i.a</span></div>
+      <video data-hf-id="hf-xays" id="b5_vid" class="broll-vid clip" src="broll_aula.mp4" muted playsinline data-start="35.36" data-duration="5.1" data-track-index="18"></video>
+
+      <!-- LOWER THIRD -->
+      <!-- (selo/lower-third removido a pedido: nao usar bolinha do apresentador) -->
+
+      <!-- CAPTIONS: build_timeline injeta o #caps aqui (word-by-word com data-start/data-end) -->
+      <!-- INJECT:captions -->
+
+      <!-- LETTERINGS: build_timeline injeta os .lett aqui (LEAD/KEY do roteiro no timestamp da fala) -->
+      <!-- INJECT:letterings -->
+
+      <!-- CTA -->
+      <div data-hf-id="hf-bi9a" id="cta" class="clip" data-start="50.4" data-duration="4.96" data-track-index="46">
+        <div data-hf-id="hf-laqu" class="lead">toque em</div>
+        <div data-hf-id="hf-wto1" class="pill" id="cta-pill">saiba mais</div>
+        <div data-hf-id="hf-u6cb" class="arrow" id="cta-arrow">▼</div>
+      </div>
+
+      <!-- LOGO DO EVENTO: bloco TIMES DE IA + CTA (46.7-55.4s) -->
+      <img data-hf-id="hf-zbg4" id="ev-logo" class="clip" src="logo.png" alt="Seu Evento" data-start="46.7" data-duration="8.68" data-track-index="48">
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ===== OPENING HOOK (fade editorial) =====
+      gsap.set("#hook .eyebrow", { opacity: 0, y: 14 });
+      gsap.set("#hook .l1", { opacity: 0, y: 20 });
+      gsap.set("#hook .accent", { opacity: 0, y: 26 });
+      tl.to("#hook .eyebrow", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.2);
+      tl.to("#hook .l1", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.42);
+      tl.to("#hook .accent", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 0.64);
+      tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);
+
+      // ===== GRID WIPE (opening -> b-roll) =====
+      (function () {
+        const COLS = 9, ROWS = 16;
+        const overlay = document.getElementById("grid-pixelate-overlay");
+        overlay.style.gridTemplateColumns = "repeat(" + COLS + ",1fr)";
+        overlay.style.gridTemplateRows = "repeat(" + ROWS + ",1fr)";
+        for (let i = 0; i < COLS * ROWS; i++) {
+          const c = document.createElement("div"); c.className = "grid-cell"; overlay.appendChild(c);
+        }
+      })();
+      gsap.set("#grid-pixelate-overlay .grid-cell", { scale: 0 });
+      /* INJECT:wipes */
+
+      // ===== B-ROLLS: fade + scale in/out =====
+      const BROLLS = [{"id": "b1", "src": "broll01.mp4", "start": 2.5, "dur": 3.0, "tk": 10, "sk": 11}, {"id": "b2", "src": "broll02.mp4", "start": 5.6, "dur": 4.0, "tk": 12, "sk": 13}, {"id": "b3", "src": "broll03.mp4", "start": 10.9, "dur": 4.7, "tk": 14, "sk": 15}, {"id": "b4", "src": "broll04.mp4", "start": 18.9, "dur": 4.06, "tk": 16, "sk": 17}, {"id": "b5", "src": "broll_aula.mp4", "start": 35.36, "dur": 5.1, "tk": 18, "sk": 19}];
+      BROLLS.forEach(function (b, i) {
+        const scrim = document.getElementById(b.id + "_scrim");
+        const card  = document.getElementById(b.id + "_vid");
+        const tag   = document.getElementById(b.id + "_tag");
+        // No OVERLAY (camada de texto com alpha) o strip_overlay REMOVE scrim/card/tag,
+        // porque lá só entra texto. Sem esta guarda o gsap recebia null, lançava
+        // "Cannot read properties of null (reading '_gsap')" e MATAVA o script inteiro:
+        // legendas, letterings e CTA registrados DEPOIS deste bloco nunca chegavam ao
+        // timeline. Era a causa dos ~13s sem legenda no 1x1 do ad03/04/05 (o guard ja
+        // existia no template 9x16 desde a leva OCC, mas nunca foi portado pra ca).
+        if (!scrim || !card || !tag) return;
+        const ADJ_GAP = 0.6;
+        const prev = BROLLS[i - 1];
+        const next = BROLLS[i + 1];
+        const isOpening = b.start <= 0.001;
+        // "vem de um insert colado" (ou opening): o card anterior/o wipe ja cobrem o avatar,
+        // entao entra por HARD-CUT. Se vem do avatar, o card entra com fade (coberto pelo wipe).
+        const fromAdjacent = isOpening || (prev && (b.start - (prev.start + prev.dur)) <= ADJ_GAP);
+        const toAdjacent = next && (next.start - (b.start + b.dur)) <= ADJ_GAP;
+        // SCRIM SEMPRE INSTANT-ON: cobre o avatar em 100% durante toda a janela do clip.
+        // (segurar via GSAP nao funcionava: o HyperFrames corta o clip no fim do data-duration,
+        // deixando o proximo fade-in transparente e vazando o rosto por ~0.2s.)
+        gsap.set(scrim, { opacity: 1 });
+        if (fromAdjacent) {
+          gsap.set(card, { opacity: 1, scale: 1 });
+        } else {
+          gsap.set(card, { opacity: 0, scale: 0.985 });
+          tl.to(card, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, b.start + 0.02);
+        }
+        gsap.set(tag, { opacity: 0, y: 10 });
+        tl.to(tag, { opacity: 1, y: 0, duration: 0.32, ease: "power2.out" }, b.start + 0.12);
+        const out = b.start + b.dur;
+        if (toAdjacent) {
+          // proximo insert cobre no hard-cut: so tira a tag; scrim/card somem pelo fim do clip window
+          tl.to(tag, { opacity: 0, duration: 0.2, ease: "power1.in" }, out - 0.18);
+        } else {
+          // volta pro avatar: fade out limpo do broll inteiro
+          tl.to([scrim, card, tag], { opacity: 0, duration: 0.24, ease: "power1.in" }, out - 0.24);
+        }
+      });
+
+      // ===== LOWER THIRD removido (sem selo/bolinha do apresentador) =====
+
+      // ===== CAPTIONS =====
+      // ===== CAPTIONS (data-driven): le o #caps injetado pelo build_timeline =====
+      // Cada .cgrp tem data-g-start/data-g-end; cada .cw tem data-w-start/data-w-end.
+      // O #caps e as legendas sao HTML estatico injetado no marcador de captions do body.
+      document.querySelectorAll("#caps .cgrp").forEach(function (grp) {
+        var gStart = parseFloat(grp.dataset.gStart);
+        var gEnd = parseFloat(grp.dataset.gEnd);
+        grp.style.cssText = "opacity:0;visibility:hidden;";
+        tl.set(grp, { visibility: "visible" }, gStart);
+        tl.to(grp, { opacity: 1, duration: 0.12, ease: "power1.out" }, gStart);
+        grp.querySelectorAll(".cw").forEach(function (span) {
+          var wStart = parseFloat(span.dataset.wStart);
+          var wEnd = parseFloat(span.dataset.wEnd);
+          // dwell minimo: abaixo de 0,34s o realce vira estrobo em palavra funcional
+          if (!(wEnd > wStart + 0.34)) { wEnd = wStart + 0.34; }
+          // PREENCHIMENTO LINEAR (29/08/2026). O salto vertical saiu por ordem do
+          // Julio. A camada `fill` e revelada da esquerda pra direita durante a fala da
+          // palavra, com `ease: "none"` porque ele pediu LINEAR: qualquer easing faz a
+          // cor acelerar e desacelerar, que e exatamente o "zoado" que ele descreveu.
+          // A varredura dura o tempo REAL da palavra (nao um valor fixo), entao ela
+          // acompanha a fala em vez de correr na frente.
+          // Nada de `y`, `scale` nem `filter`: a palavra nao se move, nao cresce e nao
+          // empurra a vizinha. Foi movimento de palavra que gerou as tres reprovacoes
+          // anteriores.
+          var _fill = span.querySelector(".fill");
+          if (_fill) {
+            gsap.set(_fill, { clipPath: "inset(0 100% 0 0)" });
+            tl.to(_fill, { clipPath: "inset(0 0% 0 0)",
+                           duration: Math.max(wEnd - wStart, 0.12),
+                           ease: "none", overwrite: "auto" }, wStart);
+          }
+        });
+        // fade-out termina EXATAMENTE em gEnd (antes era gEnd-0.06 + 0.16s = gEnd+0.10,
+        // vazava por cima do fade-in do proximo grupo e empilhava duas legendas)
+        tl.to(grp, { opacity: 0, duration: 0.1, ease: "power1.in" }, gEnd - 0.1);
+        tl.set(grp, { opacity: 0, visibility: "hidden" }, gEnd);
+      });
+
+      // ===== MID LETTERINGS (data-driven): le os .lett injetados pelo build_timeline =====
+      // Cada .lett.clip tem data-start/data-duration.
+      document.querySelectorAll(".lett.clip").forEach(function (el) {
+        var at = parseFloat(el.dataset.start);
+        var dur = parseFloat(el.dataset.duration);
+        var lead = el.querySelector(".lead");
+        var key = el.querySelector(".key");
+        gsap.set(el, { opacity: 0 });
+        if (lead) gsap.set(lead, { opacity: 0, y: 16 });
+        if (key) gsap.set(key, { opacity: 0, y: 22 });
+        tl.to(el, { opacity: 1, duration: 0.25 }, at);
+        if (lead) tl.to(lead, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, at + 0.05);
+        if (key) tl.to(key, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, at + 0.18);
+        tl.to(el, { opacity: 0, duration: 0.3, ease: "power1.in" }, at + dur - 0.3);
+      });
+
+      // ===== CTA =====
+      gsap.set("#cta", { opacity: 0 });
+      gsap.set("#cta .lead", { opacity: 0, y: 14 });
+      gsap.set("#cta-pill", { opacity: 0, y: 16 });
+      tl.to("#cta", { opacity: 1, duration: 0.35 }, 50.5);
+      tl.to("#cta .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 50.6);
+      tl.to("#cta-pill", { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 50.75);
+      tl.to("#cta-arrow", { y: 14, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 4 }, 51.0);
+
+      // ===== BEAT PRETO E BRANCO (manifesto "voce esta usando so 1% da capacidade") =====
+      // Dessatura o avatar via CSS var --bw (grayscale). Sobe no "1%" (~28.9s), segura, volta ao normal.
+      gsap.set("#a-roll", { "--bw": 0 });
+      tl.to("#a-roll", { "--bw": 1, duration: 0.35, ease: "power2.out" }, 28.5);
+      tl.to("#a-roll", { "--bw": 0, duration: 0.45, ease: "power2.in" }, 30.15);
+
+      // ===== LOGO DO EVENTO: fade-in no bloco TIMES DE IA + CTA =====
+      gsap.set("#ev-logo", { xPercent: -50, opacity: 0, y: 18 });
+      tl.to("#ev-logo", { xPercent: -50, opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 46.9);
+
+      window.__timelines["main"] = tl;
+    </script>
+  
+    <script>
+      /* Encolhe o KEY do gancho ate caber em no maximo duas linhas dentro da caixa.
+         Sem isso, texto longo quebra em linhas desbalanceadas e passa da margem. */
+      (function () {
+        function ajustar() {
+          var a = document.querySelector('#hook .accent');
+          if (!a) return;
+          var caixa = a.parentElement.clientWidth || 880;
+          var px = 118;
+          a.style.fontSize = px + 'px';
+          var alturaLinha = 1.02;
+          for (var i = 0; i < 26 && px > 52; i++) {
+            var linhas = Math.round(a.scrollHeight / (px * alturaLinha));
+            if (a.scrollWidth <= caixa && linhas <= 2) break;
+            px -= 4;
+            a.style.fontSize = px + 'px';
+          }
+        }
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', ajustar);
+        else ajustar();
+        document.fonts && document.fonts.ready && document.fonts.ready.then(ajustar);
+      })();
+    </script>
+</body>
+</html>

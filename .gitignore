@@ -1,31 +1,27 @@
-# Segredos e config local (NUNCA versionar)
-.env
-config.yaml
-*.key
-.submagic_key
-google-tokens.json
-google-credentials.json
+# deps
+node_modules/
 
-# Midia e artefatos (pesados)
-output/
-inputs/
-_tmp*/
+# assets reais e material de validacao local (NUNCA versionar)
+# assets reais (avatar, logos de cliente, roteiros) ficam em _local/ ou nos
+# dirs de render, todos ignorados. Nada de asset real na raiz do repo.
+_local/
+render*/
 *.mp4
 *.mov
-*.wav
-*.mp3
-!examples/sample-music-cc0.mp3
 
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-dist/
-build/
+# segredos
+.env
+.env.*
+*.key
 
-# OS
+# saidas de render / temporarios
+renders/
+_tmp*/
+*.enc
 .DS_Store
+
+# excecao: fontes abertas SAO versionadas (OFL/open), sobrescreve o *.png acima nao se aplica a woff2
+!fonts/*.woff2
+
+# arte real de cliente (logo, wordmark): nunca versionar
+assets/

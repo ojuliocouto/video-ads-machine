@@ -1,0 +1,28 @@
+/* PRESET hook/card-kinetico | status: unvalidated | base: sobrescreve #hook por completo em relação ao default (pessoa-lettering.css): sem pessoa visível, fundo escuro sólido, tipografia trocada por Archivo caixa alta pra lettering grande */
+/* Fundo opaco #05060a (mesma cor base do body) cobre o a-roll inteiro, então não precisa
+   esconder o vídeo em outro lugar: o #hook por cima (z-index 44) já tampa tudo. Marca
+   --kinetic:1 em .hook-inner igual à convenção do presets/lettering/kinetic.css, pra o bloco/
+   timeline aplicar uma entrada mais forte (scale + y maior) no .accent. */
+
+#hook {
+  position:absolute; inset:0; z-index:44;
+  background:#05060a;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0 90px;
+}
+
+#hook .hook-inner { margin-top:0; --kinetic:1; }
+
+#hook .eyebrow {
+  font-family:"Inter"; font-weight:400; font-size:28px; letter-spacing:8px;
+  color:rgba(255,255,255,.6); text-transform:uppercase; margin-bottom:22px;
+}
+
+#hook .l1 {
+  font-family:"Inter"; font-weight:300; color:#fff; font-size:64px; line-height:1.08; letter-spacing:-.5px;
+}
+
+#hook .accent {
+  font-family:"Archivo",sans-serif; font-weight:900; font-style:normal; text-transform:uppercase;
+  color:#fff; font-size:132px; line-height:0.98; letter-spacing:-2px;
+  transform-origin:center center;
+}

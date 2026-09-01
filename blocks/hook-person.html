@@ -1,0 +1,61 @@
+<!-- BLOCK: hook-person | params: {{start}}, {{dur}}, {{trackIndex}}, {{EYEBROW}}, {{L1}}, {{ACCENT}} | gsap: fade editorial eyebrow->l1->accent + scale do hook-inner | z-index: 44 -->
+<!--
+  O que é: hook de abertura que abre SOBRE o a-roll (avatar visível), com um scrim radial
+  só pra legibilidade do texto (não uma tela opaca). É o preset "pessoa-lettering" (DEFAULT),
+  validado frame a frame. O texto fica empurrado pro peito (margin-top:150px no
+  .hook-inner) pra não cair em cima do rosto/boca do apresentador.
+
+  Fonte: references/style.md (linhas 27-39) + _local/reelC-reference/index.html
+  (CSS linhas 35-47, HTML linhas 133-139, GSAP linhas 206-213).
+
+  Params:
+    {{start}}      - data-start do clip #hook (no reelC original: 0)
+    {{dur}}        - data-duration do clip #hook (no reelC original: 2.5)
+    {{trackIndex}} - data-track-index (no reelC original: 44, igual ao z-index da camada)
+    {{EYEBROW}}    - texto pequeno acima (ex: "uma skill de"), uppercase via CSS
+    {{L1}}         - primeira linha, peso leve (ex: "criação de")
+    {{ACCENT}}     - palavra de destaque, serif itálico grande (ex: "páginas")
+
+  GSAP (trecho a incluir na timeline principal; offsets são relativos ao {{start}} do clip,
+  no reelC original eram absolutos 0.2/0.42/0.64/0.8 porque o hook começava em t=0):
+    gsap.set("#hook .eyebrow", { opacity: 0, y: 14 });
+    gsap.set("#hook .l1", { opacity: 0, y: 20 });
+    gsap.set("#hook .accent", { opacity: 0, y: 26 });
+    tl.to("#hook .eyebrow", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, {{start}} + 0.2);
+    tl.to("#hook .l1", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, {{start}} + 0.42);
+    tl.to("#hook .accent", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, {{start}} + 0.64);
+    tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, {{start}} + 0.8);
+
+  Gotcha: o bloco `.lett`/lettering e o hook SEMPRE precisam ficar abaixo do queixo (y > 900
+  no canvas 1080x1920), porque o framing do reelC tem boca em ~y820 e queixo em ~y870
+  (ver references/style.md, seção "Âncoras de layout"). Não mexer no margin-top:150px sem
+  reconferir contra essas âncoras.
+
+  Variante (preset, não deste bloco): "tela-preta" troca o background do #hook por um opaco
+  (`radial-gradient(125% 90% at 50% 30%, #12131f, #0a0b14 58%, #05060a)`) e remove o
+  margin-top do .hook-inner (texto centralizado). É o hook ANTIGO, descartado na auditoria,
+  mantido só como opção em presets/hook/tela-preta.css (Task 1.2).
+-->
+<style>
+  #hook { position:absolute; inset:0; z-index:44;
+    background:radial-gradient(115% 34% at 50% 57%, rgba(4,5,10,.80) 0%, rgba(4,5,10,.40) 58%, rgba(4,5,10,0) 88%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; padding:0 100px; }
+  #hook .eyebrow { font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:8px;
+    color:rgba(255,255,255,.7); text-transform:uppercase; margin-bottom:26px;
+    text-shadow:0 2px 14px rgba(0,0,0,.65); }
+  #hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;
+    font-size:72px; line-height:1.06; letter-spacing:-.5px;
+    text-shadow:0 3px 22px rgba(0,0,0,.6); }
+  #hook .accent { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;
+    color:#fff; font-size:118px; line-height:1.0; letter-spacing:-1px;
+    text-shadow:0 8px 34px rgba(0,0,0,.5); }
+</style>
+
+<div id="hook" class="clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}">
+  <div class="hook-inner" style="display:flex;flex-direction:column;align-items:center;margin-top:150px;">
+    <div class="eyebrow">{{EYEBROW}}</div>
+    <div class="l1">{{L1}}</div>
+    <div class="accent">{{ACCENT}}</div>
+  </div>
+</div>

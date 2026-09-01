@@ -1,0 +1,28 @@
+/* PRESET lettering/kinetic | status: unvalidated | base: idêntico ao default (serif-editorial.css) em tipografia; só adiciona a marca --kinetic:1 em .lett pra sinalizar uma entrada GSAP mais forte */
+/* Mesma fonte serifada do default (não muda o visual estático). A diferença é o marcador
+   --kinetic:1, que o bloco/timeline (lettering-leadkey.html ou build_timeline.py) deve ler pra
+   trocar o reveal padrão (y22 dur 0.5) por algo mais forte: sugestão y:44 + scale 0.9->1
+   dur 0.62 ease "back.out(1.6)" na .key, mantendo o .lead como está. */
+
+.lett {
+  position:absolute; inset:0; z-index:34; pointer-events:none;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  gap:6px; padding:0 100px 620px;
+  background:radial-gradient(58% 18% at 50% 66%, rgba(0,0,0,.5), transparent 74%);
+  --kinetic:1;
+}
+
+.lett .lead {
+  font-family:"Inter"; font-weight:400; font-size:28px; letter-spacing:6px;
+  color:rgba(255,255,255,.62); text-transform:uppercase; margin-bottom:12px;
+  text-shadow:0 2px 12px rgba(0,0,0,.6);
+}
+
+.lett .key {
+  font-family:"Playfair Display",serif; font-weight:600; font-style:italic;
+  font-size:88px; line-height:1.04; letter-spacing:-.5px; text-align:center; color:#fff;
+  text-shadow:0 6px 30px rgba(0,0,0,.55);
+  transform-origin:center bottom;
+}
+
+#lettB .key { font-size:104px; letter-spacing:-1px; }

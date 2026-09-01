@@ -1,0 +1,28 @@
+/* PRESET endcard/cta-logo-rodape | status: validated | base: nenhuma, é o default, extração fiel do reel de referência v7 (validado frame a frame) */
+/* Fonte: references/style.md e _local/reelC-reference/index.html.
+   GOTCHA CRÍTICO: #ev-logo usa left:50% + GSAP xPercent:-50 pra centralizar. NUNCA usar
+   transform:translateX(-50%) no CSS aqui: o GSAP "y" do fade-in sobrescreve o transform inteiro
+   e a logo descentraliza/estica gigante. Foi o bug que quebrou o v6, não repetir. */
+
+#ev-logo {
+  position:absolute; bottom:90px; left:50%; width:600px; height:auto; z-index:48;
+  filter:drop-shadow(0 8px 30px rgba(0,0,0,.55));
+}
+
+#cta {
+  position:absolute; left:0; right:0; bottom:520px; z-index:46;
+  display:flex; flex-direction:column; align-items:center; gap:30px;
+}
+
+#cta .lead {
+  font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:6px;
+  color:rgba(255,255,255,.62); text-transform:uppercase; text-shadow:0 2px 12px rgba(0,0,0,.6);
+}
+
+#cta .pill {
+  padding:26px 64px; border-radius:100px; background:rgba(255,255,255,.06);
+  border:1.5px solid rgba(255,255,255,.38); color:#fff; font-family:"Inter"; font-weight:500;
+  font-size:46px; letter-spacing:2px; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4);
+}
+
+#cta .arrow { font-size:58px; color:rgba(255,255,255,.6); }

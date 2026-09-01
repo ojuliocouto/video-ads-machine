@@ -1,0 +1,19 @@
+/* PRESET caption/montserrat-grossa | status: validated | base: nenhuma, é o default, extração fiel do reel de referência v7 (validado frame a frame) */
+/* Fonte: references/style.md e _local/reelC-reference/index.html. Word-by-word, agrupada em .cgrp. */
+
+#caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
+
+#caps .cgrp {
+  position:absolute; left:0; right:0; bottom:330px; padding:0 130px;
+  display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 14px;
+}
+
+#caps .cw {
+  font-family:"Montserrat"; font-weight:600; font-size:60px; color:#fff;
+  letter-spacing:.2px; line-height:1.3; text-shadow:0 2px 8px rgba(0,0,0,.55);
+}
+
+#caps .cw.kw {
+  font-family:"Playfair Display",serif; font-weight:600; font-style:italic;
+  font-size:66px; letter-spacing:0; color:#fff;
+}

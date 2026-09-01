@@ -1,0 +1,60 @@
+<!-- BLOCK: lettering-leadkey | params: {{id}}, {{start}}, {{dur}}, {{trackIndex}}, {{LEAD}}, {{KEY}} | gsap: helper lettReveal(id, at, dur) | z-index: 34 -->
+<!--
+  O que é: lettering de 2 linhas (lead pequeno uppercase + key grande serif itálico),
+  ancorado na faixa do PEITO do apresentador (nunca no rosto/boca). Preset
+  "serif-editorial" (DEFAULT). No reelC existem 3 instâncias (lettB, lettC, lettD); este
+  bloco é o template genérico de uma instância, parametrizado por {{id}}.
+
+  Fonte: references/style.md (linhas 68-76) + _local/reelC-reference/index.html
+  (CSS linhas 82-94, HTML linhas 173-189, GSAP linhas 280-293).
+
+  Params:
+    {{id}}         - id da instância (ex: "lettC", "lettD")
+    {{start}}      - data-start do clip (ex reelC lettC: 32.9)
+    {{dur}}        - data-duration do clip (ex reelC lettC: 2.6)
+    {{trackIndex}} - data-track-index (reelC usa 32/33/34 pras 3 instâncias, sequencial)
+    {{LEAD}}       - linha pequena uppercase (ex: "colocar o claude pra")
+    {{KEY}}        - linha grande serif itálico (ex: "trabalhar<br>por você"); pode conter
+                     um `<br>` literal quando a frase precisa quebrar em 2 linhas (o reelC
+                     faz isso em lettC: "trabalhar<br>por você")
+
+  GSAP (helper verbatim do reelC; chamar 1x por instância com o id, o `at` = {{start}} e a
+  `dur` = {{dur}}):
+    function lettReveal(id, at, dur) {
+      const el = "#" + id;
+      gsap.set(el, { opacity: 0 });
+      gsap.set(el + " .lead", { opacity: 0, y: 16 });
+      gsap.set(el + " .key",  { opacity: 0, y: 22 });
+      tl.to(el, { opacity: 1, duration: 0.25 }, at);
+      tl.to(el + " .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, at + 0.05);
+      tl.to(el + " .key",  { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, at + 0.18);
+      tl.to(el, { opacity: 0, duration: 0.3, ease: "power1.in" }, at + dur - 0.3);
+    }
+    lettReveal("{{id}}", {{start}}, {{dur}});
+
+  Gotcha: bloco fica abaixo do queixo (padding-bottom:620px empurra o texto pra baixo,
+  texto cai em y~1120-1300 no canvas 1080x1920). Ver references/style.md "Âncoras de
+  layout": boca ~y820, queixo ~y870, então nunca subir esse padding-bottom sem reconferir.
+  Override opcional (visto no reelC só na instância "1%", ver bloco stat-countup.html pra
+  esse caso específico): `#lettB .key { font-size:104px; letter-spacing:-1px; }` faz o key
+  maior que o padrão 88px. Esse bloco genérico usa o padrão 88px; se uma instância precisar
+  do tamanho maior, adicionar um seletor por id igual ao do reelC (não inventar um novo
+  número: 104px/-1px é o único valor grande validado na fonte).
+-->
+<style>
+  .lett { position:absolute; inset:0; z-index:34; pointer-events:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    gap:6px; padding:0 100px 620px;
+    background:radial-gradient(58% 18% at 50% 66%, rgba(0,0,0,.5), transparent 74%); }
+  .lett .lead { font-family:"Inter"; font-weight:400; font-size:28px; letter-spacing:6px;
+    color:rgba(255,255,255,.62); text-transform:uppercase; margin-bottom:12px;
+    text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  .lett .key { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;
+    font-size:88px; line-height:1.04; letter-spacing:-.5px; text-align:center; color:#fff;
+    text-shadow:0 6px 30px rgba(0,0,0,.55); }
+</style>
+
+<div id="{{id}}" class="lett clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}">
+  <div class="lead">{{LEAD}}</div>
+  <div class="key">{{KEY}}</div>
+</div>

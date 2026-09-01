@@ -1,0 +1,11 @@
+/* PRESET endcard/logo-fullscreen | status: unvalidated | base: sobrescreve #ev-logo (maior, centralizado vertical e horizontalmente) e esconde #cta por completo em relação ao default (cta-logo-rodape.css): logo grande, sem pill de CTA */
+/* MESMO GOTCHA do default se aplica aqui: #ev-logo precisa de left:50% + top:50% no CSS e
+   GSAP xPercent:-50 + yPercent:-50 pra centralizar (nunca transform:translate no CSS, senão o
+   fade-in com y sobrescreve o transform e a logo descentraliza/estica). */
+
+#ev-logo {
+  position:absolute; top:50%; left:50%; width:860px; height:auto; z-index:48;
+  filter:drop-shadow(0 10px 40px rgba(0,0,0,.6));
+}
+
+#cta { display:none; }

@@ -1,0 +1,28 @@
+/* PRESET hook/tela-preta | status: unvalidated | base: sobrescreve o background de #hook e remove o margin-top de .hook-inner do default (pessoa-lettering.css); tipografia (.eyebrow/.l1/.accent) mantida igual */
+/* É o hook ANTIGO do reelC (documentado em style.md linha 39): background opaco, sem a pessoa
+   visível atrás, texto centralizado (sem empurrar pro peito). Foi descartado na
+   revisão do reelC v7, mantido aqui só como opção disponível no sistema de presets. */
+
+#hook {
+  position:absolute; inset:0; z-index:44;
+  background:radial-gradient(125% 90% at 50% 30%, #12131f, #0a0b14 58%, #05060a);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0 100px;
+}
+
+#hook .hook-inner { margin-top:0; }
+
+#hook .eyebrow {
+  font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:8px;
+  color:rgba(255,255,255,.7); text-transform:uppercase; margin-bottom:26px;
+  text-shadow:0 2px 14px rgba(0,0,0,.65);
+}
+
+#hook .l1 {
+  font-family:"Inter"; font-weight:300; color:#fff; font-size:72px; line-height:1.06;
+  letter-spacing:-.5px; text-shadow:0 3px 22px rgba(0,0,0,.6);
+}
+
+#hook .accent {
+  font-family:"Playfair Display", serif; font-weight:600; font-style:italic; color:#fff;
+  font-size:118px; line-height:1.0; letter-spacing:-1px; text-shadow:0 8px 34px rgba(0,0,0,.5);
+}

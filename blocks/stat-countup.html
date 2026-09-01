@@ -1,0 +1,69 @@
+<!-- BLOCK: stat-countup | params: {{id}}, {{start}}, {{dur}}, {{trackIndex}}, {{LEAD}}, {{TARGET}}, {{SUFFIX}} | gsap: lettReveal (herdado) + count-up numérico NOVO (proxy 0->{{TARGET}}) | z-index: 34 -->
+<!--
+  O que é: BLOCO NOVO (não existe assim no reelC v7). Deriva do lettering "1%" do reelC
+  (instância `lettB`: "você usa só / 1%"), reaproveitando 100% do CSS/estrutura validados
+  de lettering-leadkey.html, incluindo o override de tamanho maior que o reelC aplicava
+  só nessa instância (`#lettB .key { font-size:104px; letter-spacing:-1px; }`, ver
+  references/style.md linha 74). A diferença: em vez de o número aparecer estático
+  ("1%" já pronto), ele CONTA de 0 até o alvo via GSAP, sincronizado com o reveal do `.key`.
+
+  Fonte do CSS/estrutura base: references/style.md (linhas 68-76) +
+  _local/reelC-reference/index.html (CSS linhas 82-94, HTML linhas 173-177, GSAP linhas
+  280-293, especificamente a instância lettB). O count-up em si é autoral (novo), pedido
+  explicitamente pela Task 1.1 do PLAN.md.
+
+  Params:
+    {{id}}         - id da instância (ex: "stat1")
+    {{start}}      - data-start do clip (mesma lógica de {{start}} do lettering-leadkey)
+    {{dur}}        - data-duration do clip
+    {{trackIndex}} - data-track-index
+    {{LEAD}}       - linha pequena uppercase (ex: "você usa só", igual ao lettB original)
+    {{TARGET}}     - valor numérico final do count-up (ex: 97). Não vem da fonte: é
+                     parâmetro de conteúdo do roteiro, preenchido pelo build_timeline.py.
+    {{SUFFIX}}     - sufixo fixo ao lado do número (ex: "%"), não conta, só é concatenado
+
+  GSAP (parte herdada do lettReveal, verbatim do reelC, adaptando o alvo pro `.key` inteiro):
+    gsap.set("#{{id}}", { opacity: 0 });
+    gsap.set("#{{id}} .lead", { opacity: 0, y: 16 });
+    gsap.set("#{{id}} .key",  { opacity: 0, y: 22 });
+    tl.to("#{{id}}", { opacity: 1, duration: 0.25 }, {{start}});
+    tl.to("#{{id}} .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, {{start}} + 0.05);
+    tl.to("#{{id}} .key",  { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, {{start}} + 0.18);
+    tl.to("#{{id}}", { opacity: 0, duration: 0.3, ease: "power1.in" }, {{start}} + {{dur}} - 0.3);
+
+  GSAP NOVO (count-up numérico, NÃO existe no reelC; roda em paralelo ao reveal do .key,
+  mesmo offset/duração pra terminar de contar junto com o fade-in do texto):
+    const {{id}}Counter = { val: 0 };
+    const {{id}}NumEl = document.getElementById("{{id}}-num");
+    tl.to({{id}}Counter, {
+      val: {{TARGET}},
+      duration: 0.5,
+      ease: "power2.out",
+      onUpdate: function () { {{id}}NumEl.textContent = Math.round({{id}}Counter.val); }
+    }, {{start}} + 0.18);
+
+  Gotcha: mesma âncora de layout do lettering-leadkey.html (bloco cai abaixo do queixo,
+  y~1120-1300 no canvas 1080x1920). O `.stat .key` usa o override 104px/-1px porque é
+  o único valor "grande" validado na fonte (era exclusivo da instância lettB no reelC);
+  não inventar um terceiro tamanho.
+-->
+<style>
+  .lett { position:absolute; inset:0; z-index:34; pointer-events:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    gap:6px; padding:0 100px 620px;
+    background:radial-gradient(58% 18% at 50% 66%, rgba(0,0,0,.5), transparent 74%); }
+  .lett .lead { font-family:"Inter"; font-weight:400; font-size:28px; letter-spacing:6px;
+    color:rgba(255,255,255,.62); text-transform:uppercase; margin-bottom:12px;
+    text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  .lett .key { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;
+    font-size:88px; line-height:1.04; letter-spacing:-.5px; text-align:center; color:#fff;
+    text-shadow:0 6px 30px rgba(0,0,0,.55); }
+  /* override extraído da instância #lettB do reelC (a "1%"), reaproveitado aqui como
+     modificador reutilizável em vez de amarrado a um id fixo */
+  .lett.stat .key { font-size:104px; letter-spacing:-1px; }
+</style>
+
+<div id="{{id}}" class="lett stat clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}">
+  <div class="lead">{{LEAD}}</div>
+  <div class="key"><span class="stat-num" id="{{id}}-num">0</span>{{SUFFIX}}</div>
+</div>

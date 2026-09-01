@@ -1,0 +1,14 @@
+/* PRESET grade/frio-teal | status: unvalidated | base: sobrescreve #grade e #vignette do default (quente.css): troca a paleta laranja/quente por teal/frio, vinheta puxando pra azul escuro */
+
+#grade {
+  position:absolute; inset:0; z-index:20; pointer-events:none;
+  background:
+    radial-gradient(130% 100% at 50% 22%, rgba(90,190,190,0.14), rgba(40,120,140,0.06) 45%, transparent 72%),
+    linear-gradient(180deg, rgba(60,150,160,0.06) 0%, transparent 38%, rgba(5,18,20,0.20) 100%);
+  mix-blend-mode: soft-light;
+}
+
+#vignette {
+  position:absolute; inset:0; z-index:21; pointer-events:none;
+  background: radial-gradient(80% 74% at 50% 42%, transparent 48%, rgba(0,10,14,0.36) 100%);
+}

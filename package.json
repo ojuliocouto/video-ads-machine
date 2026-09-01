@@ -1,0 +1,15 @@
+{
+  "name": "video-ads-machine-2",
+  "version": "0.1.0",
+  "description": "HyperFrames-based engine for editorial reels and video ads (9:16), with a preset system for caption/lettering/transition/grade/hook/end-card styles.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "lint": "hyperframes lint",
+    "render": "hyperframes render --video-frame-format png"
+  },
+  "dependencies": {
+    "hyperframes": "0.7.56"
+  }
+}

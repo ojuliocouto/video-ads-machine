@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="pt" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* Tipografia editorial embutida (offline, sem Google Fonts):
+         corpo Inter leve (300-600), destaque Playfair Display Italic. woff2 latinos em fonts/. */
+      @font-face { font-family:"Inter"; font-weight:300; font-style:normal; font-display:block; src:url("fonts/inter-300.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/inter-400.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/inter-600.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:700; font-style:normal; font-display:block; src:url("fonts/inter-700.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:800; font-style:normal; font-display:block; src:url("fonts/inter-800.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:500; font-style:italic; font-display:block; src:url("fonts/playfair-italic-500.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:600; font-style:italic; font-display:block; src:url("fonts/playfair-italic-600.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:700; font-style:italic; font-display:block; src:url("fonts/playfair-italic-700.woff2") format("woff2"); }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1080px; height:1920px; overflow:hidden; background:#05060a; }
+      @font-face { font-family:"Montserrat"; font-weight:500; font-style:normal; font-display:block; src:url("fonts/montserrat-500.woff2") format("woff2"); }
+      @font-face { font-family:"Montserrat"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/montserrat-600.woff2") format("woff2"); }
+      body { font-family:"Inter", sans-serif; font-weight:300; }
+
+      #a-roll { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:grayscale(var(--bw,0)); }
+
+      /* ---------- GRADE QUENTE CINEMATOGRAFICA (acima da imagem, abaixo do texto z<34) ---------- */
+      #grade { position:absolute; inset:0; z-index:20; pointer-events:none;
+        background:
+          radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%),
+          linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%);
+        mix-blend-mode: soft-light; }
+      #vignette { position:absolute; inset:0; z-index:21; pointer-events:none;
+        background: radial-gradient(80% 74% at 50% 42%, transparent 50%, rgba(0,0,0,0.32) 100%); }
+
+      /* ---------- OPENING HOOK (editorial) ---------- */
+      /* hook agora abre SOBRE a pessoa (a-roll), so um scrim pra legibilidade */
+      /* text-align:center e o conserto do defeito que o Julio pegou em 12/08: o bloco
+         estava centrado como CAIXA, mas o texto dentro dele saia alinhado a esquerda.
+         Com KEY de uma linha ninguem via; com duas linhas ficava torto.
+         O scrim tambem subiu de opacidade: o KEY branco caia sobre a camiseta do
+         Thales, que e meio-tom, e sumia. */
+      #hook { position:absolute; inset:0; z-index:44;
+        /* Auditoria 12/08: .92 esmagava o avatar (YAVG 38 vs 50 do resto) e o PRIMEIRO
+           frame, que vira o poster no feed, era o mais escuro do anuncio. O lettering
+           segue legivel com o miolo em .66 porque o look estudio_verde ja e escuro. */
+        background:radial-gradient(120% 42% at 50% 60%, rgba(4,5,10,.66) 0%, rgba(4,5,10,.44) 52%, rgba(4,5,10,0) 88%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        /* O HOOK NAO E `.lett` (27/08/2026). Subi o padding lateral de todas as
+           variantes de `.lett` de 90 pra 140px pra sair da coluna de botoes do Reels e
+           NAO OLHEI PRA CA: `#hook` e um elemento proprio, com padding proprio, e ficou
+           em 100px. O estrategista mediu a tinta chegando em x=1020 de t=0,00 a 2,10s,
+           com ate 4.756 pixels a direita de x=940, que e onde o app desenha curtir e
+           comentar. A linha que estoura e "COM CARA DE I.A", que e o gancho inteiro do
+           anuncio, e ela chega decapitada nos 2 segundos que decidem o scroll.
+           Enesima vez do mesmo erro no mesmo dia: eu emendo o que a busca acha. */
+        text-align:center; gap:4px; padding:0 160px; }
+      #hook .eyebrow { font-family:"Inter"; font-weight:500; font-size:30px; letter-spacing:8px;
+        color:rgba(255,255,255,.94); text-transform:uppercase; margin-bottom:34px;
+        text-shadow:0 2px 16px rgba(0,0,0,.9); }
+      #hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;
+        font-size:72px; line-height:1.06; letter-spacing:-.5px;
+        text-shadow:0 3px 22px rgba(0,0,0,.6); }
+      #hook .accent { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:600; font-style:italic;
+        color:#fff; font-size:104px; line-height:1.02; letter-spacing:-1px;
+        text-wrap:balance; text-shadow:0 8px 34px rgba(0,0,0,.5); }
+
+      /* ---------- GRID WIPE ---------- */
+      #grid-pixelate-overlay { position:absolute; inset:0; z-index:60; pointer-events:none; display:grid; }
+      /* celula do wipe no ROXO do cenario (18/08/2026): em #05060a o pico do wipe
+         media 0,3s de tela PRETA (blackdetect pegou 4 por ad) e tela preta e
+         reclamacao registrada do Julio (12/08). Tingida, le como pixelate. */
+      #grid-pixelate-overlay .grid-cell { background:#191129; transform-origin:center center; }
+
+      /* ---------- B-ROLL scrim + card (neutralizado) ---------- */
+      .broll-scrim { position:absolute; inset:0; z-index:12;
+        background:radial-gradient(120% 80% at 50% 42%, #14151f 0%, #0a0b12 55%, #05060a 100%); }
+      .broll-scrim::after { content:""; position:absolute; inset:0;
+        background:radial-gradient(62% 34% at 50% 40%, rgba(255,255,255,.06), transparent 72%); }
+      .broll-vid { position:absolute; left:36px; width:1008px; top:452px; height:700px; z-index:14;
+        border-radius:24px; object-fit:contain; background:#0b0d14;
+        border:1.5px solid rgba(255,255,255,.16);
+        box-shadow:0 30px 90px rgba(0,0,0,.6); }
+      /* PILULA DE LABEL: REMOVIDA (28/08/2026, ordem do Julio depois do print,
+         "esses itens aqui tem muito cara de ia").
+         Eram tres tells empilhados num elemento so:
+           1. o ponto ambar com brilho, imitando indicador de ao vivo/gravando, sem
+              nunca indicar coisa nenhuma;
+           2. a moldura (raio 100px, fundo translúcido, backdrop-filter, borda branca
+              fina), que e o chip de landing page de produto de IA;
+           3. a copy: dos 76 labels do ads_v2_configs, dois tercos NARRAVAM o que ja
+              estava na tela ("claude trabalhando" sobre um video do Claude
+              trabalhando, "dashboard pronto" sobre um dashboard).
+         O terceiro e o que nao tinha conserto de estilo: rotulo que descreve o visivel
+         nao acrescenta informacao, so denuncia quem escreveu. Editor rotula o que NAO
+         da pra ver (fonte, data, numero). Sem a pilula o insert fala sozinho, que e a
+         ordem antiga do Julio sobre asset: "o video todo que aparece e o que precisa".
+         O `labels` do config continua sendo lido (nomeia o broll no json de debug), so
+         nao vira elemento na tela. */
+      .broll-tag { display:none; }
+
+      /* ---------- LOWER THIRD (TOP) ---------- */
+      #lt { position:absolute; left:60px; top:270px; z-index:40;
+        display:flex; align-items:center; gap:20px;
+        padding:18px 36px 18px 20px; border-radius:22px;
+        background:rgba(12,13,20,.6); border:1px solid rgba(255,255,255,.14);
+        box-shadow:0 20px 50px rgba(0,0,0,.45); backdrop-filter:blur(8px); }
+      #lt .ava { width:70px; height:70px; border-radius:50%;
+        background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.28); display:flex; align-items:center;
+        justify-content:center; font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-style:italic; font-weight:600; font-size:38px; color:#fff; }
+      #lt .name { font-family:"Inter"; font-weight:600; font-size:46px; color:#fff; line-height:1; letter-spacing:.2px; }
+      #lt .role { font-family:"Inter"; font-weight:400; font-size:28px; color:rgba(255,255,255,.62); margin-top:8px; }
+
+      /* ---------- MID LETTERINGS (editorial) ---------- */
+      /* letterings ancorados na faixa do PEITO (nao no centro/rosto) pra nao cair na boca */
+      /* O scrim era .5 e a faixa pequena: por cima de gravacao de tela CLARA o KEY
+         sumia (o Julio: "o lettering dos passos nem aparece direito"). Faixa maior,
+         mais opaca, e o LEAD saiu de 62% pra 92% de branco. */
+      /* CHIP flutuante (18/08/2026, item 3 do brief: "elementos chamativos que
+         aparecem para prender atencao"). Pilula com a palavra-chave da fala nos vaos
+         longos de avatar sem insert (REF-03 usa chips de UI perto da cabeca). Posicao
+         alta a direita: acima do rosto (y~440+), abaixo da UI do Reels (~250). */
+      /* CHIP: REMOVIDO (29/08/2026, segunda ordem do Julio sobre o mesmo assunto).
+         Ele mandou o print de "• DEMORA" no canto e perguntou: "eu nao tinha pedido pra
+         tirar esse tipo de coisa?". Tinha. Na primeira vez eu matei so o `.broll-tag` e
+         declarei resolvido; o `.chip` e outro elemento com a MESMA linguagem e passou.
+         Os tres tells, os mesmos do outro: pilula com borda branca fina, pontinho
+         colorido fingindo status (nunca indicou nada), e texto que repete em caixa alta
+         uma palavra que o apresentador acabou de dizer, ou seja legenda a propria fala
+         com outro nome.
+         A regra que fica: enfeite que nao carrega informacao que a tela ainda nao tem
+         nao entra. */
+      .chip, .chip .dot { display:none; }
+      /* DESCEU E ENCOLHEU (27/08/2026, auditoria do diretor de arte).
+         Eram 560px do rodape, ou seja tinta terminando em y1360, dentro do rosto: em
+         t=72,96s o bloco "TOCA EM / SAIBA MAIS" ocupava y1082-1491 com o labio
+         inferior em y1011, e em t=41,48s o "SEM PAGAR HOSPEDAGEM" cobria 9,76% da
+         caixa do rosto. O conserto de hoje mexeu SO no ramo do split (.lett-split) e
+         deixou este parado: emenda por busca de texto acerta um ramo, pela enesima vez.
+         A faixa livre neste look, em tela cheia, vai do fim da barba (y1420 medido) ao
+         teto da UI do Reels (y1690): 270px. 260px do rodape poe a tinta em y1420-1660.
+         E o padding lateral sobe de 90 pra 140: a tinta chegava em x987 (hook em x1020)
+         e a coluna de curtir/comentar do Reels comeca em x940. */
+      .lett { position:absolute; inset:0; z-index:34; pointer-events:none;
+        display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+        gap:6px; padding:0 170px 260px;
+        /* SCRIM ORFAO, QUINTA VEZ (27/08/2026). Desci o texto desta classe de 560px
+           pra 260px do rodape e recalibrei o degrade de `.lett-split` (54%),
+           `.lett-baixo` (83%) e `.lett-pilha` (76%). A CLASSE BASE ficou com o valor
+           velho, dentro do MESMO commit que consertou os outros ramos.
+           O estrategista mediu o estrago: mancha preta de 628px de altura com alpha
+           229, centro em y1344 enquanto a tinta comeca em y1452, ou seja o ponto mais
+           forte da sombra fica ACIMA do texto, no queixo. Cobre 33,8% da caixa do
+           rosto, tira 44 niveis de luz do peito, e vale por 24,0s dos 90,07s do
+           anuncio, o CTA inteiro incluso. E exatamente a sombra que a Jheni reprovou:
+           "me da panico, deixa esteticamente pobre".
+           Tinta em y1420-1660, centro ~y1540 = 80% da altura. Raio 22% como os irmaos. */
+        /* TELA ESMAECIDA NO LETTERING (28/08/2026, pedido do Julio por audio: "a
+           tela nao fica esmaecida e aparece ali o lettering... o lettering ta
+           frank, sumido, nao tem peso"). O lettering e o PICO: a cena inteira
+           abaixa meio tom e o texto vira o unico foco. Dim solido de tela cheia
+           em vez do radial: o radial era mancha localizada (a que a Jheni ja
+           reprovou quando ficou orfa); dim inteiro le como intencao, igual as
+           referencias CapCut. Alpha 0,55 fica abaixo de 190/255: nem o gate de
+           texto nem o de colisao contam como tinta. */
+        background:rgba(2,3,6,.55); }
+      /* TELA DIVIDIDA: o insert ocupa y0-980 e o Thales y980-1920. O lettering padrao
+         (560px do rodape, ou seja ~y1360) cai bem na altura do rosto dele. Aqui ele desce
+         pro peito/microfone, que e a unica faixa livre entre a tela e a legenda, e o scrim
+         acompanha. Medido no AD21: "SKILLS DO ZERO" estava em cima da cara. */
+      /* RECALIBRADO (26/08/2026). A geometria do comentario acima MORREU no mesmo
+         18/08, quando o split virou 60/40 e a costura desceu de y980 pra y1150. A
+         legenda foi recalibrada naquele dia; o lettering NAO, e ficou oito dias
+         mirando uma tela que nao existia mais. Com o painel do apresentador reduzido
+         a 770px a cabeca ocupa ~85% dele, e os mesmos 190px passaram a pousar no
+         NARIZ e na BOCA: medido no jh13 em t=40,5s, glifos em y1606-1722 dentro do
+         rosto em y1296-1829, 4,6% de cobertura.
+         Passou oito dias despercebido porque o gate tinha um ponto cego criado pelo
+         PROPRIO defeito: texto em cima da cara quebra o detector de rosto, entao
+         quanto pior a colisao, mais certo era o gate aprovar.
+         Agora usa a MESMA faixa que a legenda da costura ja provou segura (glifos em
+         y1792-1853): 40px do rodape com fonte menor, o unico jeito de caber sob o
+         queixo sem entrar na UI do Reels. */
+      .lett.lett-split { padding:0 170px 790px;
+        /* O SCRIM ACOMPANHA O TEXTO (27/08/2026). Subi o lettering pra cima da
+           costura e deixei o degrade em 92% da altura: virou uma mancha preta
+           solta no rodape, longe do texto que ela deveria apoiar. Medido no MOV
+           de overlay: tinta em y937-1120, mancha em y1450-1903. E a mesma sombra
+           que a Jheni ja reprovou ("me da panico, deixa esteticamente pobre"),
+           agora sem nem servir pra nada. 54% e o centro da faixa nova. */
+        background:rgba(2,3,6,.55); }  /* dim de tela inteira, igual a base */
+      .lett.lett-split .key { font-size:62px; line-height:1.10; }
+      .lett.lett-split .lead { font-size:24px; letter-spacing:5px; margin-bottom:10px; }
+      /* mesma faixa do split, mas pra bloco de avatar em CLOSE, onde o queixo desce e o
+         lettering padrao pousa na boca (medido no jh13 aos 27,0s). */
+      /* SAIU DA UI (27/08/2026): 190px punha a tinta terminando em y1730, ou seja
+         DENTRO da faixa que o Reels cobre com botao e descricao. 250px com a fonte da
+         costura (58px) fecha em y1670, sob o queixo e acima do rodape do app. */
+      .lett.lett-baixo { padding:0 170px 250px;
+        background:rgba(2,3,6,.55); }  /* dim de tela inteira, igual a base */
+      .lett.lett-baixo .key { font-size:62px; line-height:1.10; }
+      /* PILHA: lista que acumula. Sans em vez do serif italico porque isto e uma LISTA
+         de itens, nao uma afirmacao unica, e alinhada a esquerda porque item de lista
+         centralizado nao le como lista. Faixa entre o queixo e a legenda. */
+      /* 470px punha a tinta em y1176-1434, ACIMA da faixa nova, e no split as tres
+         linhas caiam dentro do painel do avatar (testa, olhos e nariz, t=60,3s).
+         Quando desci `.lett` de 560 pra 260 eu mexi em tres variantes e deixei
+         esta: quarta vez no mesmo dia que emendo um ramo so. */
+      .lett.lett-pilha { padding:0 170px 250px; align-items:flex-start;
+        background:rgba(2,3,6,.55); }  /* dim de tela inteira, igual a base */
+      /* PILHA DENTRO DE SPLIT (27/08/2026). `.lett.lett-pilha` e `.lett.lett-split`
+         tem a MESMA especificidade (0,0,2,0) e a pilha vem depois, entao ela vencia
+         e usava os 250px do avatar em tela cheia mesmo quando o quadro era split.
+         Sem esta regra, uma pilha que NASCA dentro de um split repete o defeito com
+         o flag certo: o CSS desfaz o conserto do Python. */
+      .lett.lett-split.lett-pilha { padding:0 170px 790px; }
+      .lett.lett-pilha .key { font-family:"Inter"; font-style:normal; font-weight:600;
+        font-size:54px; line-height:1.30; text-align:left; letter-spacing:-.2px;
+        text-shadow:0 4px 22px rgba(0,0,0,.85);
+        /* MARCADOR DE NEGACAO TIPOGRAFICO (19/08/2026). A copy trazia um emoji ❌ por
+           linha, que a Jheni reprovou ("deixa com cara de pobre"). O emoji some por
+           sanitizacao no gerador, mas a lista de dor PRECISA do marcador de negacao,
+           senao vira lista solta. Barra na cor de alerta, desenhada com tipografia,
+           no lugar do pictograma. */
+        padding-left:44px; position:relative; }
+      .lett.lett-pilha .key::before { content:""; position:absolute; left:0; top:26px;
+        width:26px; height:5px; border-radius:3px; background:#ff5a4d;
+        box-shadow:0 2px 10px rgba(0,0,0,.7); }
+      .lett .lead { font-family:"Inter"; font-weight:700; font-size:32px; letter-spacing:6px;
+        color:rgba(255,255,255,.92); text-transform:uppercase; margin-bottom:16px;
+        text-shadow:0 2px 16px rgba(0,0,0,.95); }
+      /* chave longa quebrava com a ultima palavra orfa ("OPERACAO CLAUDE / CODE").
+         Corpo menor a partir de 18 caracteres faz caber na linha. */
+      .lett .key.key-longa { font-size:82px; }
+      /* MAIS PESO (28/08/2026): "a legenda tem mais peso que o lettering". A legenda e
+         Inter 800/80px; o lettering, que e o pico, estava em 600 italico/88px e perdia.
+         Peso 700 + 104px + a tela esmaecida atras invertem a hierarquia. */
+      .lett .key { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:700; font-style:italic;
+        font-size:104px; line-height:1.04; letter-spacing:-.5px; text-align:center; color:#fff;
+        text-shadow:0 6px 30px rgba(0,0,0,.55); }
+
+      /* ---------- CAPTIONS (legenda editorial) ---------- */
+      #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
+      /* Legenda sobre card que ja tem texto proprio: desce pro rodape, senao pousa no
+         paragrafo do card e os dois ficam ilegiveis (medido no AD15 aos 36,8s, a legenda
+         "vendendo" no meio do depoimento do Marco Aurelio). */
+      #caps .cgrp.cgrp-baixa { bottom:330px; }
+      /* TELA DIVIDIDA: nem a posicao padrao (545px, y=1375) nem a baixa (250px, y=1670)
+         servem no split. O painel do apresentador ocupa so a metade de baixo, entao a
+         padrao cai na testa e a baixa cai NA BOCA dele (medido: queixo em y=1673 e a
+         legenda baixa em y=1670). O Julio pediu a legenda "no centro, entre o thales e
+         o insert acima", ou seja, na costura dos dois paineis. Recalibrada em
+         18/08/2026: o split virou 60/40 (costura desceu de y=980 pra y=1150) e a
+         legenda tinha ficado flutuando NO MEIO do insert (gate pegou texto sobre
+         rosto de conteudo em 3 pontos do jh13). Mesmo offset relativo de antes:
+         topo do texto ~55px abaixo da costura. */
+      /* RECALIBRADA de novo (21/08/2026): o conserto do enquadramento do split (rosto
+         inteiro, boca visivel) fez a cabeca ocupar ~85% dos 770px do painel (topo do
+         cabelo na costura, queixo em y~1610). Nao sobra faixa livre NEM em cima (bate
+         na testa, foi o defeito que reprovou o gate) NEM embaixo sem entrar na safe
+         zone do Reels (y>1536). Medido nucleo do rosto (Haar -12%): fundo em y~1560 a
+         1660 dependendo do frame (boca aberta muda a caixa). bottom:90px com padding
+         reduzido poe o texto em y~1675-1822, abaixo do pior caso medido e o mais alto
+         possivel dentro do que ainda cabe no quadro. Ainda dentro da faixa de risco da
+         UI do Reels: CONFERIR NO RENDER se a legenda continua legivel. */
+      /* terceira calibragem (21/08/2026): a segunda (bottom:90, padding 24) ainda
+         colidia numa legenda de DUAS linhas: 2x99px de texto + 48px de padding = 246px
+         de caixa, que sobe alto o bastante pra voltar a encostar no rosto (medido:
+         colisao na boca em t=63s). Fonte menor especifica da costura (58px em vez de
+         76) encolhe a caixa de 2 linhas pra ~199px, com folga real sob o queixo
+         (medido em y~1610 pro look neon_creme; caixa fica entre y~1681 e y~1880). */
+      /* SUBIU PRA CIMA DA COSTURA (27/08/2026). Estava em bottom:40px, tinta em
+         y1796-1841, a 66px do fim do quadro. O Julio: "a legenda ta muito na parte de
+         baixo, no anuncio vai ficar atras do botao e da descricao, nem vai dar pra ler".
+
+         A primeira tentativa foi bottom:230px, e ela estava ERRADA: eu tinha medido o
+         queixo em y~1610 no look neon_creme e apliquei o numero no espuma_roxa sem
+         remedir. Medindo as 11 fatias de split do arquivo ENTREGUE (nao da footage 1x,
+         que roda em outro tempo), o rosto desce ate y=1832 e o enquadramento do painel
+         de baixo e um close: NAO EXISTE faixa livre entre o queixo e o teto da UI da
+         plataforma (y=1690). Qualquer tinta entre y1200 e y1900 cai na cara dele.
+
+         A unica faixa limpa do split e ACIMA DA COSTURA: abaixo do card do mockup
+         (base medida em y=889 a 921 nos assets do jh13) e acima da emenda em y=1150.
+         E, por acaso, o que o nome da classe sempre disse. 790px poe a tinta entre
+         y~967 e y~1106: fora do rosto, fora da UI, e por cima do degrade da emenda,
+         que ainda ajuda o contraste. */
+      #caps .cgrp.cgrp-costura { bottom:790px; padding-top:24px; padding-bottom:24px; }
+      #caps .cgrp.cgrp-costura .cw { font-size:64px; line-height:1.14; }
+      /* padding vertical maior: o degrade precisa de espaco DENTRO da caixa pra chegar
+         em transparente. Com 26px a elipse era cortada e virava retangulo (medido pelo
+         diretor de arte no jh16: degrau de -47 em y=1224 e +99 em y=1375). */
+      #caps .cgrp { position:absolute; left:0; right:0; bottom:475px; padding:96px 130px;
+        /* GAP DE 26px (27/08/2026). A tentativa anterior foi `padding-inline:10px` com
+           `margin-inline:-10px`, e o diretor mostrou que e no-op geometrico: o meu
+           proprio comentario dizia "o gap continua 14px e nada se move", que e
+           exatamente o problema. `transform:scale` acontece em torno do centro do
+           span e a tinta avanca alem da caixa com padding ou sem.
+           A conta: 14px de gap menos o contorno de 0,078em a 80px (3,12px por lado)
+           deixa 7,76px; a palavra em "dizendo" a 1,06 cresce ~7,5px por lado numa
+           palavra de 250px. Sobra 0,26px, e 16 de 63 grupos colavam.
+           26px paga o crescimento com folga e o pico desce junto. */
+        display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 30px;
+        /* gap 26->42 JUNTO com o pico de escala 1,04->1,14 (28/08/2026): o pulo maior
+           come ~11px por lado numa palavra de 320px, e a palavra que assenta ainda
+           esta acima de 1,0 quando a proxima sobe. 26px voltaria a colar palavra,
+           que foi exatamente o defeito de ontem. Mexeu na escala, mexe no gap. */
+        /* scrim junto da sombra: mesmo tratamento que ja funciona no #cta (o unico
+           elemento que a auditoria mediu com contraste bom). Radial que desvanece bem
+           antes da borda pra nao virar retangulo visivel sobre o avatar escuro.
+           A elipse de 44% cobria "Esse aqui é" mas VAZAVA nas frases longas: a
+           auditoria mediu 1,08:1 em "meu editor" e 1,20:1 em "publica", ambas com a
+           palavra caindo fora do scrim, sobre b-roll branco. 68% de largura cobre a
+           linha inteira, e o miolo mais opaco garante o minimo de 3:1. */
+        /* Auditoria 12/08: sobre insert com texto (card do rodape claro, lista do
+           mock) o .80 deixava o texto de tras vazar pelos glifos: 3,8:1 medido, e a
+           palavra "faltava" sumia. Miolo .90 mata o vazamento sem virar tarja. */
+        /* SEM SCRIM (19/08/2026, feedback da Jheni: "essa sombra embaixo me da
+           panico, deixa esteticamente pobre"). O contraste que o scrim garantia
+           passa pro CONTORNO por glifo (paint-order abaixo), estilo CapCut: preto
+           atras do traco, legivel sobre b-roll claro sem mancha na tela. */ }
+      /* LEGENDA RECALIBRADA (26/08/2026). O Julio: "a legenda ta ruim, grosseira,
+         nao ta bonita". Quatro defeitos, todos medidos. A referencia pra corrigir
+         estava na propria maquina e nunca tinha sido usada pelo projeto:
+         ~/.claude/skills/embedded-captions/references/aesthetic-principles.md
+
+         1. O CONTORNO DE 9px SOLDAVA AS LETRAS. Com `paint-order:stroke fill` metade
+            do traco fica pra fora, entao 9px viram 4,5px pra fora por glifo. A folga
+            lateral entre hastes a 76px e de 7 a 9px: os dois lados somavam 9px de tinta
+            no vao e as letras encostavam. E a contraforma do a, do e e do s (8 a 12px)
+            fechava. Isso E o "grosseira, borrada". A regra 3 pede 2 a 3px pra fora, e
+            0.065em a 80px da 5,2px de traco, 2,6px pra fora.
+            (Nao comparar direto com o libass do capcut-ads/estilos.py: la o contorno e
+            SO pra fora, entao os 3.2 de la equivalem a ~6,4px aqui. Nao dividir 2x.)
+
+         2. PESO ERRADO POR FALTA DE @font-face. Inter 700/800 e Archivo 700/800/900 ja
+            estavam em fonts/ sem serem declarados: usava-se o peso mais leve que havia
+            (600) e compensava-se com contorno grosso, o inverso do certo. Medido com
+            fontTools, a troca sai de graca: Inter 800 a 80px ocupa 1.559px de linha
+            contra 1.576px do Montserrat 600 a 76px. Sobe corpo E peso, e a linha fica
+            1% mais CURTA. Nenhuma calibragem de largura muda.
+
+         3. DUAS FAMILIAS NA MESMA LINHA. Regra 5: uma familia, dois pesos no maximo;
+            misturar sans com serif e "o tell amador numero 1". O Playfair sai da legenda
+            e continua no lettering, que e outro nivel hierarquico (a voz da marca).
+
+         4. A ENFASE ERA MENOR QUE O TEXTO, e italica. A regra 8 proibe italico pra
+            enfase (em movimento le como "inclinado", nao "enfatizado") e manda usar
+            peso, cor ou tamanho. Aqui a kw muda UMA propriedade: a cor.
+
+         A SOMBRA CONTINUA FAZENDO O TRABALHO QUE FAZIA. O comentario antigo registrava
+         contraste de 1.18:1 sobre b-roll claro. A sombra dupla nova (contato curto +
+         ambiente largo) e a prioridade 2 da regra 3, e o contorno de 2,6px segue
+         presente: o que sai e o excesso que soldava, nao a protecao.
+
+         GEOMETRIA INTOCADA. `bottom`, `padding` e `position` de .cgrp nao mudam: a folga
+         da costura foi paga com tres calibragens. E line-height de 1.30 pra 1.14 deixa a
+         caixa de duas linhas 15px mais BAIXA, entao o texto fica mais longe do rosto,
+         nunca mais perto. */
+      #caps .cw { font-family:"Inter"; font-weight:800; font-size:80px;
+        color:#F5EFE6; letter-spacing:-0.02em; line-height:1.14;
+        paint-order:stroke fill; -webkit-text-stroke:0.078em rgba(6,7,12,.92);
+        /* HALO POR GLIFO, NAO TARJA (27/08/2026). O diretor mediu contraste de 1,32:1
+           em t=19,5s e 1,46:1 em t=50,5s, contra o minimo de 3:1 pra texto grande: em
+           asset claro o contorno segura a FORMA da letra mas o miolo funde com o fundo
+           e a palavra le como contorno oco. O scrim saiu em 19/08 por ordem da Jheni
+           ("me da panico, deixa esteticamente pobre") e nao volta: `drop-shadow` segue
+           o contorno do glifo, entao escurece so o que encosta na letra, sem retangulo. */
+        /* SOMBRA LEVE (28/08/2026, Julio: "a sombra atras da legenda ta muito
+           preta"). O halo triplo que eu tinha posto pra ganhar contraste virava um
+           blob preto atras de cada palavra (visivel no print do "manual de
+           instrucoes"). CapCut usa contorno + UMA sombra macia; o contorno por glifo
+           (paint-order acima) ja garante a leitura, a sombra so assenta. */
+        filter:drop-shadow(0 4px 12px rgba(0,0,0,.40));
+        text-shadow:0 2px 4px rgba(0,0,0,.35); }
+      /* Enfase por COR, uma propriedade so: terracota da marca, o mesmo tom do
+         sunburst do wordmark. Herda familia, peso, corpo, tracking e contorno.
+         Nao muda de tamanho de proposito: a caixa e ancorada por `bottom`, entao
+         crescer a largura empurraria pra duas linhas e o TOPO subiria pro queixo. */
+      #caps .cw.kw { color:#E87D4E; }
+      /* PREENCHIMENTO LINEAR, NAO SALTO (29/08/2026, Julio por audio: "nao gosto
+         desse estilo onde a legenda sobe, fica pulando... gosto quando e uma cor, vai
+         preenchendo ela, de forma linear").
+         Cada palavra tem duas camadas do MESMO texto, na mesma caixa: `base` apagada e
+         `fill` acesa por cima. O GSAP corta a de cima com `clip-path` da esquerda pra
+         direita, entao a cor entra varrendo a palavra.
+         Historico do que ja foi reprovado aqui, pra nao voltar: escala por palavra
+         (colidia com a vizinha, "paginacompletamente" com 7px de vao), micro-pulo de
+         1,03 ("pulando mas muito pequeno") e salto vertical de 12 a 16px (este pedido).
+         A caixa NAO muda de tamanho em nenhum momento: as duas camadas ocupam o mesmo
+         espaco e so a mascara se move, entao nada reflui e nenhuma palavra empurra a
+         outra. */
+      #caps .cw { position:relative; display:inline-block; }
+      #caps .cw .base, #caps .cw .fill { display:block; }
+      #caps .cw .fill { position:absolute; left:0; top:0; white-space:pre;
+        clip-path:inset(0 100% 0 0); }
+      /* OPACIDADE DA CAMADA APAGADA: 52% -> 70% (29/08/2026, medido no build 32).
+         Com 52% o gate de contraste achou 30 faixas abaixo do piso, contra 9 no build
+         anterior: a palavra AINDA NAO FALADA caia para 3,2:1 sobre fundo escuro. O
+         espectador le a linha inteira, nao so a palavra do momento, entao palavra por
+         vir ilegivel e defeito, nao hierarquia.
+         70% e o meio entre os 52% que reprovaram e os 82% do desenho antigo, que nunca
+         teve reclamacao de leitura. A varredura de 70% para 100% continua visivel: foi
+         conferida no quadro, letra por letra, em "paginas". */
+      #caps .cw .base { color:rgba(245,239,230,.70); }
+      #caps .cw .fill { color:#F5EFE6; }
+      #caps .cw.kw .base { color:rgba(232,125,78,.62); }
+      #caps .cw.kw .fill { color:#E87D4E; }
+      /* sobre insert claro a tinta inverte, e as duas camadas invertem junto */
+      #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.62); }
+      #caps .cgrp-claro .cw .fill { color:#12141A; }
+      #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.62); }
+      #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
+
+      /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026). O grupo ganha `cgrp-claro` do
+         gen_ad_v2 quando o insert daquele trecho tem mediana de luminancia acima de 119,
+         que e onde o contraste de tinta branca cruza o piso de 4,5:1. No build 26 o
+         insert `pip` era um mockup de pagina branca e a legenda branca deu 1,52:1 no
+         quadro entregue, contra 11,7 e 14,3 nos trechos escuros do mesmo anuncio.
+         Por que invertendo a tinta e nao com tarja nem contorno mais grosso:
+           tarja  -> vetada pela Jheni em 19/08 ("me da panico, deixa esteticamente pobre")
+           halo   -> sobre branco o miolo funde com o fundo e a palavra le como contorno
+                     oco; foi o achado do diretor em t=19,5s (1,32:1) que tirou o halo.
+         Escuro sobre pagina branca da ~15:1 e nao muda geometria: mesma familia, peso,
+         corpo, tracking, posicao e animacao. So a cor troca, entao nenhuma calibragem
+         de caixa (que ja custou tres passadas) e mexida. O contorno vira claro pra
+         segurar a leitura quando o mockup tem area de meio-tom. */
+      #caps .cgrp-claro .cw { color:#12141A;
+        -webkit-text-stroke:0.078em rgba(255,255,255,.90);
+        filter:drop-shadow(0 3px 10px rgba(255,255,255,.55));
+        text-shadow:0 2px 4px rgba(255,255,255,.50); }
+      #caps .cgrp-claro .cw.kw { color:#B2431A; }
+      /* DESTAQUE DA PALAVRA FALADA (27/08/2026, pedido do Julio: "um estilo de legenda
+         mais legal, capcutizavel"). Tres estados, que e o que separa karaoke de
+         pisca-pisca: por dizer (0.82), dizendo (1.0 + escala), ja dito (0.90).
+         So `opacity` e `transform` sao animados, nunca a letra em si: transform e
+         pos-layout, entao a linha nao treme e as palavras vizinhas nao se mexem.
+         O piso de 0.82 nao pode baixar: o gate-ad.py conta texto na tela por alpha>190,
+         e abaixo de 0.80 ele para de enxergar a legenda e acusa buraco que nao existe. */
+      /* RESERVA PRA PALAVRA CRESCER (27/08/2026). O `scale` do realce cresce o glifo
+         2,5% (5% na palavra-chave) pra CADA lado alem da caixa de layout, e come o
+         `gap:6px 14px`. Medido no MOV de overlay: "briefing|para" e "uma|entrega" com
+         vao de 2px, "tipo|de" com 5px, contra os 14px declarados. Na tela vira uma
+         palavra so, e os dois auditores contaram 11 e 14 grupos colados
+         ("apublicacao", "manual deinstrucoes", "briefingpara o").
+         O padding da a reserva e o margin negativo devolve o espaco pro layout: o gap
+         continua 14px e nada se move. 10px = 2,5% da palavra mais larga medida
+         ("briefing", 320px de tinta a 80px, 8px por lado, com folga). */
+      /* OPACIDADE CHEIA NA PALAVRA (29/08/2026). Este `.cw` tinha `opacity:.82`, que
+         era o estado "por dizer" do desenho ANTIGO: o GSAP subia pra 1 na palavra ativa
+         e devolvia pra 0,90 depois. Com o preenchimento linear a animacao de opacidade
+         saiu, e o 0,82 do CSS ficou valendo o tempo inteiro: medi o alpha do MOV e o
+         MAXIMO era 210 de 255, ou seja a legenda inteira renderizava a 82%.
+         Efeito colateral que denunciou: o gate de contraste, que mede tinta com alpha
+         cheio, passou a nao achar UMA faixa de legenda no anuncio todo e devolveu
+         "0 faixas" com PASSA. Gate que fica cego e pior que gate que reprova.
+         O apagado agora mora na COR da camada `.base`, nao na opacidade da palavra. */
+      #caps .cw { opacity:1; transform-origin:50% 82%; will-change:transform; }
+      #caps .cw.on  { opacity:1; }
+      #caps .cw.off { opacity:.90; }
+      /* logo da OCC DENTRO do lettering (roteiro: "lettering + logo da occ").
+         Largura menor que a do #ev-logo do fim (500px) pra ler como assinatura do
+         lettering, nao como fechamento do anuncio. */
+      /* 360px de largura dava 96px de altura e o bloco fechava em 409px, contra os
+         270px de faixa livre. A logo do meio e assinatura, nao e o CTA final (esse
+         tem o #ev-logo de 500px): 240px dao 64px e o bloco cabe. */
+      .lett .lett-logo { display:block; width:240px; margin:18px auto 0;
+        filter:drop-shadow(0 4px 10px rgba(0,0,0,.95)) drop-shadow(0 8px 30px rgba(0,0,0,.7)); }
+      /* ---------- LOGO DO EVENTO ---------- */
+      /* logo ABAIXO do bloco de CTA (ver comentario do #cta): antes os dois dividiam
+         bottom:390px e se sobrepunham quando o CTA desceu pra sair do rosto. */
+      #ev-logo { position:absolute; bottom:333px; left:50%;
+        width:500px; height:auto; z-index:48;
+        /* o logo e PNG com fundo transparente e o wordmark e BRANCO: sobre a camiseta
+           clara do apresentador sumia. O scrim do #cta ja desvanece nessa altura, entao o
+           logo leva o proprio fundo: como a arte e transparente, o gradiente aparece
+           atras do wordmark e garante o contraste. */
+        padding:78px 120px; box-sizing:content-box;
+        /* o gradiente TEM que chegar em transparent bem antes da borda da caixa,
+           senao vira um retangulo preto visivel (foi o que aconteceu na 1a tentativa,
+           com raio 128% vertical: o gradiente batia na borda ainda opaco). */
+        background:radial-gradient(ellipse 42% 40% at 50% 50%, rgba(4,5,10,.88) 0%, rgba(4,5,10,.52) 46%, rgba(4,5,10,0) 72%);
+        filter:drop-shadow(0 4px 10px rgba(0,0,0,.95)) drop-shadow(0 8px 30px rgba(0,0,0,.7)); }
+
+
+      /* ---------- CTA (editorial) ---------- */
+      /* POSICAO MEDIDA, e junto com o logo (17/08/2026).
+         Em 700px o bloco caia em y=840..1220, ou seja, na BOCA do apresentador (print do
+         Julio com "saiba mais" atravessado na cara). Na primeira correcao eu desci so o
+         CTA e ele foi parar EM CIMA do #ev-logo, que estava fixo em bottom:390: dois
+         textos empilhados, ambos ilegiveis. Mexer num sem conferir o outro foi o erro.
+         Agora os dois sao posicionados pelo mesmo raciocinio: queixo medido em y~1270,
+         rodape util ate y~1700 (abaixo disso a UI do Reels cobre). Nesses 430px cabem o
+         bloco do CTA (~240px) e o logo (~130px), nessa ordem, sem encostar no rosto. */
+      /* 570 (era 470): sem a seta como filho direto, a coluna do CTA encolheu 100px.
+         Compensar mantem a pill exatamente onde o diretor aprovou (y 1219-1350). */
+      /* SPLIT (26/08/2026): o CTA esta calibrado pro avatar em tela CHEIA. Quando o
+         ultimo bloco e tela dividida, o apresentador vive so em y1150-1920 e os mesmos
+         570px do rodape poem a pilula na TESTA e o logo em cima dos DOIS OLHOS dele
+         (medido pelo diretor de arte no jh13, t=86,5s). Mesma familia de defeito da
+         legenda e do lettering: elemento calibrado pra uma geometria, usado em outra.
+         No split ele desce pra faixa que a legenda da costura ja provou segura. */
+      /* mesma faixa livre da legenda: em split, abaixo da costura e tudo rosto. */
+      #cta.cta-split { bottom:965px; }
+      #cta.cta-split .pill { font-size:52px; }
+      #ev-logo.logo-split { bottom:800px; width:330px; }
+      #cta { position:absolute; left:0; right:0; bottom:570px; z-index:46;
+        display:flex; flex-direction:column; align-items:center; gap:30px; }
+      /* scrim: da contraste pro CTA e pro logo sobre a camiseta clara do apresentador
+         (contraste medido antes: ~1.3:1, ilegivel). Estende pra baixo pra pegar o logo. */
+      #cta::before { content:''; position:absolute; left:-40px; right:-40px;
+        /* PREMISSA MORTA (27/08/2026). O comentario original justificava o -430px
+           com "a camiseta CLARA do apresentador". Neste look ele esta de camiseta
+           PRETA nos 90 segundos, entao o scrim so escurece o fecho do anuncio: o
+           estrategista mediu 380px de preto por baixo do botao no CTA inteiro. */
+        top:-140px; bottom:-160px; z-index:-1; pointer-events:none;
+        background:radial-gradient(64% 48% at 50% 58%, rgba(4,5,10,.80) 0%, rgba(4,5,10,.46) 56%, rgba(4,5,10,0) 84%); }
+      /* seta em CSS puro: o ▼ dependia de um glifo que os subsets de fonte nao
+         trazem. Triangulo por borda renderiza em qualquer fonte. */
+      #cta .pill .arw { width:0; height:0; border-left:26px solid transparent;
+        border-right:26px solid transparent; border-top:30px solid rgba(255,255,255,.92); }
+      #cta .lead { font-family:"Inter"; font-weight:500; font-size:38px; letter-spacing:6px;
+        color:rgba(255,255,255,.92); text-transform:uppercase;
+        text-shadow:0 2px 6px rgba(0,0,0,.95), 0 4px 18px rgba(0,0,0,.8); }
+      #cta .pill { display:flex; align-items:center; gap:22px;
+        padding:26px 64px; border-radius:100px;
+        background:rgba(10,11,16,.72); border:1.5px solid rgba(255,255,255,.55); color:#fff;
+        font-family:"Inter"; font-weight:600; font-size:66px; letter-spacing:1px;
+        text-transform:none; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4); }
+      #cta .arrow { font-size:58px; color:rgba(255,255,255,.88);
+        text-shadow:0 2px 8px rgba(0,0,0,.9); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-l0mb" id="root" data-composition-id="main" data-start="0" data-duration="55.36" data-width="1080" data-height="1920">
+
+      <video data-hf-id="hf-myrg" id="a-roll" class="clip" src="avatar.mp4" muted playsinline data-start="0" data-duration="55.36" data-track-index="0"></video>
+      <audio data-hf-id="hf-wpe7" id="a-roll-audio" src="avatar.mp4" data-start="0" data-duration="55.36" data-track-index="2" data-volume="1"></audio>
+
+      <!-- GRADE QUENTE + VINHETA (sempre on, entre imagem e texto) -->
+      <div data-hf-id="hf-9j86" id="grade"></div>
+      <div data-hf-id="hf-h7i3" id="vignette"></div>
+
+      <!-- OPENING HOOK -->
+      <div data-hf-id="hf-niga" id="hook" class="clip" data-start="0" data-duration="2.5" data-track-index="44">
+        <div data-hf-id="hf-pdlc" class="hook-inner" style="display:flex;flex-direction:column;align-items:center;margin-top:150px;">
+          <div data-hf-id="hf-bc1a" class="eyebrow">uma skill de</div>
+          <div data-hf-id="hf-8q5w" class="l1">criação de</div>
+          <div data-hf-id="hf-ons9" class="accent">páginas</div>
+        </div>
+      </div>
+
+      <!-- GRID WIPE -->
+      <div data-hf-id="hf-zbi1" id="grid-pixelate-overlay"></div>
+
+      <!-- B-ROLLS (injected) -->
+      <div data-hf-id="hf-e70y" id="b1_scrim" class="broll-scrim clip" data-start="2.5" data-duration="3.0" data-track-index="11"></div>
+      <div data-hf-id="hf-84xv" id="b1_tag" class="broll-tag clip" data-start="2.5" data-duration="3.0" data-track-index="50"><span data-hf-id="hf-6wed" class="rec"></span><span data-hf-id="hf-bc1c" class="t">skill de front-end</span></div>
+      <video data-hf-id="hf-118q" id="b1_vid" class="broll-vid clip" src="broll01.mp4" muted playsinline data-start="2.5" data-duration="3.0" data-track-index="10"></video>
+      <div data-hf-id="hf-glk2" id="b2_scrim" class="broll-scrim clip" data-start="5.6" data-duration="4.0" data-track-index="13"></div>
+      <div data-hf-id="hf-dkm7" id="b2_tag" class="broll-tag clip" data-start="5.6" data-duration="4.0" data-track-index="52"><span data-hf-id="hf-19ll" class="rec"></span><span data-hf-id="hf-cfcv" class="t">página de vendas</span></div>
+      <video data-hf-id="hf-i86p" id="b2_vid" class="broll-vid clip" src="broll02.mp4" muted playsinline data-start="5.6" data-duration="4.0" data-track-index="12"></video>
+      <div data-hf-id="hf-85bn" id="b3_scrim" class="broll-scrim clip" data-start="10.9" data-duration="4.7" data-track-index="15"></div>
+      <div data-hf-id="hf-3n2m" id="b3_tag" class="broll-tag clip" data-start="10.9" data-duration="4.7" data-track-index="54"><span data-hf-id="hf-2gio" class="rec"></span><span data-hf-id="hf-aa59" class="t">conector no claude</span></div>
+      <video data-hf-id="hf-xc03" id="b3_vid" class="broll-vid clip" src="broll03.mp4" muted playsinline data-start="10.9" data-duration="4.7" data-track-index="14"></video>
+      <div data-hf-id="hf-d8gz" id="b4_scrim" class="broll-scrim clip" data-start="18.9" data-duration="4.06" data-track-index="17"></div>
+      <div data-hf-id="hf-mz36" id="b4_tag" class="broll-tag clip" data-start="18.9" data-duration="4.06" data-track-index="56"><span data-hf-id="hf-227n" class="rec"></span><span data-hf-id="hf-0cz9" class="t">publicar · otimizar</span></div>
+      <video data-hf-id="hf-q57m" id="b4_vid" class="broll-vid clip" src="broll04.mp4" muted playsinline data-start="18.9" data-duration="4.06" data-track-index="16"></video>
+      <div data-hf-id="hf-t17b" id="b5_scrim" class="broll-scrim clip" data-start="35.36" data-duration="5.1" data-track-index="19"></div>
+      <div data-hf-id="hf-wvqa" id="b5_tag" class="broll-tag clip" data-start="35.36" data-duration="5.1" data-track-index="58"><span data-hf-id="hf-02oi" class="rec"></span><span data-hf-id="hf-0pw9" class="t">montando um time de i.a</span></div>
+      <video data-hf-id="hf-xays" id="b5_vid" class="broll-vid clip" src="broll_aula.mp4" muted playsinline data-start="35.36" data-duration="5.1" data-track-index="18"></video>
+
+      <!-- LOWER THIRD -->
+      <!-- (selo/lower-third removido a pedido: nao usar bolinha do apresentador) -->
+
+      <!-- CAPTIONS: build_timeline injeta o #caps aqui (word-by-word com data-start/data-end) -->
+      <!-- INJECT:captions -->
+
+      <!-- LETTERINGS: build_timeline injeta os .lett aqui (LEAD/KEY do roteiro no timestamp da fala) -->
+      <!-- INJECT:letterings -->
+      <!-- INJECT:chips -->
+
+      <!-- CTA -->
+      <div data-hf-id="hf-bi9a" id="cta" class="clip" data-start="50.4" data-duration="4.96" data-track-index="46">
+        <div data-hf-id="hf-laqu" class="lead">toca em</div>
+        <div data-hf-id="hf-wto1" class="pill" id="cta-pill">saiba mais<i class="arw"></i></div>
+      </div>
+
+      <!-- LOGO DO EVENTO: bloco TIMES DE IA + CTA (46.7-55.4s) -->
+      <img data-hf-id="hf-zbg4" id="ev-logo" class="clip" src="logo.png" alt="Seu Evento" data-start="46.7" data-duration="8.68" data-track-index="48">
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ===== OPENING HOOK (fade editorial) =====
+      // HOOK CHEIO NO QUADRO 0 (ordem do Julio, cobrada de novo pelos dois auditores em
+      // 18/08). As tres linhas nasciam em opacity 0 e so ficavam legiveis aos 0,63s. O
+      // gate dizia "1o texto em 0.00s" porque a FAIXA ESCURA do hook ja e opaca no alpha:
+      // ele contava scrim como texto. O movimento continua, mas na escala, nunca na
+      // opacidade, pra nunca mais existir quadro de abertura sem palavra na tela.
+      // Texto CHEIO no quadro 0 e ainda assim com vida: as linhas entram deslizando de
+      // uma posicao levemente baixa, nunca a partir de opacidade 0. E a linha de
+      // destaque leva uma batida perto de 1s, senao o hook fica ~2s congelado, que foi
+      // o que o Julio pegou vendo os quatro anuncios lado a lado.
+      gsap.set(["#hook .eyebrow", "#hook .l1", "#hook .accent"], { opacity: 1, y: 0 });
+      // POP por linha (19/08/2026, Jheni: "os letterings dos hooks nao estao
+      // dinamicos"). O texto JA esta visivel no frame 0 (gate de hook exige);
+      // o pop e so assentamento de escala, linha a linha, nos primeiros 0,4s.
+      ["#hook .eyebrow", "#hook .l1", "#hook .accent"].forEach(function (sel, i) {
+        gsap.set(sel, { scale: 1.10, transformOrigin: "50% 50%" });
+        tl.to(sel, { scale: 1, duration: 0.22, ease: "power3.out" }, 0.02 + i * 0.11);
+      });
+      tl.from("#hook .eyebrow", { yPercent: 26, duration: 0.40, ease: "power3.out" }, 0);
+      tl.from("#hook .l1", { yPercent: 30, duration: 0.44, ease: "power3.out" }, 0.09);
+      tl.from("#hook .accent", { yPercent: 34, duration: 0.50, ease: "power3.out" }, 0.18);
+      tl.to("#hook .accent", { scale: 1.045, duration: 0.22, ease: "power2.out" }, 0.95);
+      tl.to("#hook .accent", { scale: 1.0, duration: 0.30, ease: "power2.inOut" }, 1.17);
+      tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);
+
+      // ===== GRID WIPE (opening -> b-roll) =====
+      (function () {
+        const COLS = 9, ROWS = 16;
+        const overlay = document.getElementById("grid-pixelate-overlay");
+        overlay.style.gridTemplateColumns = "repeat(" + COLS + ",1fr)";
+        overlay.style.gridTemplateRows = "repeat(" + ROWS + ",1fr)";
+        for (let i = 0; i < COLS * ROWS; i++) {
+          const c = document.createElement("div"); c.className = "grid-cell"; overlay.appendChild(c);
+        }
+      })();
+      gsap.set("#grid-pixelate-overlay .grid-cell", { scale: 0 });
+      /* INJECT:wipes */
+
+      // ===== B-ROLLS: fade + scale in/out =====
+      const BROLLS = [{"id": "b1", "src": "broll01.mp4", "start": 2.5, "dur": 3.0, "tk": 10, "sk": 11}, {"id": "b2", "src": "broll02.mp4", "start": 5.6, "dur": 4.0, "tk": 12, "sk": 13}, {"id": "b3", "src": "broll03.mp4", "start": 10.9, "dur": 4.7, "tk": 14, "sk": 15}, {"id": "b4", "src": "broll04.mp4", "start": 18.9, "dur": 4.06, "tk": 16, "sk": 17}, {"id": "b5", "src": "broll_aula.mp4", "start": 35.36, "dur": 5.1, "tk": 18, "sk": 19}];
+      BROLLS.forEach(function (b, i) {
+        const scrim = document.getElementById(b.id + "_scrim");
+        const card  = document.getElementById(b.id + "_vid");
+        const tag   = document.getElementById(b.id + "_tag");
+        // No OVERLAY (camada de texto com alpha) o strip_overlay REMOVE scrim/card/tag,
+        // porque lá só entra texto. Sem esta guarda o gsap recebia null, lançava
+        // "Cannot read properties of null (reading '_gsap')" e MATAVA o script inteiro:
+        // tudo que é registrado depois deste bloco (legendas, letterings, CTA, logo)
+        // nunca chegava ao timeline, e window.__timelines.main nem existia. Foi a causa
+        // dos trechos longos sem legenda em TODA a leva (13s no ad03v2, 25% do anúncio).
+        if (!scrim || !card || !tag) return;
+        const ADJ_GAP = 0.6;
+        const prev = BROLLS[i - 1];
+        const next = BROLLS[i + 1];
+        const isOpening = b.start <= 0.001;
+        // "vem de um insert colado" (ou opening): o card anterior/o wipe ja cobrem o avatar,
+        // entao entra por HARD-CUT. Se vem do avatar, o card entra com fade (coberto pelo wipe).
+        const fromAdjacent = isOpening || (prev && (b.start - (prev.start + prev.dur)) <= ADJ_GAP);
+        const toAdjacent = next && (next.start - (b.start + b.dur)) <= ADJ_GAP;
+        // SCRIM SEMPRE INSTANT-ON: cobre o avatar em 100% durante toda a janela do clip.
+        // (segurar via GSAP nao funcionava: o HyperFrames corta o clip no fim do data-duration,
+        // deixando o proximo fade-in transparente e vazando o rosto por ~0.2s.)
+        gsap.set(scrim, { opacity: 1 });
+        if (fromAdjacent) {
+          gsap.set(card, { opacity: 1, scale: 1 });
+        } else {
+          gsap.set(card, { opacity: 0, scale: 0.985 });
+          tl.to(card, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, b.start + 0.02);
+        }
+        gsap.set(tag, { opacity: 0, y: 10 });
+        tl.to(tag, { opacity: 1, y: 0, duration: 0.32, ease: "power2.out" }, b.start + 0.12);
+        const out = b.start + b.dur;
+        if (toAdjacent) {
+          // proximo insert cobre no hard-cut: so tira a tag; scrim/card somem pelo fim do clip window
+          tl.to(tag, { opacity: 0, duration: 0.2, ease: "power1.in" }, out - 0.18);
+        } else {
+          // volta pro avatar: fade out limpo do broll inteiro
+          tl.to([scrim, card, tag], { opacity: 0, duration: 0.24, ease: "power1.in" }, out - 0.24);
+        }
+      });
+
+      // ===== LOWER THIRD removido (sem selo/bolinha do apresentador) =====
+
+      // ===== CAPTIONS =====
+      // ===== CAPTIONS (data-driven): le o #caps injetado pelo build_timeline =====
+      // Cada .cgrp tem data-g-start/data-g-end; cada .cw tem data-w-start/data-w-end.
+      // O #caps e as legendas sao HTML estatico injetado no marcador de captions do body.
+      var _fimAnterior = null;
+      document.querySelectorAll("#caps .cgrp").forEach(function (grp) {
+        var gStart = parseFloat(grp.dataset.gStart);
+        var gEnd = parseFloat(grp.dataset.gEnd);
+        grp.style.cssText = "opacity:0;visibility:hidden;";
+        // ENTRA ANTES DO ANTERIOR SAIR (26/08/2026). O grupo que sai faz opacity:0 em
+        // gEnd-0.1 e o que entra comecava o fade em gStart, com gStart == gEnd do
+        // vizinho: os dois ficavam perto de zero por ~0,06s e a legenda PISCAVA. O
+        // diretor de arte contou 41 micro-apagoes de 2 a 4 quadros somando 5,10s.
+        // Comecar 0,12s antes cobre a saida do anterior e o corte fica limpo.
+        // ANTECIPACAO CONDICIONAL (27/08/2026). Comecar 0,12s antes existe pra cobrir a
+        // saida do grupo anterior e matar a piscada (41 micro-apagoes medidos em 26/08).
+        // Mas quando o grupo anterior termina EXATAMENTE aqui, a antecipacao poe os dois
+        // na tela ao mesmo tempo: 0,10s por transicao, 5,9s no anuncio, e o diretor
+        // capturou "mas nao sabe" por cima de "que como o" em t=31,3s. Grupo colado no
+        // anterior entra na hora; grupo depois de pausa antecipa, que e onde a piscada
+        // podia acontecer e onde nao ha ninguem pra empilhar.
+        var _colado = (_fimAnterior !== null && gStart - _fimAnterior < 0.05);
+        // `cgrp-sem-lead`: o grupo nasce a menos de 0,16s de uma troca de layout, entao
+        // os 0,12s de antecipacao apareceriam AINDA no layout antigo, com a posicao do
+        // novo. Cortar o grupo na fronteira nao resolve isso, porque o que atravessa e a
+        // ANIMACAO. Aqui ele entra na hora, sem lead.
+        var _semLead = grp.classList.contains("cgrp-sem-lead");
+        var gIn = (_colado || _semLead) ? gStart : Math.max(0, gStart - 0.12);
+        _fimAnterior = gEnd;
+        tl.set(grp, { visibility: "visible" }, gIn);
+        // POP DE GRUPO (28/08/2026, Julio por audio: "nao ta dinamico... nao ta igual
+        // as legendas do CapCut"). O fade morno + micro-pulo por palavra (1,03/1,04)
+        // lia como tremida, nao como animacao. CapCut: o grupo INTEIRO chega com um
+        // pop visivel (escala 1,22 -> 1, rapido), e a enfase por palavra vem DEPOIS,
+        // maior. So transform/opacity: nada reflui, vizinho nao mexe.
+        gsap.set(grp, { scale: 1.22, transformOrigin: "50% 80%" });
+        tl.to(grp, { opacity: 1, scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
+        grp.querySelectorAll(".cw").forEach(function (span) {
+          var wStart = parseFloat(span.dataset.wStart);
+          var wEnd = parseFloat(span.dataset.wEnd);
+          // DWELL MINIMO: palavra funcional ("de", "que", "um") dura 0,12s a 0,18s na
+          // fala. Abaixo de 0,34s o realce vira estrobo, entao segura o pico.
+          if (!(wEnd > wStart + 0.34)) { wEnd = wStart + 0.34; }
+          // "as letras estao pulando mas MUITO PEQUENO" (Julio, 28/08): 1,03 de
+          // escala e jitter, nao enfase. Palavra ativa salta 14% (18% a kw) com
+          // overshoot de back.out: pulo unico e visivel, estilo CapCut, e assenta.
+          // O dwell minimo acima impede o estrobo em palavra curta.
+          // SALTO VERTICAL, NAO ESCALA (28/08/2026, segunda passada). A escala por
+          // palavra colide com a vizinha por geometria, e nenhum gap resolve: com
+          // pico 1,18 "completamente" (560px de tinta) cresce 50px POR LADO e
+          // precisaria de 119px de gap, o que a linha de 820px nao comporta. Medido
+          // no MOV: "paginacompletamente" com 7px de vao. Escala maior = colisao
+          // maior; foi o pedido de "pular mais" batendo de frente com "nao colar".
+          // Salto em Y nao invade o vizinho: da a mesma energia (o Julio quer VER o
+          // pulo) sem disputar espaco horizontal. Junto: a palavra ativa ganha
+          // brilho, que e o que o CapCut usa pra marcar o karaoke.
+          // PREENCHIMENTO LINEAR (29/08/2026). O salto vertical saiu por ordem do
+          // Julio. A camada `fill` e revelada da esquerda pra direita durante a fala da
+          // palavra, com `ease: "none"` porque ele pediu LINEAR: qualquer easing faz a
+          // cor acelerar e desacelerar, que e exatamente o "zoado" que ele descreveu.
+          // A varredura dura o tempo REAL da palavra (nao um valor fixo), entao ela
+          // acompanha a fala em vez de correr na frente.
+          // Nada de `y`, `scale` nem `filter`: a palavra nao se move, nao cresce e nao
+          // empurra a vizinha. Foi movimento de palavra que gerou as tres reprovacoes
+          // anteriores.
+          var _fill = span.querySelector(".fill");
+          if (_fill) {
+            gsap.set(_fill, { clipPath: "inset(0 100% 0 0)" });
+            tl.to(_fill, { clipPath: "inset(0 0% 0 0)",
+                           duration: Math.max(wEnd - wStart, 0.12),
+                           ease: "none", overwrite: "auto" }, wStart);
+          }
+        });
+        // fade-out termina EXATAMENTE em gEnd (antes era gEnd-0.06 + 0.16s = gEnd+0.10,
+        // vazava por cima do fade-in do proximo grupo e empilhava duas legendas)
+        // Antecipar a SAIDA junto com a entrada foi a primeira tentativa e saiu pior:
+        // o tempo sem texto na tela subiu de 7% pra 12% (o teto do gate e 12%), porque
+        // entre grupos NAO contiguos os 0,12s viravam tela vazia. A janela de legenda
+        // dupla se fecha do outro lado, no `gIn` acima: quem entra colado no anterior
+        // nao antecipa. Medido nos dois builds, nao deduzido.
+        tl.to(grp, { opacity: 0, duration: 0.1, ease: "power1.in" }, gEnd - 0.1);
+        tl.set(grp, { opacity: 0, visibility: "hidden" }, gEnd);
+      });
+
+      // ===== MID LETTERINGS (data-driven): le os .lett injetados pelo build_timeline =====
+      // Cada .lett.clip tem data-start/data-duration.
+      document.querySelectorAll(".lett.clip").forEach(function (el) {
+        var at = parseFloat(el.dataset.start);
+        var dur = parseFloat(el.dataset.duration);
+        var lead = el.querySelector(".lead");
+        var keys = el.querySelectorAll(".key");
+        // ENTRADA SECA (18/08/2026, decisao de direcao): o fade de 0,25s deixava o
+        // lettering "surgindo" sobre o Thales parado e o trecho lia como tempo morto
+        // (medido: 3 vaos de 12-16s no jh13, todos em cima de lettering/avatar). As
+        // referencias carimbam o texto: entrada instantanea com um assentamento de
+        // escala de 0,12s, que o olho le como CORTE. Saida seca tambem.
+        gsap.set(el, { opacity: 0 });
+        if (lead) gsap.set(lead, { opacity: 0 });
+        gsap.set(keys, { opacity: 0, scale: 1.08, transformOrigin: "50% 60%" });
+        tl.set(el, { opacity: 1 }, at);
+        if (lead) tl.set(lead, { opacity: 1 }, at);
+        // data-delay: numa PILHA cada linha entra na hora da propria palavra e fica.
+        keys.forEach(function (k) {
+          var dl = parseFloat(k.dataset.delay || 0);
+          tl.set(k, { opacity: 1 }, at + dl);
+          tl.to(k, { scale: 1, duration: 0.12, ease: "power3.out" }, at + dl);
+        });
+        tl.set(el, { opacity: 0 }, at + dur);
+      });
+
+      // ===== CHIPS flutuantes (data-driven; entrada seca + pop, igual lettering) =====
+      document.querySelectorAll(".chip.clip").forEach(function (el) {
+        var at = parseFloat(el.dataset.start);
+        var dur = parseFloat(el.dataset.duration);
+        gsap.set(el, { opacity: 0, scale: 0.88, transformOrigin: "100% 0%" });
+        tl.set(el, { opacity: 1 }, at);
+        tl.to(el, { scale: 1, duration: 0.16, ease: "back.out(2.2)" }, at);
+        tl.set(el, { opacity: 0 }, at + dur);
+      });
+
+      // ===== CTA =====
+      gsap.set("#cta", { opacity: 0 });
+      gsap.set("#cta .lead", { opacity: 0, y: 14 });
+      gsap.set("#cta-pill", { opacity: 0, y: 16 });
+      tl.to("#cta", { opacity: 1, duration: 0.35 }, 50.5);
+      tl.to("#cta .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 50.6);
+      tl.to("#cta-pill", { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 50.75);
+      tl.to("#cta .pill .arw", { y: 8, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 4 }, 51.0);
+
+      // ===== BEAT PRETO E BRANCO (manifesto "voce esta usando so 1% da capacidade") =====
+      // Dessatura o avatar via CSS var --bw (grayscale). Sobe no "1%" (~28.9s), segura, volta ao normal.
+      gsap.set("#a-roll", { "--bw": 0 });
+      tl.to("#a-roll", { "--bw": 1, duration: 0.35, ease: "power2.out" }, 28.5);
+      tl.to("#a-roll", { "--bw": 0, duration: 0.45, ease: "power2.in" }, 30.15);
+
+      // ===== LOGO DO EVENTO: fade-in no bloco TIMES DE IA + CTA =====
+      gsap.set("#ev-logo", { xPercent: -50, opacity: 0, y: 18 });
+      tl.to("#ev-logo", { xPercent: -50, opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 46.9);
+
+      window.__timelines["main"] = tl;
+    </script>
+  
+    <script>
+      /* Encolhe o KEY do gancho ate caber em no maximo duas linhas dentro da caixa.
+         Sem isso, texto longo quebra em linhas desbalanceadas e passa da margem. */
+      (function () {
+        function ajustar() {
+          var a = document.querySelector('#hook .accent');
+          if (!a) return;
+          var caixa = a.parentElement.clientWidth || 880;
+          var px = 118;
+          a.style.fontSize = px + 'px';
+          var alturaLinha = 1.02;
+          for (var i = 0; i < 26 && px > 52; i++) {
+            var linhas = Math.round(a.scrollHeight / (px * alturaLinha));
+            if (a.scrollWidth <= caixa && linhas <= 2) break;
+            px -= 4;
+            a.style.fontSize = px + 'px';
+          }
+        }
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', ajustar);
+        else ajustar();
+        document.fonts && document.fonts.ready && document.fonts.ready.then(ajustar);
+      })();
+    </script>
+</body>
+</html>

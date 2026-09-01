@@ -1,0 +1,50 @@
+<!-- BLOCK: grid-wipe | params: {{start}}, {{dur}}, {{trackIndex}}, {{cols}}, {{rows}} | gsap: grade de células scale 0->1->0, stagger from start/end | z-index: 60 -->
+<!--
+  O que é: transição "pixelate" entre o hook e o primeiro b-roll: uma grade de células
+  opacas cobre a tela (scale 0->1, stagger a partir do início) e depois revela de novo
+  (scale 1->0, stagger a partir do fim). Preset transition "grid-wipe" (DEFAULT), 9 colunas
+  x 16 linhas no reelC.
+
+  Fonte: references/style.md (linhas 41-46) + _local/reelC-reference/index.html
+  (CSS linhas 50-51, HTML linha 142, JS/GSAP linhas 216-229).
+
+  Params:
+    {{start}}      - data-start do clip (no reelC original este bloco não tinha data-start/
+                     duration/track-index/class="clip", era `<div id="grid-pixelate-overlay">
+                     </div>` estático; aqui viram placeholders pra manter a convenção
+                     obrigatória de todo bloco ser um "clip". No reelC a transição em si
+                     acontecia entre t=2.05 e t=2.75+0.4=3.15; usar {{start}}=2.05 reproduz
+                     exatamente o reelC)
+    {{dur}}        - sugestão: cobrir do início do wipe-in ao fim do wipe-out (~1.1s no reelC:
+                     3.15 - 2.05 = 1.1)
+    {{trackIndex}} - data-track-index (sugestão: 60, igual ao z-index)
+    {{cols}}       - número de colunas da grade (no reelC: 9, FIXO, não confundir com um
+                     valor arbitrário: é o único validado)
+    {{rows}}       - número de linhas da grade (no reelC: 16, FIXO)
+
+  JS de setup (cria as células, roda 1x antes da timeline; verbatim do reelC, adaptar
+  `COLS`/`ROWS` pra {{cols}}/{{rows}}):
+    (function () {
+      const COLS = {{cols}}, ROWS = {{rows}};
+      const overlay = document.getElementById("grid-pixelate-overlay");
+      overlay.style.gridTemplateColumns = "repeat(" + COLS + ",1fr)";
+      overlay.style.gridTemplateRows = "repeat(" + ROWS + ",1fr)";
+      for (let i = 0; i < COLS * ROWS; i++) {
+        const c = document.createElement("div"); c.className = "grid-cell"; overlay.appendChild(c);
+      }
+    })();
+
+  GSAP (trecho a incluir na timeline principal; offsets relativos ao {{start}}: no reelC o
+  wipe-in acontecia em 2.05 e o wipe-out em 2.75, ou seja {{start}}+0 e {{start}}+0.7):
+    gsap.set("#grid-pixelate-overlay .grid-cell", { scale: 0 });
+    tl.to("#grid-pixelate-overlay .grid-cell",
+      { scale: 1, duration: 0.4, stagger: { amount: 0.28, from: "start" }, ease: "power2.inOut" }, {{start}} + 0);
+    tl.to("#grid-pixelate-overlay .grid-cell",
+      { scale: 0, duration: 0.4, stagger: { amount: 0.28, from: "end" }, ease: "power2.inOut" }, {{start}} + 0.7);
+-->
+<style>
+  #grid-pixelate-overlay { position:absolute; inset:0; z-index:60; pointer-events:none; display:grid; }
+  #grid-pixelate-overlay .grid-cell { background:#05060a; transform-origin:center center; }
+</style>
+
+<div id="grid-pixelate-overlay" class="clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}"></div>

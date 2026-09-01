@@ -1,0 +1,59 @@
+<!-- BLOCK: broll-card | params: {{id}}, {{start}}, {{dur}}, {{trackIndexScrim}}, {{trackIndexVid}}, {{trackIndexTag}}, {{SRC}}, {{TAG}} | gsap: scrim/card/tag fade+scale in, fade out no fim | z-index: scrim 12, vídeo 14, tag 15 -->
+<!--
+  O que é: cartão de b-roll (recorte de tela/vídeo secundário) com scrim de fundo,
+  vídeo centralizado com borda/sombra e uma tag "REC" no topo (ex: "skill de front-end").
+  3 elementos por instância: `{{id}}_scrim`, `{{id}}_vid`, `{{id}}_tag`.
+
+  Fonte: references/style.md (linhas 48-56) + _local/reelC-reference/index.html
+  (CSS linhas 53-68, HTML linhas 145-159, GSAP linhas 231-245).
+
+  Params:
+    {{id}}               - prefixo da instância (ex: "b1", "b2"...), usado nos 3 ids filhos
+    {{start}}            - data-start comum aos 3 elementos (ex reelC b1: 2.5)
+    {{dur}}              - data-duration comum aos 3 (ex reelC b1: 3.0)
+    {{trackIndexScrim}}  - data-track-index do scrim (reelC usa uma série ímpar: 11,13,15,17,19)
+    {{trackIndexVid}}    - data-track-index do vídeo (reelC usa uma série par: 10,12,14,16,18)
+    {{trackIndexTag}}    - data-track-index da tag (reelC usa: 50,52,54,56,58)
+    {{SRC}}              - arquivo do b-roll (ex: "broll01.mp4"), gravação de tela (screen recording)
+    {{TAG}}              - texto da tag (ex: "skill de front-end")
+  Nota: os 3 track-index seguem uma numeração sequencial por b-roll no reelC (não um valor
+  fixo), porque cada b-roll ocupa uma janela de tempo própria na timeline. build_timeline.py
+  decide os valores; aqui ficam como placeholders abertos, sem inventar uma fórmula.
+
+  GSAP (trecho a incluir na timeline principal por instância; `scrim`/`card`/`tag` = os 3
+  elementos de uma instância, `b.start`/`b.dur` = {{start}}/{{dur}} dessa instância):
+    gsap.set(scrim, { opacity: 0 });
+    gsap.set(card,  { opacity: 0, scale: 0.985 });
+    gsap.set(tag,   { opacity: 0, y: 10 });
+    tl.to(scrim, { opacity: 1, duration: 0.28, ease: "power1.out" }, b.start);
+    tl.to(card,  { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, b.start + 0.02);
+    tl.to(tag,   { opacity: 1, y: 0, duration: 0.32, ease: "power2.out" }, b.start + 0.12);
+    const out = b.start + b.dur;
+    tl.to([scrim, card, tag], { opacity: 0, duration: 0.24, ease: "power1.in" }, out - 0.24);
+
+  Gotcha: renderizar sempre com `--video-frame-format png` (o b-roll é screen recording,
+  perde qualidade/nitidez com jpeg). Ver PLAN.md "Global Constraints".
+-->
+<style>
+  .broll-scrim { position:absolute; inset:0; z-index:12;
+    background:radial-gradient(120% 80% at 50% 42%, #14151f 0%, #0a0b12 55%, #05060a 100%); }
+  .broll-scrim::after { content:""; position:absolute; inset:0;
+    background:radial-gradient(62% 34% at 50% 40%, rgba(255,255,255,.06), transparent 72%); }
+  .broll-vid { position:absolute; left:36px; width:1008px; top:452px; height:700px; z-index:14;
+    border-radius:24px; object-fit:contain; background:#0b0d14;
+    border:1.5px solid rgba(255,255,255,.16);
+    box-shadow:0 30px 90px rgba(0,0,0,.6); }
+  .broll-tag { position:absolute; left:36px; top:392px; z-index:15;
+    display:flex; align-items:center; gap:14px; padding:12px 26px; border-radius:100px;
+    background:rgba(12,13,20,.62); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(6px); }
+  .broll-tag .rec { width:11px; height:11px; border-radius:50%; background:rgba(255,180,120,.9);
+    box-shadow:0 0 12px rgba(255,180,120,.55); }
+  .broll-tag .t { font-family:"Inter"; font-weight:500; font-size:26px; letter-spacing:.5px;
+    color:rgba(255,255,255,.9); text-transform:none; }
+</style>
+
+<div id="{{id}}_scrim" class="broll-scrim clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndexScrim}}"></div>
+<div id="{{id}}_tag" class="broll-tag clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndexTag}}">
+  <span class="rec"></span><span class="t">{{TAG}}</span>
+</div>
+<video id="{{id}}_vid" class="broll-vid clip" src="{{SRC}}" muted playsinline data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndexVid}}"></video>

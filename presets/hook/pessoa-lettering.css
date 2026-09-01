@@ -1,0 +1,28 @@
+/* PRESET hook/pessoa-lettering | status: validated | base: nenhuma, é o default, extração fiel do reel de referência v7 (validado frame a frame) */
+/* Fonte: references/style.md e _local/reelC-reference/index.html. Abre SOBRE o a-roll (pessoa
+   visível), só um scrim radial pra legibilidade. margin-top:150px em .hook-inner empurra o texto
+   pro peito (bloco fica em y~907-1165, rosto livre, ver âncoras de layout em style.md). */
+
+#hook {
+  position:absolute; inset:0; z-index:44;
+  background:radial-gradient(115% 34% at 50% 57%, rgba(4,5,10,.80) 0%, rgba(4,5,10,.40) 58%, rgba(4,5,10,0) 88%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0 100px;
+}
+
+#hook .hook-inner { margin-top:150px; }
+
+#hook .eyebrow {
+  font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:8px;
+  color:rgba(255,255,255,.7); text-transform:uppercase; margin-bottom:26px;
+  text-shadow:0 2px 14px rgba(0,0,0,.65);
+}
+
+#hook .l1 {
+  font-family:"Inter"; font-weight:300; color:#fff; font-size:72px; line-height:1.06;
+  letter-spacing:-.5px; text-shadow:0 3px 22px rgba(0,0,0,.6);
+}
+
+#hook .accent {
+  font-family:"Playfair Display", serif; font-weight:600; font-style:italic; color:#fff;
+  font-size:118px; line-height:1.0; letter-spacing:-1px; text-shadow:0 8px 34px rgba(0,0,0,.5);
+}

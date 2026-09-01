@@ -1,7 +1,17 @@
-Video Ads Machine
-Copyright 2026 Julio Couto
+Video Ads Machine 2.0
+Copyright (c) 2026 Julio Couto
 
-This product includes software developed by Julio Couto and contributors.
+This project is licensed under the MIT License (see LICENSE).
 
-Bundled fonts (SIL Open Font License 1.1):
-  - Nunito, Montserrat, Playfair Display, DM Serif Display (Google Fonts / OFL)
+Third-party dependency notice
+-----------------------------
+This project orchestrates HyperFrames (https://hyperframes.heygen.com), which
+is proprietary software with its own separate license. HyperFrames is NOT
+bundled or redistributed in this repository; the setup step installs it from
+npm onto the user's own machine. Review the HyperFrames license before
+commercial use at scale. The MIT license of this project does not extend to
+HyperFrames.
+
+The embedded fonts under fonts/ (Inter, Montserrat, Playfair Display, Archivo)
+are distributed under the SIL Open Font License (OFL) by their respective
+authors.

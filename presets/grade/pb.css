@@ -1,0 +1,16 @@
+/* PRESET grade/pb | status: unvalidated | base: sobrescreve #grade e #vignette do default (quente.css): satura 0 (preto e branco) com contraste leve, vinheta um pouco mais forte pra reforçar o clima editorial */
+/* Usa backdrop-filter (já suportado no Chromium do HyperFrames, mesmo recurso usado em #lt/#cta)
+   pra dessaturar o que está atrás de #grade (a-roll + b-rolls), em vez de depender só do --bw
+   pontual da camada base (que é só o beat de ênfase, não um grade permanente). */
+
+#grade {
+  position:absolute; inset:0; z-index:20; pointer-events:none;
+  backdrop-filter: grayscale(1) contrast(1.08);
+  background: rgba(10,10,10,0.04);
+  mix-blend-mode: normal;
+}
+
+#vignette {
+  position:absolute; inset:0; z-index:21; pointer-events:none;
+  background: radial-gradient(78% 72% at 50% 42%, transparent 46%, rgba(0,0,0,0.34) 100%);
+}

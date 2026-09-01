@@ -1,0 +1,17 @@
+{
+  "format": "reel-editorial",
+  "styles": {
+    "caption": "montserrat-grossa",
+    "lettering": "serif-editorial",
+    "transition": "grid-wipe",
+    "grade": "quente",
+    "hook": "pessoa-lettering",
+    "endcard": "cta-logo-rodape"
+  },
+  "assets": {
+    "avatar": "demo/avatar_demo.mp4",
+    "voz": "demo/voz_demo.mp3",
+    "logo": "demo/logo_demo.png",
+    "brolls": []
+  }
+}

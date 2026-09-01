@@ -1,0 +1,69 @@
+<!-- BLOCK: caption | params: {{start}}, {{dur}}, {{trackIndex}}, {{GROUPS}} | gsap: engine word-by-word (grupo fade + palavra fade+y, kw em serif itálico) | z-index: 35 -->
+<!--
+  O que é: legenda editorial verbatim, palavra por palavra, agrupada em blocos de ~3 palavras
+  (preset "montserrat-grossa", DEFAULT, validado na auditoria). Palavras marcadas como
+  palavra-chave (kw:true) trocam de fonte pra Playfair Display itálico, criando ênfase sem
+  mudar cor. É um bloco "motor": o container #caps é vazio no HTML estático, e o
+  build_timeline.py injeta os grupos (`GROUPS`) como children DOM + as tweens GSAP
+  correspondentes, seguindo exatamente o padrão abaixo (extraído linha a linha do reelC).
+
+  Fonte: references/style.md (linhas 78-86) + _local/reelC-reference/index.html
+  (CSS linhas 96-104, HTML linha 171, GSAP/JS linhas 253-278).
+
+  Params:
+    {{start}}      - data-start do clip #caps (no reelC original: 2.4, = início da 1a palavra)
+    {{dur}}        - data-duration do clip #caps (no reelC original: 44.47)
+    {{trackIndex}} - data-track-index (no reelC original: 30)
+    {{GROUPS}}      - array JS injetado pelo build_timeline.py, formato exato do reelC:
+      [{ start, end, words: [{ text, start, end, kw }, ...] }, ...]
+      "text" = grafia do roteiro (nunca da transcrição crua); "kw" = true pra palavra-chave.
+      Ex. real do reelC: {"start":28.72,"end":29.65,"words":[
+        {"text":"só","start":28.72,"end":28.88,"kw":false},
+        {"text":"1%","start":28.88,"end":29.52,"kw":true},
+        {"text":"da","start":29.52,"end":29.68,"kw":false}]}
+
+  GSAP/JS (trecho a incluir na timeline principal, verbatim do reelC; roda em cima de
+  {{GROUPS}} pra construir os spans e as tweens; `capsEl` = document.getElementById("caps")):
+    const capsEl = document.getElementById("caps");
+    {{GROUPS}}.forEach(function (g, gi) {
+      const grp = document.createElement("div");
+      grp.className = "cgrp";
+      grp.style.cssText = "opacity:0;visibility:hidden;";
+      grp.id = "cg" + gi;
+      g.words.forEach(function (w, wi) {
+        const span = document.createElement("span");
+        span.className = "cw" + (w.kw ? " kw" : "");
+        span.id = "cw" + gi + "_" + wi;
+        span.textContent = w.text;
+        grp.appendChild(span);
+      });
+      capsEl.appendChild(grp);
+
+      tl.set(grp, { visibility: "visible" }, g.start);
+      tl.to(grp, { opacity: 1, duration: 0.12, ease: "power1.out" }, g.start);
+      g.words.forEach(function (w, wi) {
+        const span = document.getElementById("cw" + gi + "_" + wi);
+        gsap.set(span, { opacity: 0, y: 8 });
+        tl.to(span, { opacity: 1, y: 0, duration: 0.16, ease: "power2.out", overwrite: "auto" }, w.start);
+      });
+      tl.to(grp, { opacity: 0, duration: 0.16, ease: "power1.in" }, g.end - 0.06);
+      tl.set(grp, { opacity: 0, visibility: "hidden" }, g.end);
+    });
+
+  Gotcha: a legenda fica em bottom:330px (y~1512 no canvas 1080x1920, ver
+  references/style.md seção "Âncoras de layout"). Não colide com CTA pill (y~1190-1300)
+  nem com logo (y~1670-1830) porque cada bloco ocupa uma janela de tempo diferente na
+  timeline, não porque as posições em y não se sobrepõem.
+-->
+<style>
+  #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
+  #caps .cgrp { position:absolute; left:0; right:0; bottom:330px; padding:0 130px;
+    display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 14px; }
+  #caps .cw { font-family:"Montserrat"; font-weight:600; font-size:60px;
+    color:#fff; letter-spacing:.2px; line-height:1.3;
+    text-shadow:0 2px 8px rgba(0,0,0,.55); }
+  #caps .cw.kw { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;
+    font-size:66px; letter-spacing:0; color:#fff; }
+</style>
+
+<div id="caps" class="clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}"></div>

@@ -1,0 +1,24 @@
+/* PRESET caption/boxed | status: unvalidated | base: sobrescreve .cgrp do default (montserrat-grossa.css) pra virar uma caixa/pill de fundo semi-transparente; tipografia (.cw/.cw.kw) mantida igual ao default */
+/* Reusa a mesma linguagem visual do #lt e do #cta (pill escuro, borda clara fina, blur, sombra),
+   pra ficar coerente com o resto do sistema. .cgrp nunca é alvo de transform via GSAP (só opacity
+   é animado nele), então o transform:translateX(-50%) aqui é seguro, diferente do gotcha do #ev-logo. */
+
+#caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
+
+#caps .cgrp {
+  position:absolute; left:50%; bottom:330px; transform:translateX(-50%);
+  max-width:840px; padding:18px 44px;
+  display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 14px;
+  background:rgba(12,13,20,.62); border:1px solid rgba(255,255,255,.14); border-radius:26px;
+  backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4);
+}
+
+#caps .cw {
+  font-family:"Montserrat"; font-weight:600; font-size:60px; color:#fff;
+  letter-spacing:.2px; line-height:1.3; text-shadow:none;
+}
+
+#caps .cw.kw {
+  font-family:"Playfair Display",serif; font-weight:600; font-style:italic;
+  font-size:66px; letter-spacing:0; color:#fff; text-shadow:none;
+}

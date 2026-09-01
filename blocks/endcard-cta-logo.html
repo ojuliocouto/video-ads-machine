@@ -1,0 +1,62 @@
+<!-- BLOCK: endcard-cta-logo | params: {{ctaStart}}, {{ctaDur}}, {{ctaTrackIndex}}, {{logoStart}}, {{logoDur}}, {{logoTrackIndex}}, {{CTA_LEAD}}, {{CTA_TEXT}}, {{LOGO_SRC}}, {{LOGO_ALT}} | gsap: cta fade+y, arrow yoyo bounce, logo fade+y (xPercent:-50) | z-index: cta 46, logo 48 -->
+<!--
+  O que é: end card do preset "cta-logo-rodape" (DEFAULT): um CTA ("toque em / saiba mais"
+  com seta pulsante) seguido/sobreposto pela logo do evento/marca no rodapé.
+
+  Fonte: references/style.md (linhas 88-96) + _local/reelC-reference/index.html
+  (CSS linhas 105-119, HTML linhas 192-199, GSAP linhas 296-302 + 310-312).
+
+  Params:
+    {{ctaStart}}       - data-start do clip #cta (no reelC original: 50.4)
+    {{ctaDur}}         - data-duration do clip #cta (no reelC original: 4.96)
+    {{ctaTrackIndex}}  - data-track-index do #cta (no reelC original: 46, igual ao z-index)
+    {{logoStart}}      - data-start do clip #ev-logo (no reelC original: 46.7)
+    {{logoDur}}        - data-duration do clip #ev-logo (no reelC original: 8.68)
+    {{logoTrackIndex}} - data-track-index do #ev-logo (no reelC original: 48, igual ao z-index)
+    {{CTA_LEAD}}       - texto pequeno uppercase (ex: "toque em")
+    {{CTA_TEXT}}       - texto do pill (ex: "saiba mais")
+    {{LOGO_SRC}}       - arquivo da logo (ex: "logo.png")
+    {{LOGO_ALT}}       - alt text da logo (ex: "Seu Evento")
+
+  GSAP (trechos a incluir na timeline principal; offsets calculados a partir dos absolutos
+  do reelC: entrada CTA 50.5 = {{ctaStart}}+0.1, lead 50.6 = {{ctaStart}}+0.2,
+  pill 50.75 = {{ctaStart}}+0.35, arrow bounce 51.0 = {{ctaStart}}+0.6,
+  logo fade-in 46.9 = {{logoStart}}+0.2):
+    gsap.set("#cta", { opacity: 0 });
+    gsap.set("#cta .lead", { opacity: 0, y: 14 });
+    gsap.set("#cta-pill", { opacity: 0, y: 16 });
+    tl.to("#cta", { opacity: 1, duration: 0.35 }, {{ctaStart}} + 0.1);
+    tl.to("#cta .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, {{ctaStart}} + 0.2);
+    tl.to("#cta-pill", { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, {{ctaStart}} + 0.35);
+    tl.to("#cta-arrow", { y: 14, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 4 }, {{ctaStart}} + 0.6);
+
+    gsap.set("#ev-logo", { xPercent: -50, opacity: 0, y: 18 });
+    tl.to("#ev-logo", { xPercent: -50, opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, {{logoStart}} + 0.2);
+
+  GOTCHA CRÍTICO (o bug que quebrou o v6): `#ev-logo` usa `left:50%` no CSS + GSAP
+  `xPercent:-50` pra centralizar. NUNCA usar `transform:translateX(-50%)` no CSS, porque o
+  `y` do GSAP sobrescreve o `transform` inteiro e a logo descentraliza/estica gigante.
+  Sempre repetir `xPercent:-50` em TODO tween que anima essa logo (inclusive no `gsap.set`
+  inicial), porque cada `.to()` que mexe em `x`/`y` reescreve o transform completo.
+-->
+<style>
+  #ev-logo { position:absolute; bottom:90px; left:50%;
+    width:600px; height:auto; z-index:48; filter:drop-shadow(0 8px 30px rgba(0,0,0,.55)); }
+  #cta { position:absolute; left:0; right:0; bottom:520px; z-index:46;
+    display:flex; flex-direction:column; align-items:center; gap:30px; }
+  #cta .lead { font-family:"Inter"; font-weight:400; font-size:30px; letter-spacing:6px;
+    color:rgba(255,255,255,.62); text-transform:uppercase; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  #cta .pill { display:flex; align-items:center; gap:22px;
+    padding:26px 64px; border-radius:100px;
+    background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.38); color:#fff;
+    font-family:"Inter"; font-weight:500; font-size:46px; letter-spacing:2px;
+    text-transform:none; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4); }
+  #cta .arrow { font-size:58px; color:rgba(255,255,255,.6); }
+</style>
+
+<div id="cta" class="clip" data-start="{{ctaStart}}" data-duration="{{ctaDur}}" data-track-index="{{ctaTrackIndex}}">
+  <div class="lead">{{CTA_LEAD}}</div>
+  <div class="pill" id="cta-pill">{{CTA_TEXT}}</div>
+  <div class="arrow" id="cta-arrow">▼</div>
+</div>
+<img id="ev-logo" class="clip" src="{{LOGO_SRC}}" alt="{{LOGO_ALT}}" data-start="{{logoStart}}" data-duration="{{logoDur}}" data-track-index="{{logoTrackIndex}}">

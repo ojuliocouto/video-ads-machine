@@ -1,0 +1,16 @@
+/* PRESET grade/quente | status: validated | base: nenhuma, é o default, extração fiel do reel de referência v7 (validado frame a frame) */
+/* Fonte: references/style.md e _local/reelC-reference/index.html. Camada entre a imagem (z0) e o
+   texto (z>=34): grade quente cinematográfica + vinheta. */
+
+#grade {
+  position:absolute; inset:0; z-index:20; pointer-events:none;
+  background:
+    radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%),
+    linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%);
+  mix-blend-mode: soft-light;
+}
+
+#vignette {
+  position:absolute; inset:0; z-index:21; pointer-events:none;
+  background: radial-gradient(80% 74% at 50% 42%, transparent 50%, rgba(0,0,0,0.32) 100%);
+}

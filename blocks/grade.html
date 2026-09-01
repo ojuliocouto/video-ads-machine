@@ -1,0 +1,38 @@
+<!-- BLOCK: grade | params: {{start}}, {{dur}}, {{trackIndex}}, {{trackIndexVignette}} | gsap: nenhum (camada estática, sempre on) | z-index: grade 20, vignette 21 -->
+<!--
+  O que é: camada de cor "cinematográfica" (grade quente, preset "quente" DEFAULT) + vinheta,
+  sempre ligada entre a imagem (z0) e o texto (z>=34). Não tem animação GSAP: é um overlay
+  fixo aplicado via mix-blend-mode/gradiente puro CSS.
+
+  Fonte: references/style.md (linhas 16-25) + _local/reelC-reference/index.html
+  (CSS linhas 24-31, HTML linhas 129-130).
+
+  Params:
+    {{start}}              - data-start (no reelC original este bloco não tinha data-start/
+                             duration/track-index/class="clip": era `<div id="grade"></div>`
+                             estático, cobrindo o vídeo inteiro. Aqui viram placeholders pra
+                             manter a convenção obrigatória de todo bloco ser um "clip" da
+                             biblioteca; sugestão de uso: {{start}}=0)
+    {{dur}}                - sugestão de uso: duração total do reel (grade cobre o vídeo inteiro)
+    {{trackIndex}}         - data-track-index do #grade (sugestão: 20, igual ao z-index)
+    {{trackIndexVignette}} - data-track-index do #vignette (sugestão: 21, igual ao z-index)
+
+  GSAP: nenhum trecho no reelC original. Grade e vignette não são animados, só empilhados.
+
+  Variantes (preset, não deste bloco; Task 1.2 presets/grade/*.css): "natural", "frio-teal",
+  "pb" trocam os valores de rgba/gradiente do #grade (cores diferentes), mantendo a mesma
+  estrutura. Copiar os números de cada variante só quando eles existirem numa fonte
+  auditada; não inventar.
+-->
+<style>
+  #grade { position:absolute; inset:0; z-index:20; pointer-events:none;
+    background:
+      radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%),
+      linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%);
+    mix-blend-mode: soft-light; }
+  #vignette { position:absolute; inset:0; z-index:21; pointer-events:none;
+    background: radial-gradient(80% 74% at 50% 42%, transparent 50%, rgba(0,0,0,0.32) 100%); }
+</style>
+
+<div id="grade" class="clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndex}}"></div>
+<div id="vignette" class="clip" data-start="{{start}}" data-duration="{{dur}}" data-track-index="{{trackIndexVignette}}"></div>

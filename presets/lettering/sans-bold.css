@@ -1,0 +1,22 @@
+/* PRESET lettering/sans-bold | status: unvalidated | base: sobrescreve .lett .key (e #lettB .key) do default (serif-editorial.css): troca Playfair itálico por Archivo 800 caixa alta, sem itálico; .lett e .lett .lead mantêm o mesmo layout/posição do default */
+
+.lett {
+  position:absolute; inset:0; z-index:34; pointer-events:none;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  gap:6px; padding:0 100px 620px;
+  background:radial-gradient(58% 18% at 50% 66%, rgba(0,0,0,.5), transparent 74%);
+}
+
+.lett .lead {
+  font-family:"Inter"; font-weight:600; font-size:26px; letter-spacing:5px;
+  color:rgba(255,255,255,.62); text-transform:uppercase; margin-bottom:12px;
+  text-shadow:0 2px 12px rgba(0,0,0,.6);
+}
+
+.lett .key {
+  font-family:"Archivo",sans-serif; font-weight:800; font-style:normal; text-transform:uppercase;
+  font-size:80px; line-height:1.02; letter-spacing:-.5px; text-align:center; color:#fff;
+  text-shadow:0 6px 30px rgba(0,0,0,.55);
+}
+
+#lettB .key { font-size:94px; letter-spacing:-1px; }
