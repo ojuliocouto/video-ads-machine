@@ -10,6 +10,8 @@ Defeitos do `gen_ad_v2.py` original reproduzidos aqui:
     com menos de 0,60 s não entra (um piscar de duas palavras é ruído);
   - o eco parcial foi REVERTIDO (31/08/2026): cortar só as palavras repetidas deixava a frase muda.
 """
+from pathlib import Path
+
 import pytest
 
 import build_timeline
@@ -235,3 +237,34 @@ def test_janela_retroativa_do_eco_e_de_2_6s():
     # o lettering comeca em 10,0: o grupo que termina depois de 7,4 ainda ecoa; antes disso, nao
     assert G.eco_do_lettering(grupo(pal("gato", 7.0, 7.6)), FRASES) is True
     assert G.eco_do_lettering(grupo(pal("gato", 6.9, 7.3)), FRASES) is False
+
+
+# --- W5.A (pendência 12.3): a legenda que a timeline marcou como suprimida não chega ao overlay -------------
+
+def _leg_tl(s, e, suprimida):
+    return {"s": s, "e": e, "texto": "x", "palavras": [], "posicao": "padrao", "suprimida": suprimida}
+
+
+def test_legenda_suprimida_na_timeline_sai_dos_grupos_do_overlay():
+    gs = [grupo(pal("eu", 1.0, 1.2), pal("faço", 1.2, 1.6)), grupo(pal("toda", 2.0, 2.3), pal("semana", 2.3, 2.9))]
+    tl = [_leg_tl(1.0, 1.6, False), _leg_tl(2.0, 2.9, True)]
+    saida = G.filtrar_suprimidas(gs, tl)
+    assert [g["start"] for g in saida] == [1.0]
+
+
+def test_legenda_suprimida_nao_aparece_no_html_do_overlay():
+    gs = [grupo(pal("eu", 1.0, 1.2), pal("faço", 1.2, 1.6)), grupo(pal("toda", 2.0, 2.3), pal("semana", 2.3, 2.9))]
+    html = G.html(G.filtrar_suprimidas(gs, [_leg_tl(1.0, 1.6, False), _leg_tl(2.0, 2.9, True)]))
+    assert "faço" in html and "semana" not in html
+
+
+def test_sem_supressao_nada_muda_e_sem_timeline_tambem_nao():
+    gs = [grupo(pal("eu", 1.0, 1.2))]
+    assert G.filtrar_suprimidas(gs, [_leg_tl(1.0, 1.2, False)]) == gs
+    assert G.filtrar_suprimidas(gs, None) == gs
+
+
+def test_o_overlay_gerado_pela_timeline_filtra_as_suprimidas():
+    """A fiação: o `overlay.gerar` passa as legendas da timeline ao filtro (senão a supressão nasce inerte)."""
+    texto = (Path(__file__).resolve().parents[2] / "scripts" / "overlay" / "gerar.py").read_text(encoding="utf-8")
+    assert "filtrar_suprimidas(" in texto

@@ -43,14 +43,14 @@ para o render do overlay que arredonda a duração para quadro inteiro. O `gate_
 
 Decisões onde o motor e o contrato não falam a mesma língua (registradas, não escondidas):
   - hook.s é o a0: o overlay começa o hook no zero do áudio, mas a tela só existe a partir do a0;
-  - cta.logo nunca é anterior a cta.inicio (regra do contrato). O overlay antecipa o logo em 0,9 s quando
-    o bloco anterior ao CTA é apresentador (`overlay.cta.LOGO_LEAD`); aí a timeline registra o logo junto
-    do CTA. A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
+  - cta.logo é o instante REAL do logo: o overlay o antecipa em 0,9 s quando o bloco anterior ao CTA é
+    apresentador (`overlay.cta.LOGO_LEAD`), e o contrato aceita até essa antecipação (W5.A; antes a timeline
+    grudava o logo no CTA). A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
   - legenda: a posição sai do layout (costura no split, rodapé sobre insert com texto). O rodapé por look
     fechado depende de medir o rosto: o chamador passa `medir_rosto`, e a CLI passa a medição do avatar que ela
     alinhou (W3.X M5: sem isso a timeline registrava legenda padrão num look fechado medido);
-  - lettering: estilo `serif_editorial` (o do template de hoje) até a W4.D trazer os estilos; o lettering
-    que passaria do fim é aparado no fim.
+  - lettering: o estilo EFETIVO do config (`cinema.lettering_estilos.efetivo`: sem estilo, ou em split, close e pilha,
+    o `serif_editorial`); o lettering que passaria do fim é aparado no fim.
 
 ## Leitura (o que footage e overlay chamam)
 
@@ -191,6 +191,9 @@ def _bloco_de(t, spans_):
     return next((i for i, (a, b) in enumerate(spans_) if a <= t < b), len(spans_) - 1)
 
 
+from cinema import lettering_estilos as LE  # noqa: E402  (o estilo efetivo de cada lettering)
+
+
 def _letterings(letts, spans_, dur):
     saida = []
     for l in letts:
@@ -198,8 +201,10 @@ def _letterings(letts, spans_, dur):
         d = round(min(float(l["dur"]), dur - s), 3)
         if d <= 0:
             continue
+        estilo = LE.efetivo(l.get("estilo"), split=bool(l.get("split")), baixo=bool(l.get("baixo")),
+                            pilha=bool(l.get("pilha")))
         saida.append({"id": str(l["id"]).lower(), "bloco": _bloco_de(s, spans_), "lead": l.get("lead") or None,
-                      "key": l["key"], "s": s, "d": d, "estilo": ESTILO_LETTERING, "split": bool(l.get("split")),
+                      "key": l["key"], "s": s, "d": d, "estilo": estilo, "split": bool(l.get("split")),
                       "baixo": bool(l.get("baixo")), "pilha": chave(l["pilha"]) if l.get("pilha") else None,
                       "cta": bool(l.get("logo"))})
     return saida
@@ -283,7 +288,7 @@ def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, rai
                  "eyebrow": hook_cfg.get("eyebrow", ""), "linha": hook_cfg.get("l1", ""),
                  "destaque": hook_cfg.get("accent", ""),
                  "estilo": "punch" if hook_cfg.get("style") == "punch" else "editorial"},
-        "cta": {"inicio": cta_start, "logo": max(logo_start, cta_start),
+        "cta": {"inicio": cta_start, "logo": logo_start,
                 "label": cfg.get("cta_label") or "saiba mais", "sem_lead": bool(cfg.get("cta_sem_lead"))},
         "camera": [dict(p) for p in punches],
         "sfx": [dict(x) for x in sfx],

@@ -315,35 +315,27 @@ def test_voz_que_chega_com_true_peak_alto_sai_dentro_da_entrega(tmp_path):
 # --- o bloco de áudio do build_composite ----------------------------------------------------------
 
 @pytest.mark.lento
-def test_bloco_de_audio_do_build_composite_mixa_pela_prancha_e_guarda_a_voz_de_referencia(tmp_path, monkeypatch):
-    """O motor antigo ainda monta o anúncio pelo build_composite: o bloco de áudio dele agora delega
-    ao mix_final (um AAC só, automação, riser, tick por linha de pilha, limiter)."""
+def test_bloco_de_audio_do_build_composite_mixa_pelo_plano_de_sfx_da_timeline_e_guarda_a_voz(tmp_path, monkeypatch):
+    """O build por projeto (W5.A) mixa com o plano de SFX da TIMELINE (relógio único), não mais pela prancha: um
+    grafo, um AAC, automação, riser, tick por linha de pilha e limiter."""
     import build_composite as BC
-    v1 = tmp_path / "v1"
-    (v1 / "inputs").mkdir(parents=True)
-    workdir = tmp_path / "render"
-    workdir.mkdir()
-    (v1 / "inputs" / "ad99_inserts.json").write_text(json.dumps({"a": {}}), encoding="utf-8")
-    prancha = {"ad": "ad99", "accel": 1.35, "total": 21.6,
-               "cta": {"inicio": 21.0, "logo": 21.2, "label": "saiba mais"},
-               "blocos": [{"i": 0, "tipo": "avatar", "s": 0.0, "e": 8.1, "texto": "um dois três"},
-                          {"i": 1, "tipo": "insert", "s": 8.1, "e": 13.5, "texto": "quatro"},
-                          {"i": 2, "tipo": "avatar", "s": 13.5, "e": 21.6, "texto": "cinco"}],
-               "letterings": [{"id": "p1", "s": 4.0, "d": 3.0, "key": "a", "pilha": True,
-                               "linhas": [{"key": "a", "delay": 0.0}, {"key": "b", "delay": 1.4}]}]}
-    (workdir / "prancha.json").write_text(json.dumps(prancha), encoding="utf-8")
+    tl = {"relogio": {"aceleracao": 1.35, "a0": 0.0},
+          "segmentos": [{"tipo": "apresentador", "s": 0.0, "e": 8.1}, {"tipo": "insert", "s": 8.1, "e": 13.5},
+                        {"tipo": "apresentador", "s": 13.5, "e": 21.6}],
+          "letterings": [{"id": "p1a", "s": 4.0, "d": 1.4, "pilha": "p1", "estilo": "serif_editorial"},
+                         {"id": "p1b", "s": 5.4, "d": 1.6, "pilha": "p1", "estilo": "serif_editorial"}],
+          "cta": {"inicio": 21.0, "logo": 21.0}}
+    sfx = sfx_plano.plano_de_sfx(tl)
     voz = voz_sintetica(tmp_path / "voz.wav", dur=16.0)
     video = com_video(voz, tmp_path / "final.mp4", dur=16.0)
     trilha = trilha_rosa(tmp_path / "fundo.wav", dur=8.0)
-    monkeypatch.setattr(BC, "V1", v1)
-    monkeypatch.setenv("VAM_MUSICA", str(trilha))
     monkeypatch.setattr(sfx_plano, "pasta_padrao", lambda: tmp_path / "som")
-    saida = BC.mixar_audio(video, "ad99", workdir)
-    assert saida == video
-    rel = json.loads((workdir / "mix_final.json").read_text(encoding="utf-8"))
+    saida, rel = BC.mixar_audio(video, tmp_path / "mixado.mp4", sfx=sfx, relogio=tl["relogio"], trilha=trilha,
+                                workdir=tmp_path)
+    assert saida.is_file()
     assert {e["efeito"] for e in rel["sfx"]} == {"tick", "riser"}
     assert len([e for e in rel["sfx"] if e["efeito"] == "tick"]) == 2
-    assert (workdir / "voz_pre_mix.wav").exists()
+    assert (tmp_path / "voz_pre_mix.wav").exists()
     assert [e["t"] for e in rel["sfx"] if e["efeito"] == "riser"] == [19.65]       # 1,0 s entregue antes do CTA
     assert rel["ducking"]["cama_fala"] == 0.055
-    assert loudness.medir(video).true_peak_dbtp <= -1.5
+    assert loudness.medir(saida).true_peak_dbtp <= -1.5

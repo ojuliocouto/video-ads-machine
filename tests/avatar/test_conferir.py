@@ -44,10 +44,14 @@ class Midia:
             saida = Path(argv[-1])
             saida.parent.mkdir(parents=True, exist_ok=True)
             t = float(argv[argv.index("-ss") + 1])
-            if any("scale=1:1080" in a for a in argv):
+            if any("scale=%d:1080" % C.LARGURA_AMOSTRA in a for a in argv):
                 col = self.colunas(t) if self.colunas else coluna()
-                img = Image.new("L", (1, len(col)))
-                img.putdata(col)
+                if col and isinstance(col[0], (list, tuple)):        # linhas inteiras (textura horizontal)
+                    img = Image.new("L", (C.LARGURA_AMOSTRA, len(col)))
+                    img.putdata([v for linha in col for v in linha])
+                else:                                                # a mesma cor na linha toda
+                    img = Image.new("L", (C.LARGURA_AMOSTRA, len(col)))
+                    img.putdata([v for v in col for _ in range(C.LARGURA_AMOSTRA)])
             else:
                 img = Image.new("RGB", (270, 480), (int(t * 7) % 255, 90, 160))
             img.save(str(saida))
@@ -112,7 +116,7 @@ def test_prancha_da_boca_tem_3_quadros_lado_a_lado(proj):
     C.conferir(proj, executar=m)
     img = Image.open(str(proj.avatar_boca))
     assert img.size == (3 * 270, 480)
-    extracoes = [a for a in m.chamadas if a[0] == "ffmpeg" and not any("scale=1:1080" in x for x in a)]
+    extracoes = [a for a in m.chamadas if a[0] == "ffmpeg" and not any("scale=%d:1080" % C.LARGURA_AMOSTRA in x for x in a)]
     assert len(extracoes) == 3
 
 
@@ -223,3 +227,26 @@ def test_cli_exit_0_1_2(proj, capsys):
     proj.avatar_mp4.unlink()
     assert C.main(["tres-horas", "--estado", estado], executar=midia(proj)) == 2
     assert "avatar.mp4" in capsys.readouterr().err
+
+
+# --- W5.A: barra é linha uniforme na LARGURA, não só na média -------------------------------------------------
+
+def test_camisa_escura_embaixo_nao_e_barra(proj):
+    """O avatar do fixture (plano médio, camisa escura e microfone embaixo) reprovava com 0,873: a média de cada
+    linha da base era constante, mas a linha tem textura (camisa, microfone). Barra de verdade (tarja) é uniforme
+    na largura inteira."""
+    def linhas(t):
+        meio = [[60 + (i * 37) % 140] * C.LARGURA_AMOSTRA for i in range(976)]
+        camisa = [[(20 if (x // 4) % 2 else 60) for x in range(C.LARGURA_AMOSTRA)] for _ in range(104)]
+        return meio + camisa
+    r = C.conferir(proj, executar=midia(proj, colunas=linhas))
+    assert r["fracao_util"] == pytest.approx(1.0, abs=0.002) and r["resultado"] == "aprovada"
+
+
+def test_tarja_uniforme_na_largura_continua_sendo_barra(proj):
+    def linhas(t):
+        meio = [[60 + (i * 37) % 140] * C.LARGURA_AMOSTRA for i in range(880)]
+        return meio + [[0] * C.LARGURA_AMOSTRA for _ in range(200)]
+    r = C.conferir(proj, executar=midia(proj, colunas=linhas))
+    assert r["barra_base_px"] == 200 and r["resultado"] == "reprovada"
+

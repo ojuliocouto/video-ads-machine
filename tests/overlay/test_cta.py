@@ -198,3 +198,12 @@ def test_m5_template_sem_o_botao_avisa_que_o_rotulo_nao_entrou(capsys):
     assert "ver agora" not in html
     err = capsys.readouterr().err
     assert "ver agora" in err and "AVISO" in err
+
+
+def test_lead_do_cta_vira_o_lead_do_botao():
+    """W5.A: a KEY do cta é o texto do botão (contratos/roteiro-convencao.md) e o LEAD é o lead dele. Antes a KEY virava
+    um lettering EM CIMA da pílula e do logo (logo carimbado sobre a KEY, "toque em" e "toca em" juntos na tela)."""
+    html = C.aplicar_html(MODELO, {"cta_label": "SAIBA MAIS", "cta_lead": "toque em"}, 12.3, 11.4, 20.7, [])
+    assert 'id="cta-pill">SAIBA MAIS</div>' in html
+    assert ">toque em</div>" in html and ">toca em</div>" not in html
+

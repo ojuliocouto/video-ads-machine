@@ -149,6 +149,8 @@ def main(cfg_path):
     logo_start = cta_m.logo_start(cta_start, lead)
     groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert,
                               letts, lett_windows, a0=tl["relogio"]["a0"] if tl else None)
+    if tl is not None:
+        groups = legendas.filtrar_suprimidas(groups, tl.get("legendas"))     # supressão pedida pelo gate_geometria
     caps_html = legendas.html(groups)
     letts_html = letterings_m.html(letts)
     cta_s, logo_s = cta_m.janela(cta_start, lead)

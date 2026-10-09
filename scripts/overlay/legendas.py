@@ -117,6 +117,22 @@ def aparar_nos_letterings(groups, letts, lett_windows):
     return _aparados
 
 
+SUPRESSAO_TOL_S = 0.02     # a timeline e o overlay montam os mesmos grupos pelas mesmas funções; 2 centésimos
+                           # cobrem o arredondamento do JSON
+
+
+def filtrar_suprimidas(groups, legendas_da_timeline):
+    """Tira os grupos que a timeline marcou como `suprimida` (o `gate_geometria` manda suprimir a legenda quando
+    nenhuma posição cabe entre o queixo e a UI). Pendência 12.3: a timeline carregava a marca e ninguém a lia, então
+    a supressão nascia inerte. O par é pelo tempo (início e fim do grupo), que a timeline copia do overlay."""
+    sup = [(float(l["s"]), float(l["e"])) for l in (legendas_da_timeline or []) if l.get("suprimida")]
+    if not sup:
+        return groups
+    return [g for g in groups
+            if not any(abs(float(g["start"]) - s) <= SUPRESSAO_TOL_S and abs(float(g["end"]) - e) <= SUPRESSAO_TOL_S
+                       for s, e in sup)]
+
+
 def html(groups):
     """O HTML das legendas (build_timeline): duas camadas por palavra, o preenchimento linear acende
     a de cima da esquerda para a direita enquanto a palavra é falada."""

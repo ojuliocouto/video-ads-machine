@@ -7,6 +7,10 @@ conta como igual às suas variantes). Nada específico de cliente mora aqui.
 
 Reprova com mais de max(2, 3% das palavras do bruto) palavras sumidas.
 
+Só os TRECHOS USADOS (pendência 12.4, W5.A): o take inteiro tem fala que o plano descartou, e o isolador limpa
+ruído ali também. Medir o take inteiro reprovou o A1 pelo trecho que nem entra no anúncio. Agora cada take é
+lido nas janelas que algum anúncio usa (`Projeto.janelas_usadas`), no bruto e no limpo, nos mesmos tempos.
+
 O gate de envelope é a prova que não depende do ASR; este pega a perda que a energia não vê
 (o isolador troca uma palavra fraca por outra). Os dois rodam, nesta ordem, antes de avançar.
 
@@ -97,12 +101,20 @@ def verificar_projeto(proj, leitor=None, pecas=None):
         raise InsumoInvalido("nenhum take para conferir: faltam o plano ou os áudios em %s" % proj.pasta("limpo"))
     leitor = leitor or proj.leitor()
     glossario = proj.glossario()
+    com_plano = bool(proj.todos_os_trechos())
     resultados = []
     for take in takes:
         bruto = veredito.exigir_arquivo(proj.wav(take), "o wav do bruto (rode o extrair_wav)")
         limpo = veredito.exigir_arquivo(proj.limpo(take), "o áudio limpo (rode o isolar)")
-        ok, motivo = verificar(leitor.texto_da_peca(bruto), leitor.texto_da_peca(limpo), glossario)
-        resultados.append((ok, "%s: %s" % (take, motivo)))
+        if not com_plano:                 # fase 1 (ainda sem anúncios): o take inteiro, para conferir o isolador
+            ok, motivo = verificar(leitor.texto_da_peca(bruto), leitor.texto_da_peca(limpo), glossario)
+            resultados.append((ok, "%s (take inteiro, sem plano ainda): %s" % (take, motivo)))
+            continue
+        janelas = proj.janelas_usadas(take)
+        texto_bruto = " ".join(leitor.texto(bruto, a, b) for a, b in janelas)
+        texto_limpo = " ".join(leitor.texto(limpo, a, b) for a, b in janelas)
+        ok, motivo = verificar(texto_bruto, texto_limpo, glossario)
+        resultados.append((ok, "%s (%d trecho(s) usado(s)): %s" % (take, len(janelas), motivo)))
     return veredito.juntar(resultados)
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GATE DO LOOK (W3.C): o look do HeyGen do projeto existe, está aprovado e é vertical.
 
-Substitui a lista cravada do motor antigo (LOOKS_OK_9X16 e LOOKS_VETADOS dentro do produzir_ad):
+Substitui a lista de looks aprovados e vetados que o motor antigo cravava no produzir_ad:
 quem decide quais looks servem é o aluno, em `_local/looks.json`, e a prova é a conferência do
 avatar gerado, não o nome do look.
 

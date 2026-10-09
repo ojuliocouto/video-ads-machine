@@ -130,9 +130,10 @@ def test_varredura_pega_cada_forma_de_ler_o_ambiente(tmp_path):
 
 def test_a_varredura_enxerga_as_variaveis_conhecidas_do_motor():
     lidas = todas_as_lidas()
-    for conhecida in ("HEYGEN_API_KEY", "GROQ_API_KEY", "VAM_DADOS", "FASE_GATE", "FIDELIDADE",
-                      "FASE_GATE_LEGADO", "GATE_FMT", "VAM_MUSICA", "HEYGEN_ENGINE_OVERRIDE",
-                      "WHISPER_SIZE", "ACCEL_FINAL"):
+    # W5.A: o montar por projeto não lê mais FASE_GATE, FIDELIDADE, GATE_FMT nem VAM_MUSICA (gate não se desliga por
+    # variável; a trilha é a do projeto.json); lê o paralelismo dos gates de saída e o vam lê VAM_SEM_VENV
+    for conhecida in ("HEYGEN_API_KEY", "GROQ_API_KEY", "VAM_DADOS", "FASE_GATE_LEGADO", "VAM_GATES_PARALELO",
+                      "VAM_SEM_VENV", "HEYGEN_ENGINE_OVERRIDE", "WHISPER_SIZE", "ACCEL_FINAL"):
         assert conhecida in lidas, f"a varredura deveria ter achado {conhecida}"
 
 

@@ -35,7 +35,7 @@ def grupo(*palavras, **extra):
 # --- constantes e classe -------------------------------------------------------------------
 
 def test_faixas_de_cada_classe_de_legenda():
-    assert LT.FAIXA_LEGENDA == {"costura": (1000, 1130), "baixa": (1370, 1520), "padrao": (1290, 1500)}
+    assert LT.FAIXA_LEGENDA == {"costura": (963, 1106), "baixa": (1370, 1520), "padrao": (1290, 1500)}
 
 
 def test_constantes_de_fronteira():
@@ -388,3 +388,11 @@ def test_o_piso_de_fatia_e_0_30s_nem_0_29_nem_0_31():
     g2 = grupo(pal("a", 10.0, 10.51))
     s2 = LT.cortar_na_fronteira([g2], [(1.0, 10.29)])
     assert (s2[0]["start"], s2[0]["end"]) == (10.0, 10.51)
+
+
+def test_costura_e_uma_so_a_tinta_medida_no_template():
+    """W5.A (pendência 12.3): o CSS punha a tinta da costura em y 963 a 1106 (medido pela W4.D no render real, `bottom:
+    790px` com padding de 24 px) e a faixa do layout dizia 1000 a 1130. Uma fonte só: a do que se mede na tela."""
+    assert LT.FAIXA_LEGENDA["costura"] == (963, 1106)
+    css = (Path(__file__).resolve().parents[2] / "templates" / "reel-editorial" / "index.html").read_text(encoding="utf-8")
+    assert "#caps .cgrp.cgrp-costura { bottom:790px;" in css

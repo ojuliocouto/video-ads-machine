@@ -99,8 +99,10 @@ def test_quatro_keys_reprova():
 
 
 def test_sem_key_de_cta_reprova():
+    """Nem lettering de CTA nem texto no botão (W5.A: a KEY do cta pode ser o texto do botão)."""
     tl = tl_boa()
     tl["letterings"] = tl["letterings"][:5]
+    tl["cta"]["label"] = " "
     g = G.rodar_antes(tl)
     assert g["resultado"] == "REPROVA" and "CTA" in g["motivo"]
 
@@ -211,9 +213,9 @@ def _leitor(tl, fracao_015=1.0, seta_move=True, faixa_seta=None):
             q[y0:y1, f["x0"] + 10:x1, 3] = 255
         cta = tl["cta"]["inicio"]
         if t >= cta:
-            q[fs["y0"] + 10:fs["y0"] + 60, fs["x0"] + 20:fs["x0"] + 300, 3] = 255     # a pílula, parada
+            q[fs["y0"] + 10:fs["y0"] + 60, fs["x0"] + 20:fs["x0"] + 300] = 255     # a pílula (branca), parada
             dy = int(round(8 * abs(np.sin((t - cta) * np.pi / 0.9)))) if seta_move else 0
-            q[fs["y0"] + 20 + dy:fs["y0"] + 50 + dy, fs["x0"] + 320:fs["x0"] + 372, 3] = 255
+            q[fs["y0"] + 20 + dy:fs["y0"] + 50 + dy, fs["x0"] + 320:fs["x0"] + 372] = 255
         return q
     return ler
 
@@ -279,3 +281,42 @@ def test_cli_timeline_ilegivel_sai_2(tmp_path):
     r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "gates" / "gate_lettering.py"), "antes",
                         "--timeline", str(p)], capture_output=True, text=True)
     assert r.returncode == 2
+
+
+# --- W5.A: o CTA do template de verdade ------------------------------------------------------------------
+
+def test_key_do_cta_pode_ser_o_texto_do_botao():
+    """A KEY do cta é o texto do botão (contrato do roteiro): a timeline traz a pílula (`cta.label`) e nenhum lettering
+    com `cta: true`. Isso não é "nenhuma KEY de CTA", e o intervalo segue contando até a subida do CTA."""
+    tl = tl_boa()
+    tl["letterings"] = tl["letterings"][:5]
+    tl["cta"]["label"] = "SAIBA MAIS"
+    g = G.rodar_antes(tl)
+    assert g["resultado"] == "PASS", g.get("motivo")
+    tl["cta"]["inicio"] = 33.0                       # 2 s depois da KEY de 31,0 s: intervalo curto
+    g = G.rodar_antes(tl)
+    assert g["resultado"] == "REPROVA" and "intervalo" in g["motivo"] and "SAIBA MAIS" in g["motivo"]
+
+
+def _leitor_com_scrim(tl, seta_move=True):
+    """O CTA do template: scrim radial ESCURO e opaco (alfa acima de 190 no centro) atrás da pílula, e a seta branca."""
+    base = _leitor(tl, seta_move=seta_move)
+    fs = E.FAIXAS["cta_seta"]
+
+    def ler(o, t):
+        q = base(o, t)
+        if t >= tl["cta"]["inicio"]:
+            escuro = q[fs["y0"]:fs["y1"], fs["x0"]:fs["x1"]]
+            fundo = escuro[..., 3] < 190
+            escuro[fundo] = (4, 5, 10, 230)              # o scrim conta como tinta pelo alfa, e é escuro
+        return q
+    return ler
+
+
+def test_seta_que_quica_sobre_o_scrim_opaco_do_cta_e_medida_pela_tinta_clara(tmp_path):
+    tl = tl_boa()
+    g = G.rodar_depois(tmp_path / "o.mov", tl, leitor_overlay=_leitor_com_scrim(tl))
+    assert g["medido"]["seta_cta"]["movimento_px"] >= G.SETA_MIN_PX, g.get("motivo")
+    g = G.rodar_depois(tmp_path / "o.mov", tl, leitor_overlay=_leitor_com_scrim(tl, seta_move=False))
+    assert g["resultado"] == "REPROVA" and "seta" in g["motivo"]
+

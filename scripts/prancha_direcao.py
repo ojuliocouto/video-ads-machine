@@ -2,7 +2,7 @@
 """Prancha de direcao: o anuncio inteiro em quadro parado, ANTES de renderizar.
 
 Por que existe (ordem do Julio, 18/08/2026): "se ele e um diretor, ele dirige, nao apenas
-audita no final". Eu classifiquei item por item a auditoria que reprovou o jh13 com 6,3:
+audita no final". Eu classifiquei item por item a auditoria que reprovou o anúncio de referência com 6,3:
 os 12 defeitos eram julgaveis sem o video pronto. Enquadramento ilegivel, texto decepado,
 lista que nao empilha, faixa preta na costura, legenda dentro da area de UI do Reels,
 exposicao, vao sem texto, cauda: tudo isso vive em quadro parado e em linha do tempo.
@@ -22,7 +22,12 @@ O truque: o quadro final e footage (motor v1) + overlay (HTML). O overlay sai do
 `hyperframes snapshot`, que da PNG com alpha em timestamps escolhidos sem render de
 video. A footage sai do proprio produzir_roteiro. Composto, e o quadro que vai ao ar.
 
-Uso:  python3 prancha_direcao.py jh13 [espuma_roxa]
+Uso (pelo vam, que monta o ambiente do projeto):  python3 scripts/vam.py plano <slug> --prancha
+Direto:  VAM_DADOS=<projeto>/render/motor python3 scripts/prancha_direcao.py <slug> [--estado _local] [--rapido]
+
+POR PROJETO (W5.A, defeito 1 do plano): a prancha procurava o gerador do overlay dentro do `_local` (onde ele não
+existe) e quebrava no clone limpo. Agora ela usa os passos do build (`build_composite.Motor`: arquivos do motor,
+timeline, overlay e footage) sobre o projeto do aluno, e escreve em `plano/prancha/` do projeto.
 """
 import json
 import os
@@ -35,17 +40,15 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from caminhos import V2  # noqa: E402
-from caminhos import V2L  # noqa: E402
-from caminhos import V1, CODIGO  # noqa: E402
-HF = str(V2 / "node_modules" / ".bin" / "hyperframes")
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# (migracao 26/08/2026) codigo agora vizinho; import direto resolve
-from ads_v2_configs import LOOKS as LK          # noqa: E402
-import build_composite as BC                     # noqa: E402
 import analise_inserts as AI                     # noqa: E402
+import build_composite as BC                     # noqa: E402
+from caminhos import V1                          # noqa: E402  (com VAM_DADOS do projeto: render/motor)
 
-SUFFIX = {"9x16": "", "1x1": "_1x1"}
+HF = str(BC.hyperframes())
+
 W, H = 1080, 1920
 # safe zones do Reels/Stories, medidas em fracao da altura
 SAFE_TOPO, SAFE_BASE = 0.14, 0.20
@@ -123,49 +126,31 @@ def folha(ims, dst, cols=6, alt=430):
 
 
 # ----------------------------------------------------------------- etapas baratas
-def preparar(ad, look, fmt="9x16"):
-    """Roda so as etapas que NAO renderizam video: config -> gen_ad_v2 -> overlay."""
-    lk, sfx = LK[look], SUFFIX[fmt]
-    base = json.loads((V2L / "configs" / f"{ad}_{lk}{sfx}.json").read_text())
-    workdir = V2L / f"render-{ad}-{lk}{sfx}-ovl"
-    workdir.mkdir(parents=True, exist_ok=True)
-    cfg = dict(base)
-    cfg["speed"] = 1.0
-    cfg["out_dir"] = str(workdir)
-    cfg_path = workdir.parent / f"_cfg_{ad}_{lk}{sfx}.json"
-    cfg_path.write_text(json.dumps(cfg, ensure_ascii=False))
-    print("[1/5] gen_ad_v2 (transcreve + monta html + prancha.json)...", flush=True)
-    sh([sys.executable, str(V2L / "gen_ad_v2.py"), str(cfg_path)])
-    print("[2/5] strip -> overlay transparente", flush=True)
-    ovl = BC.strip_overlay(workdir / "index.html")
-    only = V2L / f"render-{ad}-{lk}{sfx}-ovlonly"
-    if only.exists():
-        shutil.rmtree(only)
-    only.mkdir(parents=True)
-    (only / "index.html").write_text(ovl.read_text())
-    if not (only / "fonts").exists():
-        os.symlink(workdir / "fonts", only / "fonts")
-    shutil.copy(workdir / "logo.png", only / "logo.png")
-    if (workdir / "meta.json").exists():
-        shutil.copy(workdir / "meta.json", only / "meta.json")
-    pr = json.loads((workdir / "prancha.json").read_text())
-    return pr, workdir, only, base
+def pasta_de_saida(pj):
+    """Onde a prancha do projeto sai: plano/prancha/."""
+    return pj.prancha_dir
 
 
-def footage(ad, look, base, reaproveitar=False):
-    """Monta a footage (motor v1). E o unico passo pesado da prancha, ~1-2 min."""
-    out = V1 / "output" / f"prancha_{ad}_{look}_footage.mp4"
-    if reaproveitar and out.exists():
+def preparar(motor):
+    """Só as etapas que NÃO renderizam vídeo: arquivos do motor, timeline, overlay HTML e o projeto do HyperFrames."""
+    print("[1/5] arquivos do motor e timeline (relógio único)...", flush=True)
+    motor.escrever_arquivos_do_motor()
+    motor.construir_timeline()
+    print("[2/5] overlay HTML (gen_ad_v2 com a timeline) e o transparente...", flush=True)
+    if motor.gerar_overlay() is None:
+        raise BC.ErroDoMotor("overlay", (motor.saida_overlay or (None, ""))[1].strip()[-600:])
+    only = motor.projeto_do_overlay()
+    pr = json.loads((motor.overlay_dir / "prancha.json").read_text())
+    return pr, only
+
+
+def footage(motor, reaproveitar=False):
+    """A footage a 1x (o único passo pesado da prancha, de 1 a 2 min por anúncio)."""
+    if reaproveitar and motor.footage.exists():
         print("[3/5] footage: reaproveitando a existente", flush=True)
-        return out
-    print("[3/5] footage v1 (sem texto)...", flush=True)
-    env = dict(os.environ)
-    env.update({"VAM_AVATAR": base["avatar"],
-                "VAM_ROTEIRO": str(V1 / "inputs" / f"{ad}_leva.txt"),
-                "VAM_INSERTS_JSON": str(V1 / "inputs" / f"{ad}_inserts.json"),
-                "VAM_BAKE_LETTERING": "0", "CAP": "0", "VAM_OUT": out.name})
-    sh([sys.executable, str(CODIGO / "produzir_roteiro.py")], env=env, cwd=str(V1))
-    return out
+        return motor.footage
+    print("[3/5] footage (sem texto)...", flush=True)
+    return motor.montar_footage()
 
 
 def _variante_fundo(only, cor, nome):
@@ -380,7 +365,7 @@ def emendas_pipoca(pr):
         try:
             txt = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_frames", "-of", "csv=p=0",
-                 "-f", "lavfi", f"movie={cfg['file']},select=gt(scene\,0.4)",
+                 "-f", "lavfi", f"movie={cfg['file']}," + r"select=gt(scene\,0.4)",
                  "-show_entries", "frame=pkt_pts_time"],
                 capture_output=True, text=True, timeout=180).stdout
         except Exception:
@@ -419,7 +404,7 @@ def pontos(pr):
             ts.append(t); marcas.append(("HOOK", f"{t:.1f}s", ""))
     # FATIA, nao bloco (buraco 3): o ritmo devolve o rosto no meio do bloco, entao
     # amostrar 1/4, 2/4, 3/4 do BLOCO caia em avatar e escondia a tela. No AD14 b01,
-    # 2 dos 4 quadros eram cara do Thales.
+    # 2 dos 4 quadros eram o rosto do apresentador.
     for _f in pr.get("_planos_ritmo") or []:
         if _f.get("tipo") != "insert":
             continue
@@ -497,32 +482,46 @@ def pontos(pr):
     return ts, marcas
 
 
-def main():
-    ad = sys.argv[1]
-    # produzir_ad aceita "jh13"; os configs e inputs moram como "jh13v2". Normalizo aqui
-    # pra prancha e build falarem do mesmo ad sem eu ter que lembrar do sufixo.
-    if not list((V2L / "configs").glob(f"{ad}_*.json")) and \
-            list((V2L / "configs").glob(f"{ad}v2_*.json")):
-        ad = f"{ad}v2"
-    look = sys.argv[2] if len(sys.argv) > 2 else None
-    if not look:
-        cfgs = list((V2L / "configs").glob(f"{ad}_*.json"))
-        inv = {v: k for k, v in LK.items()}
-        look = inv.get(cfgs[0].stem.split("_", 1)[1]) if cfgs else None
-        if not look:
-            sys.exit("informe o look")
-    out = V2L / "prancha" / ad
-    out.mkdir(parents=True, exist_ok=True)
+def main(argv=None):
+    import argparse
+    from projeto import pastas
+    ap = argparse.ArgumentParser(prog="prancha_direcao", description="A prancha de direção do projeto, sem render.")
+    ap.add_argument("slug")
+    ap.add_argument("--estado", help="pasta _local (padrão: a do repo)")
+    ap.add_argument("--rapido", action="store_true", help="reaproveita a footage e os snapshots já feitos")
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit as e:
+        return int(e.code or 0)
+    try:
+        pj = pastas.projeto(a.slug, a.estado)
+    except ValueError as e:
+        print("prancha: %s" % e, file=sys.stderr)
+        return 2
+    if not pj.projeto_json.is_file():
+        print("prancha: o projeto %r não existe em %s: crie com vam novo %s" % (pj.slug, pj.raiz, pj.slug),
+              file=sys.stderr)
+        return 2
+    try:
+        return _montar(pj, a.rapido)
+    except BC.ErroDoMotor as e:
+        print("prancha: %s" % e, file=sys.stderr)
+        return 2
 
-    rap = "--rapido" in sys.argv        # reaproveita footage e snapshots ja feitos
-    pr, workdir, only, base = preparar(ad, look)
+
+def _montar(pj, rap):
+    motor = BC.Motor(pj)
+    ad = motor.slug
+    out = pasta_de_saida(pj)
+    out.mkdir(parents=True, exist_ok=True)
+    pr, only = preparar(motor)
     # aritmetica de fonte ANTES de escolher os pontos: e ela que diz onde congela
     pr["_congelamento"] = AI.analisar(ad, pr)
     print("  congelamento por insert (fonte x consumo):", flush=True)
     AI.imprimir(pr["_congelamento"])
     pr["_emendas"] = emendas_pipoca(pr)
     pr["_planos_ritmo"] = _plano_de_ritmo_do_ad(ad, pr)
-    foot = footage(ad, look, base, rap)
+    foot = footage(motor, rap)
     ts, marcas = pontos(pr)
     pngs = snapshots(only, ts, rap)
     if len(pngs) != len(ts):
@@ -543,8 +542,7 @@ def main():
         im = compor(fp, pngs[i])
         im = marcar_safe(im.convert("RGB"))
         # luminancia das duas faixas onde texto mora: hook (14-42%) e legenda/lettering
-        # (62-88%). Acima de 180, texto branco some. Buraco 2 do diretor: ele teve que
-        # medir na mao pra provar o hook do AD15 (L=231 contra L=31).
+        # (62-88%). Acima de 180, texto branco some.
         _lh = luminancia_faixa(im, 0.14, 0.42)
         _ll = luminancia_faixa(im, 0.62, 0.88)
         _alerta = "  <<< FUNDO CLARO: texto branco some" if (_lh > 180 or _ll > 180) else ""
@@ -559,10 +557,11 @@ def main():
     feitas.append(regua(pr, out / "regua.png"))
     (out / "prancha.json").write_text(json.dumps(pr, ensure_ascii=False, indent=2))
     shutil.rmtree(tmp, ignore_errors=True)
-    print(f"\nPRANCHA {ad} [{look}] pronta em {out}")
+    print(f"\nPRANCHA de {ad} pronta em {out}")
     for f in feitas:
         print(f"  {f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

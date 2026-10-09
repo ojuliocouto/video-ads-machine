@@ -5,10 +5,13 @@ posições de legenda, e a escolha depende do que está embaixo dela naquele ins
 
     padrão   avatar cheio: cai no peito             y 1290 a 1500
     baixa    insert (de tela cheia ou com texto próprio): desce para o rodapé    y 1370 a 1520
-    costura  tela dividida: a emenda entre os dois painéis, nem na testa nem na boca   y 1000 a 1130
+    costura  tela dividida: a emenda entre os dois painéis, nem na testa nem na boca   y 963 a 1106
 
 As faixas saem do CSS (`#caps .cgrp` bottom 475, `.cgrp-baixa` 330, `.cgrp-costura` 790) com folga
-para os dois lados, e batem com as faixas que o gate de contraste mede no arquivo entregue.
+para os dois lados, e batem com as faixas que o gate de contraste mede no arquivo entregue. A costura é
+a TINTA medida no render real (W4.D: `bottom:790px` com padding de 24 px pinta de y 963 a 1106); a faixa
+antiga de 1000 a 1130 e o comentário do CSS diziam coisas diferentes, e o gate de geometria lia uma e o
+render pintava a outra (pendência 12.3, unificada na W5.A).
 
 REGRA DA FRONTEIRA. Um grupo de legenda que ATRAVESSA a troca de layout não tem posição boa: no
 split só a costura escapa do rosto, e no avatar cheio é a costura que cai nele. Escolher um lado
@@ -28,7 +31,7 @@ import json
 from caminhos import V1
 
 # faixa (y0, y1) de cada classe de legenda no quadro 1080x1920
-FAIXA_LEGENDA = {"costura": (1000, 1130), "baixa": (1370, 1520), "padrao": (1290, 1500)}
+FAIXA_LEGENDA = {"costura": (963, 1106), "baixa": (1370, 1520), "padrao": (1290, 1500)}
 
 GUARDA_MOTOR = 0.12       # banda de guarda na fronteira (resíduo de arredondamento entre os motores)
 GUARDA_POS_SPLIT = 0.18   # grupo que nasce a menos disso do fim do split é empurrado para depois

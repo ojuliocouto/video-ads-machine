@@ -72,6 +72,13 @@ def aplicar_html(html, cfg, cta_s, logo_s, total, janelas_split):
     pelo lettering, e o CTA era o único dos três que não consultava, por isso pousava no rosto
     quando o último bloco era split.
     """
+    if cfg.get("cta_lead") and not cfg.get("cta_sem_lead"):
+        # o LEAD do bloco cta é o lead do botão (W5.A: a KEY é o texto do botão; nada de lettering em cima da pílula)
+        html, n = _LEAD.subn(lambda m: m.group(0).replace(">%s</div>" % m.group(1), ">%s</div>" % cfg["cta_lead"], 1),
+                             html, count=1)
+        if not n:
+            print("   [cta] AVISO: o template nao tem o lead do CTA (data-hf-id hf-laqu): o LEAD do cta nao entrou",
+                  file=sys.stderr, flush=True)
     if cfg.get("cta_sem_lead"):
         m = _LEAD.search(html)
         if m:

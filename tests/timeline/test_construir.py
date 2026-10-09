@@ -914,3 +914,33 @@ def test_l8_a_cli_imprime_so_o_resumo_no_stdout(mundo, monkeypatch, capsys):
     linhas = [l for l in cap.out.splitlines() if l.strip()]
     assert len(linhas) == 1 and linhas[0].startswith("[timeline]"), cap.out
     assert "[ritmo]" in cap.err or "[split]" in cap.err or "[look]" in cap.err
+
+
+
+# ============================================================================ W5.A: o logo real no contrato
+
+def test_logo_antecipado_pelo_overlay_entra_na_timeline_como_e(mundo, monkeypatch):
+    """O overlay sobe o logo 0,9 s antes da pílula quando o bloco anterior ao CTA é apresentador. A timeline grava
+    esse instante (antes ela grudava o logo no CTA, porque o contrato não aceitava)."""
+    from overlay import cta as OC
+    monkeypatch.setattr(OC, "logo_lead", lambda blocks: OC.LOGO_LEAD)
+    tl = TC.construir(mundo.blocks, mundo.alinhamento, inserts_map=mundo.inserts_map, cfg=mundo.cfg,
+                      caminho_alinhamento=mundo.caminho_alinhamento, raiz=mundo.dados)
+    assert validar("timeline", tl) == []
+    assert tl["cta"]["logo"] == pytest.approx(max(tl["cta"]["inicio"] - OC.LOGO_LEAD, 0.0), abs=1e-6)
+
+
+def test_o_estilo_do_lettering_no_config_vai_para_a_timeline(mundo):
+    """O estilo pedido no config chega à timeline (os gates medem a faixa DELE); em split, close e pilha só o
+    editorial cabe (`lettering_estilos.efetivo`)."""
+    from cinema import lettering_estilos as LE
+    cfg = copy.deepcopy(mundo.cfg)
+    for l in cfg["letterings"]:
+        l["estilo"] = "punch"
+    tl = TC.construir(mundo.blocks, mundo.alinhamento, inserts_map=mundo.inserts_map, cfg=cfg,
+                      caminho_alinhamento=mundo.caminho_alinhamento, raiz=mundo.dados)
+    assert validar("timeline", tl) == []
+    for l in tl["letterings"]:
+        assert l["estilo"] == LE.efetivo("punch", split=l["split"], baixo=l["baixo"], pilha=bool(l["pilha"]))
+    assert any(l["estilo"] == "punch" for l in tl["letterings"])
+

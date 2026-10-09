@@ -64,6 +64,7 @@ T_LEGIVEL = LE.ENTRADA_LEGIVEL_S       # 0,15 s
 T_ASSENTADO = 0.60
 FRACAO_LEGIVEL = LE.ALFA_LEGIVEL       # 0,90
 TINTA_ALFA_MIN = 190
+TINTA_CLARA_MIN = 160         # a seta (e o texto da pílula) é branca; o scrim do CTA é quase preto
 SETA_INICIO_S = 0.60                   # a seta começa a quicar 0,6 s depois do CTA subir (timeline.js)
 SETA_PASSO_S = 0.225                   # um quarto do ciclo de 0,9 s: dois instantes vizinhos nunca coincidem
 SETA_AMOSTRAS = 5
@@ -188,6 +189,15 @@ def _faixa_cta(tl):
     return cta["inicio"], LE.FAIXAS["cta_split" if _no_split(tl, cta["inicio"]) else "cta"]
 
 
+def _cta_do_botao(tl):
+    """A KEY do CTA quando ela é o texto do botão (W5.A, contrato do roteiro: "KEY do botão"): a pílula do template,
+    na subida do CTA, como um lettering de CTA para a contagem e o intervalo. Vazio se a timeline não tem CTA."""
+    cta = tl.get("cta")
+    if not isinstance(cta, dict) or not _numero(cta.get("inicio")) or not str(cta.get("label") or "").strip():
+        return []
+    return [{"id": "cta", "key": cta["label"], "s": float(cta["inicio"]), "d": 0.0, "cta": True, "botao": True}]
+
+
 def avaliar_antes(tl, projeto=None):
     """(motivos, medido) da timeline. Função pura: a CLI e o orquestrador chamam `rodar_antes`."""
     acel = float(tl["relogio"]["aceleracao"])
@@ -195,7 +205,7 @@ def avaliar_antes(tl, projeto=None):
     motivos, avisos = [], []
     letts = tl["letterings"]
     meio = [l for l in letts if not l.get("cta")]
-    ctas = [l for l in letts if l.get("cta")]
+    ctas = [l for l in letts if l.get("cta")] or _cta_do_botao(tl)
     gr = grupos(meio)
 
     # contagem
@@ -213,7 +223,7 @@ def avaliar_antes(tl, projeto=None):
             motivos.append(m)
 
     # intervalo (entregue), entre grupos, CTA incluído
-    todos = grupos(letts)
+    todos = grupos(meio + ctas)
     intervalos = []
     for (s0, i0), (s1, i1) in zip(todos, todos[1:]):
         entregue = (s1 - s0) / acel
@@ -294,6 +304,19 @@ def rodar_antes(timeline, projeto=None, *, nome=NOME_ANTES, etapa="antes"):
 
 # --- depois: o overlay --------------------------------------------------------------------------------------------
 
+def _tinta_clara(quadro, f):
+    """A tinta CLARA de uma faixa: opaca (alfa de TINTA_ALFA_MIN ou mais) e clara (cinza acima de TINTA_CLARA_MIN). É
+    como a seta do CTA se mede: o scrim do CTA é escuro e opaco (alfa .80 no centro), então pelo alfa só ele e a seta
+    branca em cima dele são a mesma tinta e o movimento some da medida (0 px no primeiro e2e da W5.A)."""
+    import numpy as np
+    a = np.asarray(quadro)
+    if a.ndim != 3 or a.shape[2] < 4:
+        raise InsumoInvalido("o quadro do overlay não tem cor e alfa (forma %s)" % (a.shape,))
+    q = a[f["y0"]:f["y1"] + 1, f["x0"]:f["x1"] + 1].astype(np.float32)
+    cinza = 0.299 * q[..., 0] + 0.587 * q[..., 1] + 0.114 * q[..., 2]
+    return (q[..., 3] >= TINTA_ALFA_MIN) & (cinza >= TINTA_CLARA_MIN)
+
+
 def _tinta(quadro, f):
     import numpy as np
     a = np.asarray(quadro)
@@ -350,7 +373,7 @@ def avaliar_depois(overlay, tl, leitor):
         fim = float(tl.get("duracao_s") or cta_ini + 5)
         ts = [cta_ini + SETA_INICIO_S + k * SETA_PASSO_S for k in range(SETA_AMOSTRAS)]
         ts = [t for t in ts if t < fim - 0.04]
-        mascaras = [_tinta(_ler(leitor, overlay, t), fs) for t in ts]
+        mascaras = [_tinta_clara(_ler(leitor, overlay, t), fs) for t in ts]
         mov = max([int(np.logical_xor(a, b).sum()) for a, b in zip(mascaras, mascaras[1:])] or [0])
         seta = {"movimento_px": mov, "instantes": [round(t, 3) for t in ts], "faixa": fs}
         if mov < SETA_MIN_PX:

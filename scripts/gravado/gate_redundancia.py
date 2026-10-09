@@ -10,6 +10,11 @@ funcionais) nos 6 s antes e nos 6 s depois da costura: dois ou mais em comum é 
 take de CTA serve vários anúncios, mas o ponto de ENTRADA não é o mesmo em todos: depende do que
 o corpo daquele anúncio acabou de dizer.
 
+Os dois lados são lidos nos TRECHOS USADOS (pendência 12.4, W5.A), no áudio limpo de cada take: os segmentos que
+a montagem cola, inteiros, até somar 6 s entregues de cada lado. Ler 6 s da peça MONTADA cortava palavra na borda
+da janela do ASR ("produt" de um lado virava termo) e atravessava outra emenda; o segmento começa e acaba em
+silêncio, então nenhuma palavra é cortada.
+
     python3 scripts/gravado/gate_redundancia.py [PECA ...] [--projeto DIR]
 Saída: 0 passou, 1 achou redundância, 2 insumo inválido (ASR falhou).
 """
@@ -56,6 +61,30 @@ def ler_lados(arquivo, emendas, leitor, janela_s=JANELA_S):
     return pares
 
 
+def lados_dos_trechos(segs, accel, limpo_de, leitor, janela_s=JANELA_S):
+    """[(emenda no entregue, texto antes, texto depois)] lendo os SEGMENTOS usados no limpo de cada take.
+
+    Cada lado junta segmentos inteiros, a partir da emenda, até somar `janela_s` segundos entregues
+    (`(fim - início) / accel`). Segmento é lido por inteiro: ele começa e acaba em silêncio, nunca no meio da palavra."""
+    pontos = montar.emendas(segs, accel)
+    saida = []
+    for k, t in enumerate(pontos):
+        antes, soma = [], 0.0
+        for take, s, e in reversed(segs[:k + 1]):
+            antes.insert(0, leitor.texto(limpo_de(take), s, e))
+            soma += (e - s) / accel
+            if soma >= janela_s:
+                break
+        depois, soma = [], 0.0
+        for take, s, e in segs[k + 1:]:
+            depois.append(leitor.texto(limpo_de(take), s, e))
+            soma += (e - s) / accel
+            if soma >= janela_s:
+                break
+        saida.append((t, " ".join(antes), " ".join(depois)))
+    return saida
+
+
 def verificar(pares):
     """(ok, motivo). `pares`: [(rótulo da peça, instante da emenda, texto antes, texto depois)]."""
     achados = []
@@ -80,9 +109,10 @@ def verificar_projeto(proj, leitor=None, pecas=None):
         if nome not in versoes:
             raise InsumoInvalido("a peça %s não está no plano (tem: %s)" % (nome, ", ".join(versoes)))
         cod, desconto = versoes[nome]
-        pontos = montar.emendas(montar.segmentos_do_ad(proj, cod, desconto), proj.accel)
-        arquivo = veredito.exigir_arquivo(proj.montado(nome), "a peça montada")
-        pares += [(nome, t, a, d) for t, a, d in ler_lados(arquivo, pontos, leitor)]
+        segs = montar.segmentos_do_ad(proj, cod, desconto)
+        for take, _, _ in segs:
+            veredito.exigir_arquivo(proj.limpo(take), "o áudio limpo do take %s (rode o isolar)" % take)
+        pares += [(nome, t, a, d) for t, a, d in lados_dos_trechos(segs, proj.accel, proj.limpo, leitor)]
     return verificar(pares)
 
 

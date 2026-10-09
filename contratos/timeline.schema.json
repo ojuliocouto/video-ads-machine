@@ -147,7 +147,7 @@
       "required": ["inicio", "logo", "label", "sem_lead"],
       "properties": {
         "inicio": {"$ref": "#/$defs/tempo"},
-        "logo": {"$ref": "#/$defs/tempo"},
+        "logo": {"$ref": "#/$defs/tempo", "description": "Quando o logo sobe. Pode vir até 0,9 s ANTES de 'inicio' (o overlay antecipa o logo quando o bloco anterior ao CTA é o apresentador); o validador confere o limite."},
         "label": {"type": "string", "minLength": 1},
         "sem_lead": {"type": "boolean"}
       }
