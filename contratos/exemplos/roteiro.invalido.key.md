@@ -1,0 +1,2 @@
+[apresentador | LEAD: o problema não é] O problema não é falta de tempo.
+[cta | KEY: SAIBA MAIS] Toque em saiba mais.

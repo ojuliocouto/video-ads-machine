@@ -1,0 +1,20 @@
+{
+  "versao": 1,
+  "looks": {
+    "laranja": {
+      "avatar_id": "a1b2c3d4e5f6a7b8c9d0",
+      "orientacao": "vertical",
+      "plano": "medio",
+      "aprovado": true,
+      "conferencia": {"arquivo": "projetos/tres-horas/avatar/conferencia.json", "sha256": "eb7f0b95f0c53de48537b629bfd2200e061338452fd543cdd2915723120cddfc"},
+      "aprovado_em": "2026-10-08T22:05:00-03:00"
+    },
+    "escritorio_claro": {
+      "avatar_id": "f0e1d2c3b4a5f6e7d8c9",
+      "orientacao": "vertical",
+      "plano": "fechado",
+      "aprovado": false,
+      "nota": "boca ainda não conferida em resolução nativa"
+    }
+  }
+}

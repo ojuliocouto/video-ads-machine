@@ -1,0 +1,8 @@
+{
+  "versao": 1,
+  "slug": "tres-horas",
+  "modo": "avatar",
+  "look": "laranja",
+  "aceleracao": 0.8,
+  "trilha": {"arquivo": "leve-corporativa.mp3"}
+}

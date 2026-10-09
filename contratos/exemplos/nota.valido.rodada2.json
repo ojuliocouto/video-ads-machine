@@ -1,0 +1,15 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "arquivo": "entrega/final_9x16.mp4",
+  "sha256": "1223a18fad1ce6bb50cba63c7cebdf3075817e41ddafbfe747f30a261b0d1279",
+  "nota": 8.1,
+  "rodada": 2,
+  "auditado_em": "2026-10-08T23:50:00-03:00",
+  "achados": [
+    {"id": "A1", "gravidade": "grave", "instante_s": 12.2, "descricao": "legenda em cima do queixo no split", "status": "corrigido"},
+    {"id": "A2", "gravidade": "moderada", "descricao": "riser alto demais antes do CTA", "status": "corrigido"}
+  ],
+  "reconfere": ["A1", "A2"],
+  "emissor": "auditor"
+}

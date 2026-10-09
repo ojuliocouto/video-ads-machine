@@ -1,0 +1,100 @@
+{
+  "livre": false,
+  "blocos": [
+    {
+      "tipo": "insert",
+      "insert": "painel",
+      "layout": null,
+      "hook": {"eyebrow": "VOCÊ PERDE", "linha": "3 horas por dia", "destaque": "NISSO AQUI"},
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Você perde três horas por dia nisso aqui."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "E eu sei porque eu fazia igual, todo santo dia."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "o problema não é",
+      "key": "FALTA DE TEMPO",
+      "ancora": {"palavra": "O", "n": 1, "explicita": false},
+      "logo": false,
+      "itens": [],
+      "enfase": ["tempo"],
+      "fala": "O problema não é falta de tempo."
+    },
+    {
+      "tipo": "insert",
+      "insert": "planilha",
+      "layout": "split",
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "É que cada tarefa repetida come um pedaço da sua agenda."
+    },
+    {
+      "tipo": "lista",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "enquanto isso",
+      "key": null,
+      "ancora": {"palavra": "Enquanto", "n": 1, "explicita": false},
+      "logo": false,
+      "itens": [
+        {"texto": "a proposta atrasa", "marcador": null},
+        {"texto": "o cliente esfria", "marcador": null},
+        {"texto": "você perde a venda", "marcador": null}
+      ],
+      "enfase": [],
+      "fala": "Enquanto isso: a proposta atrasa, o cliente esfria e você perde a venda."
+    },
+    {
+      "tipo": "insert",
+      "insert": "automacao",
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Com uma automação simples, isso roda sozinho enquanto você atende."
+    },
+    {
+      "tipo": "cta",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "logo": true,
+      "itens": [],
+      "enfase": [],
+      "fala": "Toque em saiba mais e veja como montar a sua."
+    }
+  ]
+}

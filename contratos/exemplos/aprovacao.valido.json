@@ -1,0 +1,13 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "aprovado_em": "2026-10-08T22:30:00-03:00",
+  "ok": "aprovado, pode montar. Se o gancho ficar escuro, me avisa.",
+  "arquivos": {
+    "roteiro": {"caminho": "roteiro.md", "sha256": "9bffa1f3d4c1af67ac7279e3aafb72e249c0735cd28edddc450aa86170e43506"},
+    "projeto": {"caminho": "projeto.json", "sha256": "f34e2fd61634e65e32ffec91d29ac81a504e1409bed03a5ff36860202b103cd3"},
+    "plano": {"caminho": "plano/plano.json", "sha256": "9bd80270ebaa057be2f27c9a2ffaf9608fde46545f2dbdd9e1b2d9d7ad9f7ee2"},
+    "inserts": {"caminho": "render/inserts.json", "sha256": "216655cfb54a21b0a4c9dcf3bad719c9ff6d70f2734517b9becbe394976e1365"}
+  },
+  "emissor": "plano.aprovacao"
+}

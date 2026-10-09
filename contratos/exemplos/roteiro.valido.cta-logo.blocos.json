@@ -1,0 +1,44 @@
+{
+  "livre": false,
+  "blocos": [
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "um dia na mão",
+      "key": "NO OUTRO, SOZINHO",
+      "ancora": {"palavra": "dia", "n": 2, "explicita": true},
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Um dia eu fiz tudo na mão, no outro dia já rodava sozinho."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "tudo isso em",
+      "key": "UMA TARDE",
+      "ancora": {"palavra": "tarde", "n": 1, "explicita": true},
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Dá pra montar tudo isso em uma tarde."
+    },
+    {
+      "tipo": "cta",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "logo": true,
+      "itens": [],
+      "enfase": ["saiba mais"],
+      "fala": "Toque em saiba mais e veja como montar a sua."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "arquivo": "entrega/final_9x16.mp4",
+  "sha256": "1223a18fad1ce6bb50cba63c7cebdf3075817e41ddafbfe747f30a261b0d1279",
+  "nota": 8.0,
+  "rodada": 2,
+  "auditado_em": "2026-10-08T23:50:00-03:00",
+  "achados": [{"id": "A1", "gravidade": "grave", "descricao": "legenda em cima do queixo", "status": "corrigido"}],
+  "reconfere": ["A9"],
+  "emissor": "auditor"
+}

@@ -1,0 +1,291 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "modo": "avatar",
+  "gerado_em": "2026-10-08T22:20:00-03:00",
+  "fonte": {
+    "roteiro_sha256": "9bffa1f3d4c1af67ac7279e3aafb72e249c0735cd28edddc450aa86170e43506",
+    "projeto_sha256": "f34e2fd61634e65e32ffec91d29ac81a504e1409bed03a5ff36860202b103cd3",
+    "alinhamento_sha256": "e8296e424b257c144eec092ee9fd4a254b1c3c7ab6946b554fa5c0371927d336"
+  },
+  "duracao_s": 27.5,
+  "blocos": [
+    {
+      "i": 0,
+      "tipo": "insert",
+      "insert": "painel",
+      "layout": "cheio",
+      "fala": "Você perde três horas por dia nisso aqui.",
+      "s": 0.0,
+      "e": 3.1
+    },
+    {
+      "i": 1,
+      "tipo": "apresentador",
+      "fala": "E eu sei porque eu fazia igual, todo santo dia.",
+      "s": 3.1,
+      "e": 6.4
+    },
+    {
+      "i": 2,
+      "tipo": "apresentador",
+      "fala": "O problema não é falta de tempo.",
+      "s": 6.4,
+      "e": 9.2
+    },
+    {
+      "i": 3,
+      "tipo": "insert",
+      "insert": "planilha",
+      "layout": "split",
+      "fala": "É que cada tarefa repetida come um pedaço da sua agenda.",
+      "s": 9.2,
+      "e": 13.6
+    },
+    {
+      "i": 4,
+      "tipo": "lista",
+      "fala": "Enquanto isso: a proposta atrasa, o cliente esfria e você perde a venda.",
+      "s": 13.6,
+      "e": 18.9
+    },
+    {
+      "i": 5,
+      "tipo": "insert",
+      "insert": "automacao",
+      "layout": "cheio",
+      "proposto": true,
+      "fala": "Com uma automação simples, isso roda sozinho enquanto você atende.",
+      "s": 18.9,
+      "e": 24.0
+    },
+    {
+      "i": 6,
+      "tipo": "cta",
+      "fala": "Toque em saiba mais e veja como montar a sua.",
+      "s": 24.0,
+      "e": 27.5
+    }
+  ],
+  "mapa_inserts": [
+    {
+      "chave": "painel",
+      "arquivo": "inserts/painel.mp4",
+      "blocos": [
+        0
+      ],
+      "largura": 1280,
+      "altura": 644,
+      "duracao_s": 8.36,
+      "orientacao": "horizontal",
+      "tratamento": "moldura",
+      "visitas": 1,
+      "congela_s": 0.0
+    },
+    {
+      "chave": "planilha",
+      "arquivo": "inserts/planilha.mp4",
+      "blocos": [
+        3
+      ],
+      "largura": 1280,
+      "altura": 692,
+      "duracao_s": 10.04,
+      "orientacao": "horizontal",
+      "tratamento": "split",
+      "visitas": 1,
+      "congela_s": 0.0
+    },
+    {
+      "chave": "automacao",
+      "arquivo": "inserts/automacao.mp4",
+      "blocos": [
+        5
+      ],
+      "largura": 958,
+      "altura": 720,
+      "duracao_s": 7.16,
+      "orientacao": "horizontal",
+      "tratamento": "moldura",
+      "visitas": 1,
+      "congela_s": 0.0
+    }
+  ],
+  "hook": {
+    "eyebrow": "VOCÊ PERDE",
+    "linha": "3 horas por dia",
+    "destaque": "NISSO AQUI",
+    "estilo": "punch",
+    "fim_s": 3.1,
+    "evento_visual": "insert"
+  },
+  "letterings": [
+    {
+      "bloco": 2,
+      "lead": "o problema não é",
+      "key": "FALTA DE TEMPO",
+      "ancora": {
+        "palavra": "O",
+        "n": 1
+      },
+      "s": 6.4,
+      "d": 2.2,
+      "estilo": "caixa_nativa",
+      "pilha": null,
+      "cta": false
+    },
+    {
+      "bloco": 4,
+      "lead": "enquanto isso",
+      "key": "a proposta atrasa",
+      "ancora": {
+        "palavra": "a",
+        "n": 1
+      },
+      "s": 14.6,
+      "d": 4.3,
+      "estilo": "caixa_nativa",
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "bloco": 4,
+      "lead": null,
+      "key": "o cliente esfria",
+      "ancora": {
+        "palavra": "o",
+        "n": 1
+      },
+      "s": 15.9,
+      "d": 3.0,
+      "estilo": "caixa_nativa",
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "bloco": 4,
+      "lead": null,
+      "key": "você perde a venda",
+      "ancora": {
+        "palavra": "você",
+        "n": 1
+      },
+      "s": 17.1,
+      "d": 1.8,
+      "estilo": "caixa_nativa",
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "bloco": 6,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "ancora": {
+        "palavra": "Toque",
+        "n": 1
+      },
+      "s": 24.2,
+      "d": 3.3,
+      "estilo": "seta_cta",
+      "pilha": null,
+      "cta": true
+    }
+  ],
+  "densidade": {
+    "fracao_insert": 0.458,
+    "alvo_min": 0.45,
+    "alvo_max": 0.55,
+    "piso": 0.4,
+    "teto": 0.65,
+    "propostas": []
+  },
+  "referencias": [
+    {
+      "nome": "referência de ritmo A",
+      "tecnicas": [
+        "alternância entre insert e rosto",
+        "corte seco na entrada do insert"
+      ]
+    }
+  ],
+  "efeitos": {
+    "sfx": [
+      {
+        "t": 14.6,
+        "efeito": "tick",
+        "funcao": "pilha"
+      },
+      {
+        "t": 15.9,
+        "efeito": "tick",
+        "funcao": "pilha"
+      },
+      {
+        "t": 17.1,
+        "efeito": "tick",
+        "funcao": "pilha"
+      },
+      {
+        "t": 22.65,
+        "efeito": "riser",
+        "funcao": "cta"
+      }
+    ],
+    "camera": [
+      {
+        "bloco": 1,
+        "tipo": "zoom"
+      },
+      {
+        "bloco": 2,
+        "tipo": "punch",
+        "t": 6.8
+      },
+      {
+        "bloco": 4,
+        "tipo": "respiro",
+        "t": 13.6
+      }
+    ]
+  },
+  "ritmo": {
+    "cortes_min": 24.3,
+    "frac_acima_6s": 0.0,
+    "maior_plano_s": 4.4,
+    "plano_medio_s": 2.5
+  },
+  "checklist": {
+    "efeito_por_insert": {
+      "status": "atendido",
+      "como": "entrada seca e push-in leve na moldura"
+    },
+    "elemento_atras": {
+      "status": "nao_se_aplica",
+      "motivo": "texto atrás da pessoa desligado neste projeto"
+    },
+    "split_dominante": {
+      "status": "atendido",
+      "como": "split 60/40 no bloco 3"
+    },
+    "degrade_emenda": {
+      "status": "atendido",
+      "como": "degradê de 90 px na emenda do split"
+    },
+    "lettering_legenda": {
+      "status": "atendido",
+      "como": "KEY em caixa nativa, legenda karaokê no resto"
+    },
+    "variacao_contexto": {
+      "status": "atendido",
+      "como": "moldura nos horizontais, split onde a fala explica a tela"
+    },
+    "edicao_por_insert": {
+      "status": "atendido",
+      "como": "cada insert com tratamento e duração próprios"
+    },
+    "ritmo": {
+      "status": "pendente",
+      "motivo": "a medição que vale é a do arquivo entregue"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "versao": 1,
+  "looks": {
+    "laranja": {"avatar_id": "id com espaço", "orientacao": "vertical", "plano": "medio", "aprovado": false}
+  }
+}

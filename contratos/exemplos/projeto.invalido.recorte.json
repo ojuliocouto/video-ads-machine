@@ -1,0 +1,8 @@
+{
+  "versao": 1,
+  "slug": "tres-horas",
+  "modo": "avatar",
+  "look": "laranja",
+  "trilha": {"arquivo": "leve-corporativa.mp3"},
+  "inserts": {"painel": {"recorte": "1280x720"}}
+}

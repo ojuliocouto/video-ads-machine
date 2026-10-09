@@ -1,0 +1,31 @@
+{
+  "livre": true,
+  "blocos": [
+    {
+      "tipo": "livre",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Você perde três horas por dia nisso aqui. E eu sei porque eu fazia igual, todo santo dia."
+    },
+    {
+      "tipo": "livre",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "O problema não é falta de tempo. Com uma automação simples, isso roda sozinho enquanto você atende. Toque em saiba mais e veja como montar a sua."
+    }
+  ]
+}
