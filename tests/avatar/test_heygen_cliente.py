@@ -379,3 +379,23 @@ def test_cli_status_baixa_video_existente(tmp_path):
 def test_cli_sem_argumentos_mostra_uso(capsys):
     assert H.main_cli([], cliente=cliente([])[0]) == 2
     assert "gerar" in capsys.readouterr().err
+
+
+def test_cli_engine_bloqueado_vem_antes_de_exigir_a_chave(tmp_path, capsys):
+    assert H.main_cli(["gerar", str(tmp_path / "v.mp3"), AVATAR_ID, str(tmp_path / "s.mp4"), "avatar_iv"],
+                      env={}, raiz=tmp_path) == 1
+    assert "BLOQUEADO" in capsys.readouterr().err
+
+
+def test_cli_override_avisa_uma_vez_so(tmp_path, capsys):
+    mp3 = tmp_path / "v.mp3"
+    mp3.write_bytes(b"x")
+    seq = [resp({"data": {"asset_id": "a"}}), resp({"data": {"video_id": "v"}}),
+           resp({"data": {"status": "completed", "video_url": "https://c/x", "duration": 1}}),
+           (200, {}, b"V")]
+    c, http, _ = cliente(seq)
+    env = {"HEYGEN_ENGINE_OVERRIDE": "avatar_iv"}
+    assert H.main_cli(["gerar", str(mp3), AVATAR_ID, str(tmp_path / "s.mp4"), "avatar_iv"],
+                      cliente=c, env=env) == 0
+    assert capsys.readouterr().out.count("AVISO") == 1
+    assert json.loads(http.chamadas[1]["corpo"])["engine"] == {"type": "avatar_iv"}

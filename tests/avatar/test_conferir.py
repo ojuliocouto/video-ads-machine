@@ -71,7 +71,7 @@ def midia(proj, av=(1080, 1920, 55.0), voz=55.2, colunas=None):
 
 def test_fracao_util_sem_barra_e_1():
     f, topo, base = C.fracao_util(coluna())
-    assert f == pytest.approx(1.0, abs=0.01) and topo <= 1 and base <= 1
+    assert f == pytest.approx(1.0, abs=0.001) and topo == 0 and base == 0
 
 
 def test_fracao_util_com_barras():
