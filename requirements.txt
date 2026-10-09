@@ -1,0 +1,14 @@
+# Dependências Python do video-ads-machine. O `bash scripts/setup.sh` cria o .venv do repo e
+# instala isto lá (o Python do Homebrew recusa `pip install` fora de um ambiente virtual).
+# Sem fixar versão de propósito: o pip escolhe a última que o seu Python aceita (o 3.9 do
+# macOS cai numa linha mais antiga do numpy e do scipy, e funciona do mesmo jeito).
+numpy
+opencv-python-headless
+pillow
+scipy
+
+# --- Extras opcionais (descomente e rode: .venv/bin/python -m pip install -r requirements.txt)
+# Transcrição local. O motor escolhe sozinho o primeiro que existir: parakeet (Apple Silicon),
+# faster-whisper (qualquer máquina) e, por último, a Groq (nuvem, GROQ_API_KEY no .env).
+# parakeet-mlx
+# faster-whisper

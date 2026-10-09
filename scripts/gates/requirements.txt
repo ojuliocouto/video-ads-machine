@@ -1,4 +1,2 @@
-# Dependências Python dos gates (scripts/gates/). Também precisam de ffmpeg/ffprobe no PATH.
-numpy
-opencv-python
-pillow
+# As dependências dos gates são as do motor: um arquivo só, na raiz do repo.
+-r ../../requirements.txt
