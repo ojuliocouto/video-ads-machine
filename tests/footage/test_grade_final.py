@@ -4,8 +4,6 @@ O comando golden é o do `produzir_roteiro.py` ORIGINAL (fixture de paridade, co
 As tags bt709 importam porque o libx264 marca a saída como HDR/HLG mesmo com conteúdo SDR e o
 player que respeita a tag (WhatsApp, iPhone) decodifica com a curva errada e avermelha o vídeo.
 """
-import pytest
-
 from footage import grade_final as GF
 
 GOLDEN_CMD = ["ffmpeg", "-y", "-i", "/D/_tmp_rot/x/vchain0.mp4", "-ss", "0.62", "-t", "17.06", "-i",

@@ -59,7 +59,7 @@ class Config(object):
 def ler_config(env=None, dados=None):
     """Variáveis de ambiente -> `Config`. Erro alto (ErroFootage) para o que falta ou o que foi removido."""
     env = os.environ if env is None else env
-    base = dados if dados is not None else (env.get("VAM_DADOS") or str(caminhos.DADOS))
+    base = dados if dados is not None else os.path.expanduser(env.get("VAM_DADOS") or str(caminhos.DADOS))
     faltam = [n for n in ("VAM_AVATAR", "VAM_ROTEIRO") if not env.get(n)]
     if faltam:
         raise CA.ErroFootage("ERRO: defina " + " e ".join(faltam) + " (o avatar mp4 e o roteiro anotado "

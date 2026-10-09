@@ -5,7 +5,6 @@ a decisão de `_base`, com o parser e o alinhamento trocados por dados sintétic
 mesmos blocos, spans, palavras por bloco, plano de ritmo e escala. Nada aqui roda ffmpeg.
 """
 import json
-import subprocess
 from pathlib import Path
 
 import pytest

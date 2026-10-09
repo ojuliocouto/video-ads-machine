@@ -6,7 +6,6 @@ recorte em 0,5 e o recorte da bolinha em y=640. Chute com cara de medição. Aqu
 achado pelo CÓDIGO (`caminhos.CODIGO`) e qualquer falha de medição dá ERRO ALTO.
 """
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path

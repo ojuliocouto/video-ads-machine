@@ -251,6 +251,15 @@ def test_xf_e_xf_seco_quase_zero_viram_concat_puro():
     assert "xfade" not in "".join(r["fc"])
 
 
+def test_whip_curto_continua_xfade_so_a_duracao_zero_vira_concat():
+    """0,03 s é menos que a junção seca padrão mas ainda é transição: xfade. Só zero é corte de verdade."""
+    tr = CA.Transicao(xf=0.03, xf_seco=0.04, tipo="auto")
+    r = CA.montar_grafo(_blocos(), SPANS_FIXTURE, tr, ini=[0] * 6)
+    fc = "; ".join(r["fc"])
+    assert "xfade=transition=smoothright:duration=0.03:" in fc
+    assert r["secos"] == 4 and r["xf_total"] == pytest.approx(0.03)
+
+
 def test_basta_um_dos_dois_ser_maior_pra_voltar_ao_grafo_misto():
     assert CA.concat_puro(CA.Transicao.do_ambiente({"VAM_XF": "0", "VAM_XF_SECO": "0.04"})) is False
     assert CA.concat_puro(CA.Transicao.do_ambiente({"VAM_XF": "0.08", "VAM_XF_SECO": "0"})) is False

@@ -25,11 +25,13 @@ exatamente o defeito que a moldura existe para acabar. Asset em pé já preenche
 
 O fundo rodando ao vivo piscava: a gravação de tela por baixo variava de 35 a 150 de luminância em
 2 s, o medidor de ritmo contava isso como 10 cortes em 4,4 s e o olho via estroboscopia, não corte.
-Fundo chapado matou o estrobo mas duplicava nada e virava "tela vazia com um cardzinho no meio"
-(65% a 69% do quadro em preto liso). O terceiro caminho tem as duas coisas: o asset CONGELADO num
-quadro (sem estrobo) e desfocado a 60 com brilho medido (sem a manchete duplicada). `shortest=1` é
-OBRIGATÓRIO na composição: o fundo congelado é um `loop` infinito e, sem isso, só o `trim` lá na
-frente termina o fluxo e o ffmpeg mói quadro à toa.
+Congelar num quadro matou o estrobo, mas a manchete do asset aparecia GIGANTE e fora de foco atrás
+da cópia nítida dentro do card (a mesma manchete duas vezes). Fundo chapado resolveu a duplicação e
+virou "tela vazia com um cardzinho no meio" (65% a 69% do quadro em preto liso). O terceiro caminho
+tem as duas coisas: o asset CONGELADO num quadro (sem estrobo) e desfocado a 60 com brilho medido
+(sem a manchete duplicada nem buraco preto). `shortest=1` é OBRIGATÓRIO na composição: o fundo
+congelado é um `loop` infinito e, sem isso, só o `trim` lá na frente termina o fluxo e o ffmpeg mói
+quadro à toa.
 
 ## Degradê da emenda do split
 
