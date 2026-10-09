@@ -18,6 +18,11 @@ ASR gravado).
 `<PARAKEET>`). A medição de enquadramento NÃO é coberta (VAM_SPLIT_BIAS fixo): consertar o
 defeito 2 não mexe neste golden.
 
+W3.A (relógio único): a mesma footage roda também LENDO a timeline.json (`VAM_TIMELINE`). Ela não alinha
+mais (o alinhamento mudou de fase: `argv/timeline.jsonl`) e tem que sair IGUAL à do golden: mesmo plano, mesmo
+timing, mesmos quadros, mesmo áudio, e os mesmos comandos menos os 3 do alinhamento. O golden é o de
+`$VAM_PARIDADE_GOLDEN` (padrão `$VAM_PARIDADE_MIDIA/golden`).
+
 Para iterar na W2.B sem esperar o conjunto todo:
     VAM_PARIDADE_MIDIA=<pasta> bash scripts/dev/testar_limpo.sh --paridade -k footage
 """
@@ -107,3 +112,34 @@ def test_quadros_e_audio_da_footage_1x(atual, golden):
         pytest.skip(f"toolchain diferente do golden ({aviso}): o framemd5 não é comparável. "
                     "Regenere o golden a partir do commit base nesta máquina.")
     _confere(atual, arquivos, ("footage/video.framemd5", "footage/audio.md5"))
+
+
+# --- W3.A: a footage pela timeline é a mesma footage ----------------------------------------
+
+ALINHAMENTO_DA_FOOTAGE = 3      # ffmpeg (wav), parakeet e ffprobe: o que a timeline passou a fazer uma vez só
+
+
+def test_footage_pela_timeline_tem_o_mesmo_plano_e_o_mesmo_timing(atual, golden):
+    arquivos, _ = golden
+    assert "timeline/footage/ritmo.json" in atual, "a captura não rodou a footage pela timeline"
+    for nome in ("ritmo.json", "timing.json"):
+        assert atual[f"timeline/footage/{nome}"] == arquivos[f"footage/{nome}"], nome
+
+
+def test_footage_pela_timeline_tem_os_mesmos_quadros_e_o_mesmo_audio(atual, golden):
+    arquivos, manifesto = golden
+    aviso = C.conferir_toolchain(manifesto)
+    if aviso:
+        pytest.skip(f"toolchain diferente do golden ({aviso}): o framemd5 não é comparável")
+    for nome in ("video.framemd5", "audio.md5"):
+        assert atual[f"timeline/footage/{nome}"] == arquivos[f"footage/{nome}"], nome
+
+
+def test_footage_pela_timeline_roda_os_mesmos_comandos_menos_o_alinhamento(atual, golden):
+    arquivos, _ = golden
+    legado = arquivos["argv/footage.jsonl"].splitlines()
+    alinhamento, resto = legado[:ALINHAMENTO_DA_FOOTAGE], legado[ALINHAMENTO_DA_FOOTAGE:]
+    assert [json.loads(l)["argv"][0] for l in alinhamento] == ["ffmpeg", "<PARAKEET>", "ffprobe"]
+    pela_timeline = atual["argv/timeline_footage.jsonl"].replace(C.SUFIXO_FOOTAGE_TIMELINE, "").splitlines()
+    assert pela_timeline == resto
+    assert "<PARAKEET>" not in atual["argv/timeline_footage.jsonl"]

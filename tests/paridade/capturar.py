@@ -14,10 +14,19 @@ golden guardado fora do repo.
   overlay_1x1/...    o mesmo no template quadrado
   overlay_convergido/...
                      2a rodada: o gen_ad_v2 lê o `_ritmo.json` que a footage deixou
-                     (o "relógio da footage", defeito 20 do plano)
+                     (o "relógio da footage", defeito 20 do plano). Continua SEM timeline: é a
+                     prova de que o caminho antigo segue funcionando até a W5.A
   footage/{ritmo.json, timing.json, video.framemd5, audio.md5}
-                     produzir_roteiro sobre o fixture (CAP=0, BAKE=0, como o build)
+                     produzir_roteiro sobre o fixture (CAP=0, BAKE=0, como o build), SEM timeline
+  timeline/{timeline.json, alinhamento.json}
+                     W3.A: timeline/construir.py (uma transcrição, o relógio único). Quando o
+                     motor tem `scripts/timeline/`, `overlay/` e `overlay_1x1/` leem esta timeline
+  timeline/footage/{ritmo.json, timing.json, video.framemd5, audio.md5}
+                     a mesma footage LENDO a timeline (VAM_TIMELINE): tem que sair igual à `footage/`
   argv/<fase>.jsonl  argv normalizado de TODO subprocess, na ordem, por fase
+
+Motor sem `scripts/timeline/` (o commit base do golden antigo): as etapas da timeline não rodam e o
+overlay roda como sempre rodou, então o golden antigo continua reproduzível.
 
 ## Como o motor roda
 
@@ -41,6 +50,10 @@ golden guardado fora do repo.
 
     python3 tests/paridade/capturar.py gerar-golden --commit <sha do commit base> --midia "$VAM_PARIDADE_MIDIA"
     python3 tests/paridade/capturar.py comparar --midia "$VAM_PARIDADE_MIDIA"      # working tree deste repo
+
+O golden fica em `$VAM_PARIDADE_GOLDEN` (padrão `$VAM_PARIDADE_MIDIA/golden`), ou em `--golden <pasta>`. Um
+rebase deliberado (a W3.A muda o overlay de propósito) nasce em outra pasta e só vira o padrão depois de o
+diff ser revisado.
     python3 tests/paridade/capturar.py selar-fixture "$VAM_PARIDADE_MIDIA"         # recalcula o MANIFESTO da fixture
 
 `gerar-golden --commit` extrai o commit com `git archive`: o golden nasce do commit, nunca de
@@ -74,7 +87,10 @@ AD = "ad99v2"
 LOOK = "espuma_roxa"
 LK = "espuma"          # nome do look nos arquivos de config (ads_v2_configs.LOOKS)
 VERSAO_GOLDEN = 1
-ETAPAS_TODAS = ("overlay", "overlay_1x1", "footage", "overlay_convergido")
+ETAPAS_TODAS = ("timeline", "overlay", "overlay_1x1", "footage", "timeline_footage", "overlay_convergido")
+ETAPAS_DA_TIMELINE = ("overlay", "overlay_1x1", "timeline_footage")   # leem a timeline quando o motor tem
+SUFIXO_FOOTAGE_TIMELINE = "_pelatimeline"     # nome da saída da footage que roda pela timeline
+# A fase dela é `timeline_footage` e nunca `footage_...`: comparar por prefixo `argv/footage` pegaria as duas.
 
 # stubs: devolvem a transcrição REAL gravada em fixture/asr/
 _STUB_PARAKEET = """#!/bin/sh
@@ -198,6 +214,9 @@ class Sandbox:
 
 
 PASTAS_DO_MOTOR = ("scripts", "templates", "fonts")
+# Também roda, quando o motor tem: a timeline (W3.A) valida no contrato ao ser construída e lida. O commit
+# base do golden antigo não tem a pasta, e por isso ela não entra em PASTAS_DO_MOTOR.
+PASTAS_DE_APOIO = ("contratos",)
 
 
 def _nome_ignorado(nome):
@@ -217,7 +236,7 @@ def impressao_motor(raiz):
     """
     h = hashlib.sha256()
     raiz = Path(raiz)
-    for nome in PASTAS_DO_MOTOR:
+    for nome in PASTAS_DO_MOTOR + PASTAS_DE_APOIO:
         base = raiz / nome
         if not base.is_dir():
             continue
@@ -235,8 +254,11 @@ class CommitAusente(RuntimeError):
 
 
 def exportar_commit(raiz_repo, commit, destino):
-    """Extrai scripts/, templates/ e fonts/ de `commit` para `destino` (git archive)."""
-    r = subprocess.run(["git", "-C", str(raiz_repo), "archive", "--format=tar", commit, *PASTAS_DO_MOTOR],
+    """Extrai scripts/, templates/ e fonts/ de `commit` para `destino` (git archive), mais contratos/
+    quando o commit tem."""
+    no_commit = set((_git(raiz_repo, "ls-tree", "--name-only", commit) or "").splitlines())
+    pastas = list(PASTAS_DO_MOTOR) + [p for p in PASTAS_DE_APOIO if p in no_commit]
+    r = subprocess.run(["git", "-C", str(raiz_repo), "archive", "--format=tar", commit, *pastas],
                        capture_output=True)
     if r.returncode != 0:
         raise CommitAusente(f"git archive {commit} falhou: {r.stderr.decode('utf-8', 'replace')[-300:]}")
@@ -294,7 +316,7 @@ def montar_sandbox(motor_raiz, midia, mutacao=None):
     for pasta in (sb.raiz, sb.estado, sb.dados / "inputs", sb.dados / "output", sb.home / ".local" / "bin",
                   sb.bin, sb.tmp, sb.pysite):
         pasta.mkdir(parents=True, exist_ok=True)
-    for nome in PASTAS_DO_MOTOR:
+    for nome in PASTAS_DO_MOTOR + PASTAS_DE_APOIO:
         origem = motor_raiz / nome
         if origem.is_dir():
             shutil.copytree(origem, sb.raiz / nome, ignore=_ignorar_copia)
@@ -386,34 +408,57 @@ def _rodar(sb, cmd, *, cwd, extra_env=None):
 # etapas do motor (espelham o build_composite.build, sem o render do overlay)
 # --------------------------------------------------------------------------------------
 
-def _config_overlay(sb, sufixo, formato, rotulo):
+def _config_overlay(sb, sufixo, formato, rotulo, timeline=None):
     base = json.loads((sb.estado / "configs" / f"{AD}_{LK}.json").read_text(encoding="utf-8"))
     workdir = sb.estado / f"render-{AD}-{LK}{sufixo}-ovl{rotulo}"
     cfg = dict(base)
     cfg["speed"] = 1.0
     cfg["out_dir"] = str(workdir)
     cfg["format"] = formato
+    if timeline:
+        cfg["timeline"] = str(timeline)
     caminho = sb.estado / f"_cfg_{AD}_{LK}{sufixo}{rotulo}.json"
     caminho.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
     return caminho, workdir
 
 
-def rodar_overlay(sb, fase, *, formato="9x16", rotulo=""):
+def motor_tem_timeline(sb):
+    """O motor do sandbox já tem o relógio único (W3.A)?"""
+    return (sb.scripts / "timeline" / "construir.py").is_file()
+
+
+def caminho_timeline(sb):
+    return sb.dados / "output" / f"{AD}_{LOOK}_timeline.json"
+
+
+def rodar_timeline(sb):
+    """timeline/construir.py: UMA transcrição (o stub do parakeet) e a timeline.json. Devolve o caminho."""
+    _marcar_fase(sb, "timeline")
+    inputs = sb.dados / "inputs"
+    destino = caminho_timeline(sb)
+    _rodar(sb, [sys.executable, sb.scripts / "timeline" / "construir.py",
+                "--avatar", inputs / f"{AD}_{LOOK}_avatar.mp4", "--roteiro", inputs / f"{AD}_leva.txt",
+                "--inserts", inputs / f"{AD}_inserts.json", "--config", sb.estado / "configs" / f"{AD}_{LK}.json",
+                "--timeline", destino], cwd=sb.raiz)
+    return destino
+
+
+def rodar_overlay(sb, fase, *, formato="9x16", rotulo="", timeline=None):
     """gen_ad_v2 + strip_overlay. Devolve a pasta de saída (workdir)."""
     _marcar_fase(sb, fase)
     sufixo = "" if formato == "9x16" else "_1x1"
-    cfg, workdir = _config_overlay(sb, sufixo, formato, rotulo)
+    cfg, workdir = _config_overlay(sb, sufixo, formato, rotulo, timeline)
     _rodar(sb, [sys.executable, sb.scripts / "gen_ad_v2.py", cfg], cwd=sb.raiz)
     _rodar(sb, [sys.executable, Path(__file__).resolve(), "--strip", sb.scripts, workdir / "index.html"],
            cwd=sb.raiz)
     return workdir
 
 
-def rodar_footage(sb):
-    """produzir_roteiro com o mesmo ambiente que o build_composite monta."""
-    _marcar_fase(sb, "footage")
+def rodar_footage(sb, timeline=None):
+    """produzir_roteiro com o mesmo ambiente que o build_composite monta (e, com `timeline`, lendo ela)."""
+    _marcar_fase(sb, "timeline_footage" if timeline else "footage")
     inputs = sb.dados / "inputs"
-    saida = f"{AD}_{LOOK}_footage_1x.mp4"
+    saida = f"{AD}_{LOOK}_footage_1x{SUFIXO_FOOTAGE_TIMELINE if timeline else ''}.mp4"
     extra = {
         "VAM_AVATAR": str(inputs / f"{AD}_{LOOK}_avatar.mp4"),
         "VAM_ROTEIRO": str(inputs / f"{AD}_leva.txt"),
@@ -422,6 +467,8 @@ def rodar_footage(sb):
         "CAP": "0",
         "VAM_OUT": saida,
     }
+    if timeline:
+        extra["VAM_TIMELINE"] = str(timeline)
     _rodar(sb, [sys.executable, sb.scripts / "produzir_roteiro.py"], cwd=sb.dados, extra_env=extra)
     return sb.dados / "output" / saida
 
@@ -507,22 +554,33 @@ def capturar(motor_raiz, midia, *, etapas=ETAPAS_TODAS, mutacao=None):
     return cap
 
 
+def _coletar_footage(cap, prefixo, sb, foot, tokens):
+    nome = Path(foot).stem
+    cap.arquivos[f"{prefixo}/ritmo.json"] = N.normalizar_texto(
+        (sb.dados / "output" / f"{nome}_ritmo.json").read_text(encoding="utf-8"), tokens)
+    cap.arquivos[f"{prefixo}/timing.json"] = N.normalizar_texto(
+        (sb.dados / "output" / "timing.json").read_text(encoding="utf-8"), tokens)
+    cap.arquivos[f"{prefixo}/video.framemd5"] = framemd5_video(foot)
+    cap.arquivos[f"{prefixo}/audio.md5"] = md5_audio(foot) + "\n"
+
+
 def _executar_etapas(sb, etapas):
     tokens = sb.tokens()
     cap = Captura()
     cap.meta = {"ffmpeg": versao_ffmpeg(), "python": platform.python_version()}
+    tl = None
+    if motor_tem_timeline(sb) and ("timeline" in etapas or any(e in etapas for e in ETAPAS_DA_TIMELINE)):
+        tl = rodar_timeline(sb)
+        for nome, arq in (("timeline.json", tl), ("alinhamento.json", tl.with_name(f"{AD}_{LOOK}_alinhamento.json"))):
+            cap.arquivos[f"timeline/{nome}"] = N.normalizar_texto(arq.read_text(encoding="utf-8"), tokens)
     if "overlay" in etapas:
-        _coletar_overlay(cap, "overlay", rodar_overlay(sb, "overlay"), tokens)
+        _coletar_overlay(cap, "overlay", rodar_overlay(sb, "overlay", timeline=tl), tokens)
     if "overlay_1x1" in etapas:
-        _coletar_overlay(cap, "overlay_1x1", rodar_overlay(sb, "overlay_1x1", formato="1x1"), tokens)
+        _coletar_overlay(cap, "overlay_1x1", rodar_overlay(sb, "overlay_1x1", formato="1x1", timeline=tl), tokens)
     if "footage" in etapas:
-        foot = rodar_footage(sb)
-        cap.arquivos["footage/ritmo.json"] = N.normalizar_texto(
-            (sb.dados / "output" / f"{AD}_{LOOK}_footage_1x_ritmo.json").read_text(encoding="utf-8"), tokens)
-        cap.arquivos["footage/timing.json"] = N.normalizar_texto(
-            (sb.dados / "output" / "timing.json").read_text(encoding="utf-8"), tokens)
-        cap.arquivos["footage/video.framemd5"] = framemd5_video(foot)
-        cap.arquivos["footage/audio.md5"] = md5_audio(foot) + "\n"
+        _coletar_footage(cap, "footage", sb, rodar_footage(sb), tokens)
+    if "timeline_footage" in etapas and tl is not None:
+        _coletar_footage(cap, "timeline/footage", sb, rodar_footage(sb, timeline=tl), tokens)
     if "overlay_convergido" in etapas:
         _coletar_overlay(cap, "overlay_convergido",
                          rodar_overlay(sb, "overlay_convergido", rotulo="-conv"), tokens)
@@ -548,7 +606,9 @@ def capturar_memo(motor_raiz, midia, *, etapas=ETAPAS_TODAS, mutacao=None):
 # --------------------------------------------------------------------------------------
 
 def pasta_golden(midia):
-    return Path(midia) / "golden"
+    """`$VAM_PARIDADE_GOLDEN` quando definida; senão `<mídia>/golden`."""
+    v = os.environ.get("VAM_PARIDADE_GOLDEN")
+    return Path(v) if v else Path(midia) / "golden"
 
 
 def _git(raiz, *args):
@@ -559,7 +619,7 @@ def _git(raiz, *args):
 def estado_git(motor_raiz):
     """(commit, sujo) do motor. sujo = há alteração em scripts/, templates/ ou fonts/."""
     commit = _git(motor_raiz, "rev-parse", "HEAD")
-    sujo = _git(motor_raiz, "status", "--porcelain", "--", "scripts", "templates", "fonts")
+    sujo = _git(motor_raiz, "status", "--porcelain", "--", *PASTAS_DO_MOTOR, *PASTAS_DE_APOIO)
     return commit, bool(sujo)
 
 
@@ -735,6 +795,7 @@ def main(argv=None):
         p.add_argument("--motor", default=str(raiz_do_repo()), help="raiz do repo com scripts/ templates/ fonts/")
         p.add_argument("--midia", default=os.environ.get("VAM_PARIDADE_MIDIA"),
                        help="pasta da fixture (padrão: VAM_PARIDADE_MIDIA)")
+        p.add_argument("--golden", help="pasta do golden (padrão: VAM_PARIDADE_GOLDEN ou <mídia>/golden)")
         if nome == "gerar-golden":
             p.add_argument("--forcar", action="store_true")
             p.add_argument("--commit", help="gera de ESTE commit do repo do --motor (git archive), "
@@ -742,6 +803,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if not args.midia:
         ap.error("falta --midia (ou VAM_PARIDADE_MIDIA)")
+    if args.golden:
+        os.environ["VAM_PARIDADE_GOLDEN"] = str(Path(args.golden).resolve())
     commit_completo = None
     motor = args.motor
     if args.cmd == "gerar-golden" and args.commit:
@@ -758,7 +821,7 @@ def main(argv=None):
             print(f"  {h[:16]}  {k}")
         return 0
     golden, _hashes, _man = ler_golden(args.midia)
-    diffs = comparar(cap.arquivos, golden, prefixos=("overlay", "footage", "argv"))
+    diffs = comparar(cap.arquivos, golden, prefixos=("overlay", "footage", "argv", "timeline"))
     for d in diffs:
         print(d)
     print("PARIDADE OK" if not diffs else f"PARIDADE QUEBRADA: {len(diffs)} diferença(s)")

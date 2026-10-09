@@ -5,9 +5,10 @@ nenhum bloco dura menos de 0,3 s. O plano de ritmo é o MESMO que a footage usa 
 determinístico de propósito): se um motor subdividir o bloco e o outro não, o lettering de um
 trecho de avatar recebe tratamento de split e o texto vai parar no rosto.
 
-Este é o módulo que a W3.A (relógio único) altera: hoje o overlay deriva os spans a partir da
-própria transcrição, e a footage deriva os dela, e as duas não batem (deriva medida de 1,07 s no
-fim de um anúncio de 2 min).
+W3.A (relógio único): com a timeline.json o overlay não deriva os spans nem o plano, LÊ os dois dela
+(`da_timeline`, `plano_da_timeline`), e a footage lê os mesmos. Sem a timeline (caminho antigo) o
+overlay deriva os spans da própria transcrição e a footage deriva os dela, e as duas não batiam
+(deriva medida de 1,07 s no fim de um anúncio de 2 min).
 """
 import ritmo
 
@@ -41,6 +42,22 @@ def calcular_spans(blocks, words):
         bounds.append(max(s, bounds[-1] + 0.3))
     bounds.append(max(words[-1]["end"], bounds[-1] + 0.3))
     return [(bounds[i], bounds[i + 1]) for i in range(len(blocks))]
+
+
+def da_timeline(tl):
+    """[(início, fim)] por bloco, lidos da timeline (os spans da footage)."""
+    from timeline import construir as TC
+    return TC.spans(tl)
+
+
+def plano_da_timeline(tl, blocks, inserts_map):
+    """(plano, resumo) LIDOS da timeline, no formato do ritmo.py: o mesmo plano que a footage usa."""
+    from timeline import construir as TC
+    plano = TC.plano_do_motor(tl, blocks, inserts_map, lambda m, instr: achar_insert_cfg(instr, m)[1])
+    res = ritmo.resumo(plano, tl["duracao_s"])
+    print(f"   [ritmo] {len(plano)} planos da timeline | {res['cortes_min']:.1f} "
+          f"cortes/min | plano medio {res['plano_medio']:.2f}s", flush=True)
+    return plano, res
 
 
 def plano_de_ritmo(blocks, spans, inserts_map):

@@ -4,11 +4,11 @@ Tudo o que o overlay sabe sobre TEMPO nasce aqui: o avatar é pré-acelerado ANT
 então spans, brolls, legendas, letterings e CTA nascem no tempo acelerado sozinhos. Não regera
 nada no HeyGen: é só re-timing local (vídeo com `setpts`, áudio com `atempo`, tom preservado).
 
-Caminho de transcrição: o `hyperframes transcribe` com o motor parakeet, no diretório de saída,
-mais o cache por conteúdo em `<dados>/output/_cache/transcricao`. O módulo `audio.transcrever`
-(multiplataforma, W1.C) NÃO é usado aqui: ele chama o `parakeet-mlx` direto, e isso trocaria o
-argv de todo build. A troca pertence à W3.A (relógio único): ela decide uma transcrição só por
-avatar para footage e overlay.
+Com a timeline.json (W3.A, relógio único), o overlay NÃO transcreve: as palavras vêm do alinhamento
+único que a timeline cita (`palavras_da_timeline`), o mesmo que a footage usa, transcrito uma vez só
+pelo `audio.transcrever`. Sem timeline segue o caminho antigo, até a W5.A ligar a timeline no build:
+o `hyperframes transcribe` com o motor parakeet, no diretório de saída, mais o cache por conteúdo em
+`<dados>/output/_cache/transcricao`, e o `gerar` avisa no fim (`AVISO_SEM_TIMELINE`).
 """
 import json
 import math
@@ -26,6 +26,9 @@ from caminhos import V1, V2
 SPEED = 1.15         # aceleração global do vídeo (o motor antigo fazia 1.2x); pré-acelera o avatar
 TAIL_PAD = 0.65      # folga de cauda: garante root/audio >= duração real do áudio (sem corte)
 HF = str(V2 / "node_modules" / ".bin" / "hyperframes")
+AVISO_SEM_TIMELINE = ("   [relogio] AVISO: overlay sem timeline.json: transcreveu e alinhou por conta propria "
+                      "(caminho antigo, relogio diferente do da footage). Passe \"timeline\" no config "
+                      "(timeline/construir.py gera).")
 
 
 def run(cmd, **kw):
@@ -95,6 +98,14 @@ def transcrever(dst, out):
             run([HF, "transcribe", "avatar.mp4", "--engine", "parakeet", "--json", "-d", "."], cwd=out)
             cache_transcricao.guardar(dst, out / "transcript.json", pasta_cache)
     return json.loads((out / "transcript.json").read_text(encoding="utf-8"))
+
+
+def palavras_da_timeline(palavras):
+    """As palavras do alinhamento único, `[(início, fim, palavra do roteiro)]`, no formato do overlay:
+    `{text, start, end, kw}`, como o `build_timeline.align_words` devolvia (ênfase `*...*` vira `kw`)."""
+    textos, kws = build_timeline._strip_kw_markers([t for _s, _e, t in palavras])
+    return [{"text": tx, "start": s, "end": e, "kw": kw}
+            for (s, e, _t), tx, kw in zip(palavras, textos, kws)]
 
 
 def alinhar_palavras(blocks, transcript):

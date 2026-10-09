@@ -6,7 +6,9 @@ Este é o antigo MAIN do `produzir_roteiro.py`, que executava tudo no import. Ag
 ## A ordem
 
   1. `ler_config`: variáveis de ambiente -> `Config` (as mesmas de sempre).
-  2. blocos: parser, alinhamento com o áudio do avatar, spans, contiguidade, plano de ritmo.
+  2. blocos: parser e, com a timeline.json, os spans e o plano de ritmo LIDOS dela (W3.A, relógio único:
+     nada de alinhar de novo); sem ela, o caminho antigo (alinhamento com o áudio do avatar, spans,
+     contiguidade, plano de ritmo), com aviso no stderr até a W5.A ligar a timeline no build.
   3. `<saida>_ritmo.json` (o plano vai pro disco ANTES do render: o `gen_ad_v2` e o mixador de SFX leem).
   4. `blocos.decidir_bases`: o salto de escala de cada plano de apresentador.
   5. render dos segmentos (pool + cache) e gate de duração de cada um.
@@ -17,7 +19,9 @@ Este é o antigo MAIN do `produzir_roteiro.py`, que executava tudo no import. Ag
 
 VAM_AVATAR e VAM_ROTEIRO são obrigatórias: os padrões antigos apontavam para os arquivos de um
 anúncio específico. VAM_INSERTS_JSON, VAM_OUT, VAM_XF, VAM_XF_SECO, VAM_XF_TIPO, VAM_SPLIT_TOP_H,
-VAM_SPLIT_GRAD, VAM_SPLIT_BIAS, VAM_CACHE_SEG e VAM_PARALELO seguem como eram.
+VAM_SPLIT_GRAD, VAM_SPLIT_BIAS, VAM_CACHE_SEG e VAM_PARALELO seguem como eram. VAM_TIMELINE (W3.A) é o
+caminho da timeline.json: o relógio é o dela, que foi construído com as funções desta footage, então o
+`_ritmo.json`, o `timing.json` e os quadros saem iguais aos do caminho antigo.
 
 `CAP=1` e `VAM_BAKE_LETTERING=1` foram removidos e viram ERRO ALTO: legenda e lettering da footage
 são do overlay (`gen_ad_v2`). Ignorar o valor em silêncio entregaria um vídeo sem o que o chamador
@@ -29,6 +33,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import caminhos
+from timeline import construir as TC
 
 from . import blocos as BL
 from . import cadeia as CA
@@ -54,6 +59,7 @@ class Config(object):
     tr: CA.Transicao
     cache: bool
     paralelo: int
+    timeline: Optional[str] = None      # VAM_TIMELINE: o relógio único (W3.A)
 
 
 def ler_config(env=None, dados=None):
@@ -87,7 +93,31 @@ def ler_config(env=None, dados=None):
         timing=os.path.join(outd, "timing.json"),
         tr=tr,
         cache=env.get("VAM_CACHE_SEG", "1") != "0",
-        paralelo=int(env.get("VAM_PARALELO", "4")))
+        paralelo=int(env.get("VAM_PARALELO", "4")),
+        timeline=os.path.expanduser(env["VAM_TIMELINE"]) if env.get("VAM_TIMELINE") else None)
+
+
+AVISO_SEM_TIMELINE = ("  [relogio] AVISO: footage sem VAM_TIMELINE: alinhando a fala por conta propria (caminho "
+                      "antigo). O relogio unico e a timeline.json (timeline/construir.py).")
+
+
+def _blocos_spans_e_plano(cfg, blocks, inserts):
+    """(blocks, spans, bwords, plano) fatiados pelo plano: LIDOS da timeline ou, sem ela, calculados aqui."""
+    if cfg.timeline:
+        try:
+            tl, words = TC.ler_para_motor(cfg.timeline, blocks, avatar=cfg.avatar)
+        except TC.ErroTimeline as e:
+            raise CA.ErroFootage(f"ERRO: timeline: {e}")
+        _spans, bwords = BL.atribuir_spans(blocks, words)
+        plano = TC.plano_do_motor(tl, blocks, inserts, BL.achar_insert)
+        print(f"  [relogio] timeline.json ({os.path.basename(cfg.timeline)}): {len(plano)} planos, "
+              f"a0 {tl['relogio']['a0']:.2f}s, fim {tl['duracao_s']:.2f}s")
+        return BL.fatiar_pelo_plano(blocks, bwords, plano)
+    sys.stderr.write(AVISO_SEM_TIMELINE + "\n")
+    words = BL.alinhar(cfg.avatar, BL.palavras_da_narracao(blocks), cfg.tmp)
+    spans, bwords = BL.atribuir_spans(blocks, words)
+    spans = BL.tornar_contiguos(spans)
+    return BL.aplicar_ritmo(blocks, spans, bwords, inserts)
 
 
 def montar(cfg):
@@ -99,11 +129,8 @@ def montar(cfg):
     os.makedirs(os.path.dirname(cfg.saida) or ".", exist_ok=True)
 
     blocks = BL.ler_blocos(cfg.roteiro)
-    words = BL.alinhar(cfg.avatar, BL.palavras_da_narracao(blocks), cfg.tmp)
-    spans, bwords = BL.atribuir_spans(blocks, words)
-    spans = BL.tornar_contiguos(spans)
     inserts = BL.carregar_inserts(cfg.inserts_json)
-    blocks, spans, bwords, plano = BL.aplicar_ritmo(blocks, spans, bwords, inserts)
+    blocks, spans, bwords, plano = _blocos_spans_e_plano(cfg, blocks, inserts)
     total = spans[-1][1]
     res = _R.resumo(plano, total)
     TE.escrever_ritmo(cfg.ritmo, plano, total)

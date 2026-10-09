@@ -4,7 +4,8 @@ escala base de cada plano. Não monta filtro nem renderiza nada.
 ## O pipeline, na ordem
 
   1. `ler_blocos` / `palavras_da_narracao`: o parser do roteiro anotado e a narração contínua.
-  2. `alinhar`: a narração casada palavra a palavra com o áudio do avatar (parakeet + difflib).
+  2. `alinhar`: a narração casada palavra a palavra com o áudio do avatar (parakeet + difflib). O casamento
+     em si mora em `timeline.alinhar.casar` (uma implementação só: a timeline usa o mesmo).
   3. `atribuir_spans`: o span de cada bloco, por CONTAGEM de palavras.
   4. `tornar_contiguos`: a fronteira entre blocos é sempre o início da 1ª palavra do próximo.
   5. `aplicar_ritmo`: o plano de ritmo (`ritmo.py`) fatia blocos longos em N planos.
@@ -37,6 +38,12 @@ Capar só o overlay adiantava o CTA mas deixava a imagem no split, e o CTA foi p
 (medido aos 85,5 s). Overlay e footage são dois motores; plano de ritmo em um só gera desencontro.
 Por isso a função é a MESMA (`ritmo.plano_de_ritmo`) e a narração se fatia por CONTAGEM de palavras.
 
+## Com a timeline.json (W3.A, relógio único)
+
+A timeline é construída com ESTAS funções (`atribuir_spans`, `tornar_contiguos`, `plano_de_ritmo`): o
+relógio dela é o da footage. Com ela, a montagem não alinha nem calcula o plano: lê os spans e o plano e
+só fatia a narração (`fatiar_pelo_plano`). `aplicar_ritmo` é as duas coisas juntas, o caminho antigo.
+
 ## A escala base
 
 Depois de insert, escala 1,0 SEMPRE: as fatias que o plano cria já chegam com `_base`, a regra "se
@@ -48,22 +55,18 @@ e o ritmo medido não subiu. Escala maior não comprou corte, só comprou colis�
 apresentador por baixo e alterna igual: sem isso, 16 de 33 fronteiras planejadas ficavam sem corte
 visível.
 """
-import difflib
 import json
 import os
-import re
 import subprocess
-import unicodedata
+
+from timeline import alinhar as AL
 
 from . import cadeia as CA
 
 TIPOS_TELA = ("insert", "logo", "lettering_logo")
 
 
-def norm(w):
-    """Palavra sem caixa, acento nem pontuação, para casar roteiro com a fala."""
-    w = unicodedata.normalize("NFD", w.lower())
-    return re.sub(r"[^\w]", "", "".join(c for c in w if unicodedata.category(c) != "Mn"))
+norm = AL.norm      # palavra sem caixa, acento nem pontuação (a mesma do casamento)
 
 
 # ------------------------------------------------------------------ roteiro e inserts
@@ -147,9 +150,10 @@ def duracao_do_audio(avatar):
                                 capture_output=True, text=True).stdout.strip())
 
 
-def alinhar_palavras(dados, narr_words, audio_dur):
-    """Casa as palavras do roteiro com as do parakeet. Devolve `[(inicio, fim, palavra)]`, uma por
-    palavra da narração. `dados` é o JSON do parakeet (tokens em qualquer profundidade)."""
+def tokens_do_parakeet(dados):
+    """As palavras ouvidas, `[(inicio, fim, texto)]`, do JSON do parakeet (tokens em qualquer
+    profundidade, em ordem de tempo). Token com espaço na frente abre palavra nova; sem espaço continua
+    a anterior ("Ag" + "ora")."""
     raw = []
 
     def grab(o):
@@ -176,31 +180,14 @@ def alinhar_palavras(dados, narr_words, audio_dur):
         else:
             pk[-1][1] = e
             pk[-1][2] += c
-    pk = [(s, e, c) for s, e, c in pk]
-    pk_norm = [norm(c) for *_, c in pk]
-    sn = [norm(w) for w in narr_words]
-    sm = difflib.SequenceMatcher(None, pk_norm, sn, autojunk=False)
-    times = [None] * len(narr_words)
-    for a, b, size in sm.get_matching_blocks():
-        for k in range(size):
-            times[b + k] = (pk[a + k][0], pk[a + k][1])
-    if times and times[-1] is None:
-        times[-1] = (max(0.0, audio_dur - 0.05), audio_dur)
-    # interpola as palavras sem casamento (variações roteiro x voz) entre as vizinhas casadas
-    last = None
-    for i in range(len(times)):
-        if times[i] is None:
-            nxt = next((times[j] for j in range(i + 1, len(times)) if times[j]), None)
-            if last and nxt and nxt[0] > last[1]:
-                times[i] = (last[1], nxt[0])
-            elif last:
-                times[i] = (last[1], last[1] + 0.18)
-            elif nxt:
-                times[i] = (max(0.0, nxt[0] - 0.18), nxt[0])
-            else:
-                times[i] = (i * 0.3, i * 0.3 + 0.3)
-        last = times[i]
-    return [(times[i][0], times[i][1], narr_words[i]) for i in range(len(narr_words))]
+    return [(s, e, c) for s, e, c in pk]
+
+
+def alinhar_palavras(dados, narr_words, audio_dur):
+    """Casa as palavras do roteiro com as do parakeet. Devolve `[(inicio, fim, palavra)]`, uma por
+    palavra da narração. `dados` é o JSON do parakeet (tokens em qualquer profundidade). O casamento é o
+    `timeline.alinhar.casar`."""
+    return AL.casar(tokens_do_parakeet(dados), narr_words, audio_dur)
 
 
 def alinhar(avatar, narr_words, tmp, executavel=None, run=None, duracao=None):
@@ -252,11 +239,8 @@ def tornar_contiguos(spans):
 
 # ------------------------------------------------------------------ plano de ritmo e escala
 
-def aplicar_ritmo(blocks, spans, bwords, inserts):
-    """Aplica o plano de ritmo: cada plano vira um bloco (a narração do bloco original se fatia por
-    contagem de palavras). Devolve `(blocks, spans, bwords, plano)`.
-
-    A tupla de palavra é `(inicio, fim)`, NÃO `(texto, tempo)`: a narração se fatia por CONTAGEM."""
+def plano_de_ritmo(blocks, spans, inserts):
+    """O plano de ritmo (`ritmo.plano_de_ritmo`) dos blocos com estes spans. É o que a timeline guarda."""
     import ritmo as _R
 
     entrada = []
@@ -270,8 +254,20 @@ def aplicar_ritmo(blocks, spans, bwords, inserts):
                         # ("...que você tá vendo NA TELA" com o quadro no avatar). Nos QUATRO
                         # chamadores, ou desencontra.
                         "texto": b.get("narr", "")})
-    plano = _R.plano_de_ritmo(entrada)
+    return _R.plano_de_ritmo(entrada)
 
+
+def aplicar_ritmo(blocks, spans, bwords, inserts):
+    """Aplica o plano de ritmo: cada plano vira um bloco (a narração do bloco original se fatia por
+    contagem de palavras). Devolve `(blocks, spans, bwords, plano)`.
+
+    A tupla de palavra é `(inicio, fim)`, NÃO `(texto, tempo)`: a narração se fatia por CONTAGEM."""
+    return fatiar_pelo_plano(blocks, bwords, plano_de_ritmo(blocks, spans, inserts))
+
+
+def fatiar_pelo_plano(blocks, bwords, plano):
+    """Cada plano vira um bloco, com a narração do bloco original fatiada por contagem de palavras.
+    Devolve `(blocks, spans, bwords, plano)`. É o que a montagem faz com o plano lido da timeline."""
     nb, ns, nw = [], [], []
     usadas = {}
     for seg in plano:
