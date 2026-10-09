@@ -76,7 +76,7 @@ def calcular(plano_ritmo, groups, lett_windows, logo_s, ligado=None):
         chips.append({"t": round(_tc, 2), "kw": _kw.strip(".,?!;:").upper()})
     if chips:
         print(f"   [chips] {len(chips)}: " +
-              ", ".join(f"{c['kw']}@{c['t']}s" for c in chips))
+              ", ".join(f"{c['kw']}@{c['t']}s" for c in chips), flush=True)
     return chips
 
 

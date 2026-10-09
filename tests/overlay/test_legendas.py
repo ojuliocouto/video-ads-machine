@@ -198,3 +198,18 @@ def test_html_e_o_do_build_timeline():
 def test_html_sem_grupos_e_um_wrapper_vazio():
     assert G.html([]) == ('<div id="caps" class="clip" data-start="0" data-duration="0" '
                           'data-track-index="30"></div>')
+
+
+def test_pedaco_de_0_55s_tambem_nao_entra_e_o_de_0_65s_entra():
+    ls = [lett("x", "Y", 10.0, 1.0)]
+    # a sobra antes do lettering vai de 9,1 a 9,65: 0,55 s, abaixo do piso de 0,60 s
+    assert G.aparar_nos_letterings([texto_longo(9.1, 10.3, 0.3)], ls, [(10.0, 11.0)]) == []
+    # de 9,0 a 9,65 sobram 0,65 s: entra
+    saida = G.aparar_nos_letterings([texto_longo(9.0, 10.3, 0.3)], ls, [(10.0, 11.0)])
+    assert len(saida) == 1 and (saida[0]["start"], saida[0]["end"]) == (9.0, 9.65)
+
+
+def test_janela_retroativa_do_eco_e_de_2_6s():
+    # o lettering comeca em 10,0: o grupo que termina depois de 7,4 ainda ecoa; antes disso, nao
+    assert G.eco_do_lettering(grupo(pal("gato", 7.0, 7.6)), FRASES) is True
+    assert G.eco_do_lettering(grupo(pal("gato", 6.9, 7.3)), FRASES) is False

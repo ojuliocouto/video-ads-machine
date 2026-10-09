@@ -20,6 +20,13 @@ Duas partes.
    O resultado do motor base é guardado em `$VAM_PARIDADE_MIDIA/golden_variantes/<commit>/`
    (fora do repo), então só a primeira rodada paga os dois motores.
 
+3. Sem mídia, com o git: a equivalência FUNÇÃO POR FUNÇÃO. O trecho do `main` original que cada
+   módulo herdou é extraído do blob do `gen_ad_v2.py` antes da quebra (`ORIGINAL_BLOB`), embrulhado
+   numa função e comparado com o módulo novo em centenas de entradas aleatórias (inclusive as de
+   borda, que nenhum cenário de mídia alcança): resultado, mensagem de erro e stdout iguais. É o
+   que prova os ramos que a paridade não exercita (chips ligado, vão de tela vazia, adiamento da
+   pilha, corte em duas na fronteira).
+
    Rodar só esta parte:
        VAM_PARIDADE_MIDIA=<pasta> bash scripts/dev/testar_limpo.sh --paridade -k diferencial
 """
@@ -35,8 +42,18 @@ import sys
 import textwrap
 from pathlib import Path
 
+import collections
+import contextlib
+import copy
+import io
+import math
+
 import pytest
 
+import build_timeline
+import ritmo
+from overlay import (brolls as B, chips as CH, cta as CTA, hook as K, layout_texto as LT, legendas as LG,
+                     letterings as LE, spans as S, tela_vazia as TV, transcricao as T)
 from tests.paridade import capturar as C
 from tests.paridade import normalizar as N
 
@@ -470,3 +487,322 @@ def test_os_cenarios_de_erro_param_igual(midia, motor_base):
         assert res["rc"] != 0, nome
     assert "lettering sem ancora" in _resultado_base(midia, motor_base, CENARIOS["erro_lettering_sem_ancora"])["stderr"]
     assert "JANELA DE CTA LONGA" in _resultado_base(midia, motor_base, CENARIOS["erro_janela_de_cta_longa"])["stderr"]
+
+
+# ==============================================================================================
+# 3. equivalência com o original, função por função (sem mídia)
+# ==============================================================================================
+
+ORIGINAL_BLOB = "b4aaa100f46ee3e5099c8fa2ac7d949caa01425d"    # scripts/gen_ad_v2.py antes da quebra
+
+
+@pytest.fixture(scope="module")
+def original():
+    r = subprocess.run(["git", "-C", str(RAIZ), "cat-file", "-p", ORIGINAL_BLOB], capture_output=True)
+    if r.returncode != 0:
+        pytest.skip("o blob do gen_ad_v2.py original nao esta neste clone (clone raso?)")
+    return r.stdout.decode("utf-8").splitlines()
+
+
+def fatiar(linhas, intervalos, entradas, saidas, subst=()):
+    """Embrulha linhas do `main` original (1-based, fechadas) numa função de `entradas` a `saidas`."""
+    corpo = []
+    for a, b in intervalos:
+        corpo.extend(linhas[a - 1:b])
+    texto = textwrap.dedent("\n".join(corpo))
+    for velho, novo in subst:
+        assert velho in texto, velho
+        texto = texto.replace(velho, novo)
+    codigo = ("def _f(%s):\n" % ", ".join(entradas) + textwrap.indent(texto, "    ")
+              + "\n    return (%s,)\n" % ", ".join(saidas))
+    ns = {"sys": sys, "math": math, "norm": T.norm, "build_timeline": build_timeline}
+    exec(codigo, ns)
+    return ns["_f"]
+
+
+def rodar(f, entrada):
+    """('ok', resultado, stdout) ou ('exit', mensagem, stdout), sobre uma CÓPIA da entrada."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        try:
+            return ("ok", f(*copy.deepcopy(entrada)), buf.getvalue())
+        except SystemExit as e:
+            return ("exit", str(e.code), buf.getvalue())
+
+
+def _tipo_de_saida(mensagem):
+    for trecho, nome in (("JANELA DE CTA", "janela"), ("TELA VAZIA", "vao"), ("lettering sem ancora", "ancora"),
+                         ("sem key no inserts.json", "sem_chave")):
+        if trecho in mensagem:
+            return nome
+    return "outro"
+
+
+def comparar(velho, novo, gerar, n=400, semente=7):
+    resumo = collections.Counter()
+    for i in range(n):
+        entrada = gerar(random.Random(semente * 100003 + i))
+        a, b = rodar(velho, entrada), rodar(novo, entrada)
+        assert a == b, f"caso {i}: o modulo novo diverge do original\n entrada: {entrada!r}\n original: {a!r}\n novo: {b!r}"
+        resumo[a[0]] += 1
+        if a[0] == "exit":
+            resumo["exit:" + _tipo_de_saida(a[1])] += 1
+    return resumo
+
+
+VOC = ["o", "pulo", "do", "gato", "melhor", "produzir", "páginas", "eu", "consigo", "sabe", "qual", "é",
+       "isso", "aqui", "agora", "minutos", "tela", "dentro", "porque", "gratuitamente", "praticamente"]
+
+
+def g_palavras(rnd, n=None):
+    n = n or rnd.randint(4, 40)
+    t, out = round(rnd.uniform(0.0, 1.0), 2), []
+    for _ in range(n):
+        dur = round(rnd.uniform(0.12, 0.5), 2)
+        out.append({"text": rnd.choice(VOC) + rnd.choice(["", "", ",", "."]), "start": t, "end": round(t + dur, 2),
+                    "kw": rnd.random() < 0.2})
+        t = round(t + dur + rnd.choice([0, 0.02, 0.1, 0.4, 1.2]), 2)
+    return out
+
+
+def g_grupos(rnd, n=None):
+    return build_timeline.group_captions(g_palavras(rnd, n), max_words=3)
+
+
+def g_janelas(rnd, groups, k=None):
+    k = rnd.randint(0, 3) if k is None else k
+    pontos = [g["start"] for g in groups] + [g["end"] for g in groups]
+    out = []
+    for _ in range(k):
+        a = rnd.choice(pontos) + rnd.choice([-0.4, -0.14, -0.1, -0.03, 0, 0.03, 0.1, 0.14, 0.4])
+        out.append((round(max(a, 0.0), 2), round(max(a, 0.0) + rnd.choice([0.5, 1.3, 2.8, 5.0, 9.0]), 2)))
+    return out
+
+
+def g_spans(rnd, n, fim):
+    cortes = sorted(round(rnd.uniform(0.3, fim), 2) for _ in range(n - 1))
+    pontos = [0.0] + cortes + [round(fim + 0.3, 2)]
+    return [(pontos[i], pontos[i + 1]) for i in range(n)]
+
+
+def g_blocos(rnd, n, tipos=("insert", "orig", "lettering", "lettering_logo")):
+    return [{"type": rnd.choice(tipos), "instr": rnd.choice(["x", "apresentador + logo", "demo a", "demo b"]),
+             "narr": " ".join(rnd.choice(VOC) for _ in range(rnd.randint(0, 5)))} for _ in range(n)]
+
+
+def test_equivalencia_spans(original):
+    velho = fatiar(original, [(264, 274)], ["blocks", "words"], ["spans"])
+
+    def gerar(rnd):
+        words = g_palavras(rnd, rnd.randint(3, 25))
+        blocos, i = [], 0
+        while i < len(words):
+            n = rnd.randint(0, 5) if rnd.random() < 0.2 else rnd.randint(1, 6)
+            n = min(n, len(words) - i)
+            blocos.append({"type": "orig", "instr": "x", "narr": " ".join(["w"] * n)})
+            i += n
+        return blocos, words
+
+    r = comparar(velho, lambda blocks, words: (S.calcular_spans(blocks, words),), gerar)
+    assert r["ok"] == 400
+
+
+def test_equivalencia_hook(original):
+    velho = fatiar(original, [(279, 299)], ["blocks", "spans"],
+                   ["opening_insert", "hook_gone", "hook_fade", "hook_dur", "cap_gate"])
+    novo = lambda blocks, spans: tuple(K.calcular_hook(blocks, spans))      # noqa: E731
+
+    def gerar(rnd):
+        n = rnd.randint(1, 6)
+        return g_blocos(rnd, n, ("insert", "insert", "orig")), g_spans(rnd, n, 30.0)
+
+    assert comparar(velho, novo, gerar)["ok"] == 400
+
+
+def test_equivalencia_cta_start_e_logo(original):
+    velho = fatiar(original, [(654, 678)], ["blocks", "spans", "_retorno_avatar"],
+                   ["cta_start", "LOGO_LEAD", "logo_start"])
+
+    def novo(blocks, spans, retorno):
+        cta_start = CTA.calcular_cta_start(blocks, spans, retorno)
+        lead = CTA.logo_lead(blocks)
+        return cta_start, lead, CTA.logo_start(cta_start, lead)
+
+    def gerar(rnd):
+        n = rnd.randint(1, 6)
+        blocos = g_blocos(rnd, n, ("insert", "insert", "orig"))
+        retorno = [(rnd.randint(0, n - 1), round(rnd.uniform(0, 30), 2)) for _ in range(rnd.randint(0, 3))]
+        return blocos, g_spans(rnd, n, 30.0), retorno
+
+    assert comparar(velho, novo, gerar)["ok"] == 400
+
+
+def test_equivalencia_visitas_janelas_e_brolls(original):
+    velho = fatiar(original, [(302, 308), (309, 309), (337, 430)],
+                   ["blocks", "spans", "inserts_map", "_plano_ritmo", "cfg"],
+                   ["janelas_split", "janelas_texto", "mapa_insert", "_retorno_avatar", "brolls"])
+
+    def novo(blocks, spans, inserts_map, plano, cfg):
+        visitas, retorno = B.planejar_visitas(blocks, spans, inserts_map, plano)
+        split, texto, mapa = LT.janelas_por_visita(visitas)
+        return split, texto, mapa, retorno, B.montar_brolls(visitas, cfg.get("labels", {}))
+
+    def gerar(rnd):
+        n = rnd.randint(1, 6)
+        spans = g_spans(rnd, n, 40.0)
+        blocos = []
+        for i in range(n):
+            if rnd.random() < 0.55:
+                blocos.append({"type": "insert", "instr": "inserção de vídeo: " + rnd.choice(["demo a", "demo b", "demo c"]),
+                               "narr": rnd.choice(["uma fala qualquer", "olha isso aqui na tela", "Isso é um manual"])})
+            else:
+                blocos.append({"type": "orig", "instr": "apresentador", "narr": "fala do apresentador"})
+        mapa = {}
+        for chave in ("demo a", "demo b", "demo c"):
+            if rnd.random() < 0.05:
+                continue                       # insert sem chave no mapa: o motor para igual
+            m = {"file": chave.replace(" ", "_") + ".mp4"}
+            if rnd.random() < 0.5:
+                m["split"] = True
+            if rnd.random() < 0.35:
+                m["dur_max"] = round(rnd.uniform(1.0, 6.0), 1)
+            if rnd.random() < 0.15:
+                m["texto_proprio"] = True
+            if rnd.random() < 0.5:
+                m["start"] = rnd.choice([0, 1.5, 2.25])
+            if rnd.random() < 0.3:
+                m["speed"] = rnd.choice([1.0, 1.5])
+            if rnd.random() < 0.2:
+                m["crop"] = [0, 0, 100, 100]
+            mapa[chave] = m
+        entradas = []
+        for b, (s0, e0) in zip(blocos, spans):
+            k, c = S.achar_insert_cfg(b["instr"], mapa) if b["type"] == "insert" else (None, None)
+            entradas.append({"tipo": "insert" if b["type"] == "insert" else "orig", "s": s0, "e": e0,
+                             "crop": (c or {}).get("crop"), "dur_max": (c or {}).get("dur_max"), "texto": b["narr"]})
+        plano = ritmo.plano_de_ritmo(entradas)
+        cfg = {"labels": {"demo a": "A"}} if rnd.random() < 0.3 else {}
+        return blocos, spans, mapa, plano, cfg
+
+    r = comparar(velho, novo, gerar, n=500)
+    assert r["ok"] > 350 and r["exit:sem_chave"] > 0      # inclui o insert sem chave
+
+
+def test_equivalencia_letterings_pilha_e_trava_de_layout(original):
+    velho = fatiar(original, [(482, 531), (540, 583)],
+                   ["cfg", "words", "spans", "blocks", "janelas_split"], ["letts", "lett_windows"])
+    novo = lambda cfg, words, spans, blocks, janelas_split: LE.montar(      # noqa: E731
+        cfg.get("letterings", []), words, spans, blocks, janelas_split)
+
+    def gerar(rnd):
+        words = g_palavras(rnd, rnd.randint(8, 40))
+        fim = words[-1]["end"]
+        blocos = [{"instr": rnd.choice(["x", "apresentador + lettering + logo"])} for _ in range(3)]
+        spans = g_spans(rnd, 3, fim)
+        letts = []
+        for _ in range(rnd.randint(0, 5)):
+            d = {"lead": rnd.choice(["", "sabe qual é"]), "key": rnd.choice(["ÓTIMO", "linha a", "PRODUZIR AS PÁGINAS"]),
+                 "anchor": rnd.choice(VOC) if rnd.random() < 0.97 else "inexistente",
+                 "dur": round(rnd.uniform(1.0, 3.5), 1)}
+            if rnd.random() < 0.3:
+                d["nth"] = rnd.randint(1, 2)
+            if rnd.random() < 0.4:
+                d["pilha"] = rnd.choice(["g", "h"])
+            if rnd.random() < 0.15:
+                d["baixo"] = True
+            letts.append(d)
+        return {"letterings": letts}, words, spans, blocos, g_janelas(rnd, g_grupos(rnd, 10), rnd.randint(0, 3)) \
+            + [(round(fim * 0.3, 2), round(fim * 0.5, 2))][:rnd.randint(0, 1)]
+
+    r = comparar(velho, novo, gerar, n=600)
+    assert r["ok"] > 150 and r["exit:ancora"] > 50      # inclui a ancora que nao existe
+
+
+def test_equivalencia_fronteira_de_split_e_costura(original):
+    velho = fatiar(original, [(745, 915)], ["groups", "janelas_split"], ["groups"])
+
+    def novo(groups, janelas_split):
+        if janelas_split:
+            groups = LT.cortar_na_fronteira(groups, janelas_split)
+            LT.marcar_costura(groups, janelas_split)
+        return (groups,)
+
+    def gerar(rnd):
+        groups = g_grupos(rnd)
+        for g in groups:
+            if rnd.random() < 0.15:
+                g["baixa"] = True
+        return groups, g_janelas(rnd, groups)
+
+    assert comparar(velho, novo, gerar, n=1500)["ok"] == 1500
+
+
+def test_equivalencia_guarda_pos_split_e_fechamento(original):
+    velho = fatiar(original, [(957, 967)], ["groups", "janelas_split", "logo_start"], ["groups"])
+
+    def novo(groups, janelas_split, logo_start):
+        LT.empurrar_pos_split(groups, janelas_split)
+        return (LG.fechar_grupos(groups, logo_start),)
+
+    def gerar(rnd):
+        groups = g_grupos(rnd)
+        return groups, g_janelas(rnd, groups), round(rnd.uniform(5, 40), 2)
+
+    assert comparar(velho, novo, gerar, n=1000)["ok"] == 1000
+
+
+def test_equivalencia_eco_e_aparo_nos_letterings(original):
+    velho = fatiar(original, [(975, 1032)], ["groups", "letts", "lett_windows"], ["groups"])
+    novo = lambda groups, letts, lett_windows: (LG.aparar_nos_letterings(groups, letts, lett_windows),)   # noqa: E731
+
+    def gerar(rnd):
+        groups = g_grupos(rnd)
+        letts = []
+        for _ in range(rnd.randint(0, 3)):
+            ini = round(rnd.choice([g["start"] for g in groups]) + rnd.choice([-1.0, -0.3, 0, 0.3, 1.0]), 2)
+            d = {"lead": rnd.choice(["", "o pulo do", "sabe qual é"]), "key": rnd.choice(["gato", "MELHOR", "isso aqui"]),
+                 "start": max(ini, 0.0), "dur": round(rnd.uniform(1.0, 3.0), 1)}
+            if rnd.random() < 0.3:
+                d["linhas"] = [{"key": rnd.choice(VOC), "delay": 0.0}, {"key": rnd.choice(VOC), "delay": 1.0}]
+            letts.append(d)
+        return groups, letts, [(l["start"], l["start"] + l["dur"]) for l in letts]
+
+    assert comparar(velho, novo, gerar, n=1000)["ok"] == 1000
+
+
+def test_equivalencia_gate_de_tela_vazia(original):
+    velho = fatiar(original, [(1073, 1107)], ["hook_dur", "groups", "lett_windows", "cta_s", "total"],
+                   ["_pior", "_quando"])
+    novo = lambda hook_dur, groups, lett_windows, cta_s, total: TV.checar(    # noqa: E731
+        hook_dur, groups, lett_windows, cta_s, total)
+
+    def gerar(rnd):
+        groups = g_grupos(rnd, rnd.randint(1, 30))
+        total = round(groups[-1]["end"] + rnd.choice([0.5, 2.0, 6.0]), 2)
+        letts = [(round(rnd.uniform(0, total), 2),) for _ in range(rnd.randint(0, 2))]
+        letts = [(a[0], round(a[0] + rnd.uniform(1, 3), 2)) for a in letts]
+        return (rnd.choice([2.2, 3.1, 3.3]), groups, letts, round(rnd.uniform(total * 0.3, total), 2), total)
+
+    r = comparar(velho, novo, gerar, n=800)
+    # os dois abortos e o caso que passa acontecem
+    assert r["ok"] > 100 and r["exit:janela"] > 10 and r["exit:vao"] > 10
+
+
+def test_equivalencia_chips_com_o_chip_ligado(original):
+    velho = fatiar(original, [(1118, 1178)], ["_plano_ritmo", "groups", "lett_windows", "logo_s"], ["chips"],
+                   subst=[("CHIP_LIGADO = False", "CHIP_LIGADO = True")])
+    novo = lambda plano, groups, lett_windows, logo_s: (CH.calcular(plano, groups, lett_windows, logo_s, ligado=True),)  # noqa: E731
+
+    def gerar(rnd):
+        t, plano = 0.0, []
+        for _ in range(rnd.randint(1, 8)):
+            d = rnd.choice([1.0, 3.0, 6.0, 8.0, 12.0, 20.0])
+            plano.append({"tipo": rnd.choice(["orig", "orig", "insert"]), "s": t, "e": round(t + d, 2)})
+            t = round(t + d, 2)
+        groups = g_grupos(rnd, 160)
+        letts = [(round(rnd.uniform(3, t), 2),) for _ in range(rnd.randint(0, 2))]
+        letts = [(a[0], round(a[0] + 2.0, 2)) for a in letts]
+        return plano, groups, letts, round(rnd.uniform(t * 0.5, t + 5), 2)
+
+    r = comparar(velho, novo, gerar, n=500)
+    assert r["ok"] == 500

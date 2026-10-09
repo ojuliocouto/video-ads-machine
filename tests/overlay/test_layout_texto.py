@@ -355,3 +355,13 @@ def test_grupo_que_nasce_antes_do_fim_do_split_nao_e_tocado():
     g = grupo(pal("a", 14.00, 15.0))
     LT.empurrar_pos_split([g], [(5.0, 14.37)])
     assert g["start"] == 14.00
+
+
+def test_o_piso_de_fatia_e_0_30s_nem_0_29_nem_0_31():
+    # um lado com 0,31 s puxa o grupo inteiro para ele; com 0,29 s o grupo fica como esta
+    g1 = grupo(pal("a", 10.0, 10.51))
+    s1 = LT.cortar_na_fronteira([g1], [(1.0, 10.31)])
+    assert (s1[0]["start"], s1[0]["end"]) == (10.0, 10.19)
+    g2 = grupo(pal("a", 10.0, 10.51))
+    s2 = LT.cortar_na_fronteira([g2], [(1.0, 10.29)])
+    assert (s2[0]["start"], s2[0]["end"]) == (10.0, 10.51)
