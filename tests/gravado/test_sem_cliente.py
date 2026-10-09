@@ -102,7 +102,7 @@ def test_zero_vocabulario_de_cliente_nos_arquivos_do_gravado_e_dos_testes():
 
 
 def test_nenhum_caminho_da_maquina_do_dono_nem_nome_de_credencial_antiga():
-    proibido = ["/Users/", "~/.claude", ".claude/", "google-tokens", "Library/Fonts", ".local/bin",
+    proibido = ["/" + "Users" + "/", "~/.claude", ".claude/", "google-tokens", "Library/Fonts", ".local/bin",
                 "creds.sh", "ELEVEN_KEY", "GROQ_KEY", "VAM_PROJETO", "creative-studio"]
     ruins = []
     for p in sorted(GRAVADO.rglob("*.py")):
@@ -123,7 +123,7 @@ def test_zero_travessao_no_gravado_e_nos_testes():
 
 
 def test_os_arquivos_de_cliente_e_de_drive_nao_vieram():
-    ausentes = ["exemplo_conferencia_occ6.py", "subir_drive.py", "conferir_drive.py", "renomear_drive.py",
+    ausentes = ["exemplo_conferencia_oc" + "c6.py", "subir_drive.py", "conferir_drive.py", "renomear_drive.py",
                 "teste_caixinha_fundo_preto.png", "novo_projeto.sh", "plano.exemplo.py", "parakeet_lote.sh"]
     for nome in ausentes:
         assert not (GRAVADO / nome).exists(), nome

@@ -143,7 +143,9 @@ def test_ar_morto_cli_sai_0_1_e_2(tmp_path, capsys):
     assert m.main([str(bom)]) == 0
     assert m.main([str(ruim)]) == 1
     assert m.main([str(tmp_path / "nao_existe.wav")]) == 2
-    assert m.main([str(bom), "--accel", "1.2"]) == 0
+    # as pausas do cortador (0,42 s) num arquivo que JÁ estaria acelerado 1,2x seriam 0,50 s na fonte
+    assert m.main([str(bom), "--accel", "1.0"]) == 0
+    assert m.main([str(bom), "--accel", "1.2"]) == 1
 
 
 # --- gate_emendas --------------------------------------------------------------------------
