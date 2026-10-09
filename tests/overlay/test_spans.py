@@ -125,3 +125,30 @@ def test_o_plano_do_overlay_e_o_mesmo_que_a_footage_calcula():
         {"tipo": "orig", "s": 4.0, "e": 20.0, "crop": None, "dur_max": None,
          "texto": "outra fala bem mais longa que a primeira"}])
     assert plano == direto
+
+
+def _plano_com_fala(fala, dur_max=3.0):
+    bl = [{"type": "orig", "instr": "apresentador", "narr": "abertura"},
+          {"type": "insert", "instr": "demo a", "narr": fala}]
+    plano, _ = S.plano_de_ritmo(bl, [(0.0, 3.0), (3.0, 15.0)], {"demo a": {"file": "a.mp4", "dur_max": dur_max}})
+    return [x for x in plano if x["bloco"] == 1]
+
+
+def test_fala_deitica_trava_o_insert_o_bloco_inteiro_fica_em_tela():
+    # FALA QUE APONTA PRA TELA TRAVA O INSERT (28/08/2026): "na tela" nao pode cair no rosto
+    mine = _plano_com_fala("olha isso aqui na tela")
+    assert len(mine) == 1
+    assert (mine[0]["s"], mine[0]["e"], mine[0]["tipo"], mine[0].get("deitico")) == (3.0, 15.0, "insert", True)
+
+
+def test_fala_comum_com_cap_alterna_insert_e_rosto():
+    mine = _plano_com_fala("uma fala qualquer")
+    assert len(mine) > 1
+    assert {x["tipo"] for x in mine} == {"insert", "orig"}
+    assert not any(x.get("deitico") for x in mine)
+
+
+def test_bloco_que_comeca_apontando_pra_imagem_tambem_trava():
+    # "Ela e um manual..." com o insert (que E o manual) sumindo no meio da explicacao
+    mine = _plano_com_fala("Ela é um manual de instrucoes")
+    assert len(mine) == 1 and mine[0]["deitico"] is True
