@@ -392,7 +392,7 @@ def _g_hook_visual(ctx):
 
 def _g_camera(ctx):
     from gates import gate_camera
-    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto)
+    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto, overlay=str(ctx.motor.overlay_mov))
 
 
 def _g_cor(ctx):

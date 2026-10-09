@@ -158,12 +158,13 @@ def _leitor_padrao():
     return leitor
 
 
-def escala_entre(a, b):
+def escala_entre(a, b, mascara=None):
     """Escala (similaridade) de um quadro cinza `a` para o seguinte `b`, por pontos de textura + Lucas-Kanade +
-    RANSAC. None quando não há textura para rastrear."""
+    RANSAC. `mascara` (uint8, 255 onde vale): os pontos só nascem nela. None quando não há textura para rastrear."""
     import cv2
     import numpy as np
-    p0 = cv2.goodFeaturesToTrack(a, maxCorners=LK_CANTOS, qualityLevel=LK_QUALIDADE, minDistance=LK_DIST_MIN)
+    p0 = cv2.goodFeaturesToTrack(a, maxCorners=LK_CANTOS, qualityLevel=LK_QUALIDADE, minDistance=LK_DIST_MIN,
+                                 mask=mascara)
     if p0 is None or len(p0) < RASTREADOS_MIN:
         return None
     p1, st, _err = cv2.calcOpticalFlowPyrLK(a, b, p0, None, winSize=(LK_JANELA, LK_JANELA), maxLevel=LK_NIVEIS)
@@ -191,6 +192,43 @@ def _estimador_padrao():
         saida, total = [1.0], 1.0
         for (_t0, q0), (_t1, q1) in zip(serie, serie[1:]):
             s = escala_entre(q0, q1) if total is not None else None
+            total = None if (s is None or total is None) else total * s
+            saida.append(total)
+        return saida
+    return estimador
+
+
+def mascaras_sem_texto(overlay, tempos, rel, forma):
+    """Para cada instante ENTREGUE de `tempos`, a máscara (uint8, 255 onde vale rastrear) do quadro de `forma`
+    (altura, largura) sem o TEXTO do overlay (W5.X): as letras paradas da KEY eram os cantos mais fortes e o
+    rastreador media escala 1,0 num punch de +22%. O texto é a régua do gate de contraste (`contraste_texto`), com
+    folga de 8 px; o dim e o scrim do lettering ficam (a imagem por baixo deles ainda se rastreia)."""
+    import cv2
+    import numpy as np
+    from scipy import ndimage as ndi
+
+    from gates import contraste_texto as C
+    larg, alt, _d, _desl = C.info_video(overlay)
+    saida = []
+    for t in tempos:
+        ov = C.ler_quadro(overlay, float(t) * float(rel["aceleracao"]) + float(rel.get("a0", 0.0)), larg, alt, 4)
+        if ov is None:
+            saida.append(None)
+            continue
+        texto = ndi.binary_dilation(C.mascara_texto(ov), iterations=8)
+        livre = (~texto).astype(np.uint8) * 255
+        saida.append(cv2.resize(livre, (forma[1], forma[0]), interpolation=cv2.INTER_NEAREST))
+    return saida
+
+
+def _estimador_mascarado(mascaras):
+    """O estimador padrão com uma máscara por quadro (a do quadro de onde os pontos partem)."""
+    def estimador(serie):
+        if not serie:
+            return []
+        saida, total = [1.0], 1.0
+        for k, ((_t0, q0), (_t1, q1)) in enumerate(zip(serie, serie[1:])):
+            s = escala_entre(q0, q1, mascaras[k]) if total is not None else None
             total = None if (s is None or total is None) else total * s
             saida.append(total)
         return saida
@@ -237,7 +275,7 @@ def _escalas(estimador, serie, onde):
     return escalas
 
 
-def medir(video, timeline, estimador=None, leitor=None):
+def medir(video, timeline, estimador=None, leitor=None, overlay=None):
     """Mede planos, punches e movimento; levanta InsumoInvalido."""
     _timeline_ok(timeline)
     rel = timeline["relogio"]
@@ -287,7 +325,7 @@ def medir(video, timeline, estimador=None, leitor=None):
     medido_punches = []
     for ev in cam:
         if ev.get("tipo") == "punch":
-            medido_punches.append(_medir_punch(ev, rel, segs, janelas_split, series, estimador))
+            medido_punches.append(_medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay))
 
     # o plano dispensado vale o que valem os punches dele
     ok_do_punch = {round(m["t"], 3): m["ok"] for m in medido_punches}
@@ -304,7 +342,7 @@ def medir(video, timeline, estimador=None, leitor=None):
             "parado": {"maior_s": round(maior, 3), "de": round(de, 3), "ate": round(ate, 3)}}
 
 
-def _medir_punch(ev, rel, segs, janelas_split, series, estimador):
+def _medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay=None):
     t_d = camera.para_entregue(ev["t"], rel)
     saida = {"t": round(float(ev["t"]), 3), "t_entregue": round(t_d, 3), "ganho": None, "ok": False}
     k, sg = _segmento_em(segs, ev["t"])
@@ -326,6 +364,9 @@ def _medir_punch(ev, rel, segs, janelas_split, series, estimador):
         saida["motivo"] = ("punch em %.2f s sem quadros suficientes para medir (%d antes, %d depois): ele nasce colado "
                            "no corte ou o hold é curto demais" % (float(ev["t"]), len(antes), len(depois)))
         return saida
+    if overlay is not None:
+        estimador = _estimador_mascarado(mascaras_sem_texto(overlay, [t for t, _q in corrente], rel,
+                                                            corrente[0][1].shape))
     escalas = _escalas(estimador, corrente, "ao redor do punch de %.2f s" % float(ev["t"]))
     por_t = {t: e for (t, _q), e in zip(corrente, escalas)}
     g = camera.ganho_do_punch([por_t[t] for t in antes], [por_t[t] for t in depois])
@@ -407,7 +448,7 @@ def _gate(resultado, saida, etapa, medido=None, motivo=None, duracao=None):
     return g
 
 
-def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=ETAPA):
+def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=ETAPA, overlay=None):
     """Confere a câmera de `video` contra a `timeline` (dict). `projeto` é aceito por simetria com os outros gates:
     o C3 não tem exceção. `leitor(video, fps)` e `estimador(serie)` são injetáveis (padrão: ffmpeg e rastreador de
     textura). Devolve o gate no formato do laudo; insumo ruim vira ERRO (saída 2), nunca traceback."""
@@ -416,7 +457,7 @@ def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=E
         _timeline_ok(timeline)
         if leitor is None and not Path(str(video)).is_file():
             raise InsumoInvalido("o vídeo não existe: %s" % video)
-        medido = medir(video, timeline, estimador=estimador, leitor=leitor)
+        medido = medir(video, timeline, estimador=estimador, leitor=leitor, overlay=overlay)
     except InsumoInvalido as e:
         return _gate("ERRO", 2, etapa, motivo=str(e))
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
