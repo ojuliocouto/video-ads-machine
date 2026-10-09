@@ -700,20 +700,23 @@ TEXTO_DA_PECA = "você perde três horas por dia nisso e com uma automação iss
 
 def _pronto_para_entregar(tmp_path):
     """Projeto de uma peça, com tudo o que o pipeline gera, consistente: wav = limpo, a montada,
-    a legenda gerada e a legendada (a montada com a faixa da legenda desenhada)."""
+    a legenda gerada, aprovada pelo diretor e com a queima registrada (W5.D), e a legendada (a montada
+    com a faixa da legenda desenhada)."""
     p = sx.projeto_de_teste(tmp_path, ads=ADS_UM)
     p.garantir("wav")
     p.wav("T1").write_bytes(p.limpo("T1").read_bytes())
     p.garantir("montados")
     fx.testsrc_com_audio(p.montado("A1_normal"), dur=3.0)
     palavras = [w("palavra%d" % i, i * 0.5, i * 0.5 + 0.45) for i in range(6)]
-    legendar.gerar(palavras, p.legenda_ass("A1_normal"))
+    legendar.legendar_pecas(p, ["A1_normal"], sx.LeitorFalso(palavras_da_peca=palavras))
     p.garantir("legendado")
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-i", str(p.montado("A1_normal")), "-vf",
                         "drawbox=x=0:y=ih*0.62:w=iw:h=ih*0.08:color=white:t=fill", "-c:v", "libx264",
                         "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20", "-c:a", "copy",
                         str(p.legendado("A1_normal"))], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+    legendar.aprovar(p, "A1_normal", "ok do diretor no chat")
+    queimar_legenda.registrar_queima(p, "A1_normal")
     return p
 
 
@@ -722,13 +725,13 @@ def _leitor_da_entrega():
     return sx.LeitorFalso(textos=sx.textos_em_sequencia(), palavras_da_peca=limpas, texto_peca=TEXTO_DA_PECA)
 
 
-def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_e_copia(tmp_path):
+def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_mais_a_legenda_aprovada_e_copia(tmp_path):
     p = _pronto_para_entregar(tmp_path)
     r = entregar.entregar(p, leitor=_leitor_da_entrega())
     assert r.entregue, r.resumo()
     assert [n for n, _, _ in r.gates] == ["gate_envelope", "gate_fala", "gate_voz_distante", "gate_retomada",
                                           "gate_emendas", "gate_redundancia", "gate_ar_morto", "gate_legenda",
-                                          "gate_sincronia", "gate_repeticao", "gate_offscript"]
+                                          "gate_sincronia", "gate_repeticao", "gate_offscript", "legenda_aprovada"]
     assert {e for _, e, _ in r.gates} == {"ok"}
     assert (p.pasta("ENTREGA") / "A1_normal.mp4").read_bytes() == p.legendado("A1_normal").read_bytes()
     assert json.loads(p.falas_json.read_text(encoding="utf-8")) == {"A1_normal": TEXTO_DA_PECA}
