@@ -252,8 +252,8 @@ def test_os_dois_motores_recebem_a_mesma_timeline(estado_vazio, tmp_path):
     assert cfg["speed"] == 1.0 and cfg["out_dir"] == str(m.overlay_dir)
     assert env["VAM_AVATAR"] == str(pj.avatar_mp4) and env["VAM_ROTEIRO"] == str(m.leva)
     assert env["VAM_DADOS"] == str(m.dados) and env["CAP"] == "0" and env["VAM_BAKE_LETTERING"] == "0"
-    assert m.inserts.read_bytes() == (pj.render_dir / "inserts.json").read_bytes() or not (
-        pj.render_dir / "inserts.json").exists()
+    aprovado = pj.render_dir / "inserts.json"
+    assert not aprovado.exists() or m.inserts.read_bytes() == aprovado.read_bytes()
 
 
 def test_o_logo_do_anuncio_e_o_da_marca_do_aluno(estado_vazio, tmp_path):
@@ -327,6 +327,51 @@ def test_material_local_aponta_o_comando_vam_que_resolve(estado_vazio, capsys):
     assert material_local.checar_material(pj) is False
     err = capsys.readouterr().err
     assert "vam roteiro mat" in err and err.count("\n") <= 3
+
+
+# --- scripts de desenvolvimento ------------------------------------------------------------------------
+
+def test_como_aluno_roda_com_home_falso_path_do_sistema_e_so_as_chaves_do_aluno(tmp_path):
+    import os
+    env = dict(os.environ, VAM_HOME_ALUNO=str(tmp_path), CLAUDE_CONFIG_DIR="/nao/vaza", HEYGEN_API_KEY="chave-teste",
+               OUTRA="nao-vaza")
+    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True, text=True,
+                       env=env, timeout=60)
+    assert r.returncode == 0, r.stderr
+    linhas = dict(l.split("=", 1) for l in r.stdout.splitlines() if "=" in l)
+    assert linhas["HOME"] == str(tmp_path)
+    assert linhas["PATH"] == "/opt/homebrew/bin:/usr/bin:/bin:/usr/local/bin" and ".local" not in linhas["PATH"]
+    assert linhas["HEYGEN_API_KEY"] == "chave-teste"
+    assert "CLAUDE_CONFIG_DIR" not in linhas and "OUTRA" not in linhas
+
+
+def test_como_aluno_sem_home_falso_recusa():
+    import os
+    env = {k: v for k, v in os.environ.items() if k != "VAM_HOME_ALUNO"}
+    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True, text=True,
+                       env=env, timeout=60)
+    assert r.returncode == 2 and "VAM_HOME_ALUNO" in r.stdout
+
+
+def test_e2e_local_e_bash_valido_e_roda_o_fluxo_inteiro_pelo_vam():
+    arq = SCRIPTS / "dev" / "e2e_local.sh"
+    assert subprocess.run(["bash", "-n", str(arq)], capture_output=True).returncode == 0
+    texto = arq.read_text(encoding="utf-8")
+    ordem = [texto.index("passo %s %s" % (n, c)) for n, c in (("novo", "novo"), ("roteiro", "roteiro"),
+                                                               ("audio", "audio"), ("avatar", "avatar"),
+                                                               ("plano", "plano"), ("aprovar", "aprovar"),
+                                                               ("montar", "montar"), ("auditor", "auditar"),
+                                                               ("entregar", "entregar"))]
+    assert ordem == sorted(ordem)
+    assert "build_composite" not in texto and "produzir_ad" not in texto      # só pela CLI do aluno
+
+
+def test_e2e_sem_midia_sai_com_dois(tmp_path):
+    import os
+    env = dict(os.environ, VAM_E2E_MIDIA=str(tmp_path / "nao-existe"))
+    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "e2e_local.sh")], capture_output=True, text=True, env=env,
+                       timeout=60)
+    assert r.returncode == 2 and "VAM_E2E_MIDIA" in r.stdout
 
 
 # --- varreduras estáticas -------------------------------------------------------------------------------

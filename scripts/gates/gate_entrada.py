@@ -226,9 +226,12 @@ def _formatar_respiros(achados):
 
 # --- o gate --------------------------------------------------------------------------------------------
 
-def rodar(pastas_projeto, asr=None):
+def rodar(pastas_projeto, asr=None, so_voz=False):
     """Confere voz e avatar do projeto. `asr(caminho) -> [{text, start, end}]` troca o transcritor
-    (os testes passam uma função simulada). Levanta InsumoInvalido quando não há o que conferir."""
+    (os testes passam uma função simulada). Levanta InsumoInvalido quando não há o que conferir.
+
+    `so_voz=True` é a conferência do `vam audio`, ANTES de gastar o avatar: respiro, ritmo e fala preservada, sem a
+    duração do avatar (que ainda não existe). O `vam montar` roda a conferência inteira."""
     pj = pastas_projeto
     projeto = _projeto(pj)
     modo = projeto["modo"]
@@ -279,7 +282,7 @@ def rodar(pastas_projeto, asr=None):
                              "avatar_dur_tol_s": AVATAR_DUR_TOL, "min_pausas_longas": MIN_PAUSAS_LONGAS,
                              "pausa_longa_s": PAUSA_LONGA, "fracao_letras_dano": FRACAO_LETRAS_DANO}}
 
-    if modo == "avatar":
+    if modo == "avatar" and not so_voz:
         if not pj.avatar_mp4.is_file():
             raise InsumoInvalido("avatar/avatar.mp4 não existe em %s: gere o avatar a partir de voz/limpo.mp3 "
                                  "antes de conferir a entrada" % pj.raiz)

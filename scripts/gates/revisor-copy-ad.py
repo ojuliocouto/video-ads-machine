@@ -63,9 +63,18 @@ def fala(linha):
     return re.sub(r"^\[[^\]]*\]\s*", "", linha).strip()
 
 
+def _leva(n):
+    """A leva do anúncio `n`: `<n>_leva.txt` (nome do projeto, como o motor do produto grava) ou o nome antigo."""
+    for nome in (f"{n}_leva.txt", f"ad{n}v2_leva.txt"):
+        p = os.path.join(V1, nome)
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def revisar(n, corrigir=False):
-    p = os.path.join(V1, f"ad{n}v2_leva.txt")
-    if not os.path.exists(p):
+    p = _leva(n)
+    if p is None:
         return None
     linhas = open(p, encoding="utf-8").read().split("\n")
     achados, novas = [], []
@@ -98,7 +107,9 @@ def main():
         print(__doc__)
         return
     corrigir = "--corrigir" in sys.argv
-    alvos = [a for a in sys.argv[1:] if a.isdigit()] or [f"{i:02d}" for i in range(1, 13)]
+    # id alfanumérico (pendência 12, item 3): só número deixava de fora qualquer anúncio com nome, e o revisor
+    # "passava" sem ter lido nada
+    alvos = [a for a in sys.argv[1:] if not a.startswith("-")] or [f"{i:02d}" for i in range(1, 13)]
     erros_totais = 0
     sem_roteiro = 0
     for n in alvos:
@@ -119,7 +130,7 @@ def main():
     if sem_roteiro == len(alvos):
         # nenhum roteiro do SEU anuncio encontrado: uma mensagem so, nao silencio
         from material_local import exigir
-        exigir(Path(V1) / f"ad{alvos[0]}v2_leva.txt", "o roteiro anotado do seu anúncio")
+        exigir(Path(V1) / f"{alvos[0]}_leva.txt", "o roteiro anotado do seu anúncio")
     if corrigir:
         print(f"\n{erros_totais} erro(s) corrigido(s). Rode de novo pra conferir.")
     sys.exit(1 if erros_totais and not corrigir else 0)

@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """GATE obrigatorio: roda ANTES de declarar qualquer ad pronto.
 
-Por que existe: na leva AD03..AD12 eu produzi 10 anuncios seguidos verificando so
-duracao, LUFS e ultimo frame, que sao as metricas baratas de medir. As que importam
-(legenda na tela, insert casado com o doc, frame solto) exigem olhar o video, e eu
-pulei. Resultado: media 5,2 e a leva inteira reprovada.
+Por que existe: numa leva de 10 anuncios produzidos em sequencia, so duracao, LUFS e ultimo frame
+foram verificados, que sao as metricas baratas de medir. As que importam (legenda na tela, insert
+casado com o roteiro, frame solto) exigem olhar o video, e foram puladas. Resultado: media 5,2 e a
+leva inteira reprovada. Este script e o instrumento.
 
-Pior: o defeito de legenda ja existia no AD01 (9% do tempo) e no AD02 (27%) e eu
-entreguei os dois dizendo 8,5. Nao passou por descuido pontual, passou porque eu nao
-tinha INSTRUMENTO. Este script e o instrumento.
+Checa, no arquivo entregue:
+  1. quanto tempo fica SEM texto na tela (o defeito que derrubou a leva), medido no overlay com alfa
+  2. o gancho: texto nos primeiros 3 s
+  3. frames soltos de outra cena dentro dos inserts (piscada)
+  4. se todo insert do mapa aponta para um arquivo que existe
+  5. loudness
 
-Checa, por ad:
-  1. quanto tempo fica SEM legenda na tela (o defeito que derrubou a leva)
-  2. frames soltos de outra cena dentro dos inserts (piscada)
-  3. se todo marcador do doc virou insert
-  4. loudness e duracao
-
-Uso: python3 gate_ad.py 03 04 05 ...
-Saida: PASSA ou REPROVA por ad, com o motivo. Exit code 1 se algum reprovar.
+Uso (o `vam montar` chama sozinho, na etapa 12 da ordem de gates):
+  python3 gate-ad.py --video entrega/final_9x16.mp4 --overlay render/overlay_render/renders/x.mov
+                     [--inserts render/motor/inputs/<slug>_inserts.json] [--formato 9x16]
+Saida: PASSA ou REPROVA com o motivo. Exit 1 se reprovar, 2 se o pedido ou o arquivo nao existe.
 """
 import json
 import os
@@ -29,10 +28,6 @@ from pathlib import Path
 
 # Raiz de scripts/ no sys.path: caminhos.py e a fonte unica dos caminhos do repo.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from caminhos import ESTADO, INPUTS, OUTPUT, ROTEIROS, gate_excecoes  # noqa: E402
-
-V1 = str(INPUTS)
-OUT = str(OUTPUT)
 
 try:
     import PIL  # noqa: F401  (usado nas medicoes de quadro, mais abaixo)
@@ -51,10 +46,6 @@ HOOK_MAX_SEM_TEXTO_S = 1.0     # acumulado sem texto tolerado dentro da janela
 LUFS_ALVO, LUFS_TOL = -14.0, 1.2
 FAIXA_Y, FAIXA_H = 1240, 220
 
-# Formato do ad a medir: 9x16 (padrao) ou 1x1. So muda QUAL arquivo o gate acha; a
-# medicao de legenda usa o MOV overlay (alpha do quadro inteiro), que independe do
-# formato. Passado por env pra nao alterar a assinatura da CLI do gate.
-FMT = os.environ.get("GATE_FMT", "9x16")
 
 
 def sh(cmd, **kw):
@@ -68,36 +59,6 @@ def dur(p):
         return float(o)
     except ValueError:
         return 0.0
-
-
-def achar_video(n):
-    """Pega o render MAIS RECENTE do ad.
-
-    Antes era sorted()[-1] (ordem alfabetica). O AD01 tem duas versoes renderizadas
-    (espuma_roxa e selfie_neon) e o alfabetico devolvia a selfie_neon, que nao e a
-    entregue: o gate media 62,8s de um arquivo velho enquanto o atual tinha 78,3s.
-    Medir o arquivo errado e pior que nao medir."""
-    # Ad de outra leva ja vem prefixado ("jh13"): prefixar "ad" de novo procurava
-    # "adjh13v2_" e o gate dizia "video nao encontrado" com o arquivo pronto do lado.
-    # Quarto lugar onde o prefixo estava cravado (audio, avatar, config e aqui).
-    pref = "" if str(n).startswith("jh") else "ad"
-    c = [os.path.join(OUT, f) for f in os.listdir(OUT)
-         if f.startswith(f"{pref}{n}v2_") and f.endswith(f"_v2composite_{FMT}.mp4")]
-    return max(c, key=os.path.getmtime) if c else None
-
-
-def achar_overlay(n):
-    """O MOV alpha do ad: nele TODO pixel opaco e texto nosso, entao medir ali e exato."""
-    base = ESTADO
-    pref = "" if str(n).startswith("jh") else "ad"
-    cands = list(base.glob(f"render-{pref}{n}v2-*-ovlonly/renders/*.mov"))
-    # o dir do 1x1 termina em _1x1-ovlonly; o do 9x16 nao. Filtrar pra nao medir o
-    # overlay do formato errado quando os dois existem.
-    if FMT == "1x1":
-        cands = [p for p in cands if "_1x1-ovlonly" in str(p.parent.parent)]
-    else:
-        cands = [p for p in cands if "_1x1-ovlonly" not in str(p.parent.parent)]
-    return str(max(cands, key=lambda p: p.stat().st_mtime)) if cands else None
 
 
 def sem_legenda(video, passo=0.5, overlay=None):
@@ -237,17 +198,14 @@ def frames_soltos(video, limiar=0.72):
     return piscadas
 
 
-def inserts_pendentes(n):
-    """Equivalente do check de marcadores pra essa outra leva.
+def inserts_pendentes(caminho):
+    """Inserts do mapa do motor que ficaram como pendencia ou apontam para arquivo que sumiu.
 
-    O roteiro dela nao usa marcador de letra do doc (`][a]`), usa chave nomeada, entao
-    `marcadores_faltando` nao se aplica. Pular sem checar nada seria aprovar no escuro:
-    o que importa aqui e que nenhum insert tenha ficado como pendencia nem aponte pra
-    arquivo que sumiu."""
-    ins = os.path.join(V1, f"{n}v2_inserts.json")
-    if not os.path.exists(ins):
+    Pular sem checar nada seria aprovar no escuro: o que importa e que nenhum insert tenha
+    ficado como pendencia nem aponte para arquivo que sumiu. None se nao ha mapa."""
+    if not caminho or not os.path.exists(caminho):
         return None
-    d = json.load(open(ins, encoding="utf-8"))
+    d = json.load(open(caminho, encoding="utf-8"))
     ruins = []
     for k, v in d.items():
         if "_PENDENCIA" in v:
@@ -257,108 +215,83 @@ def inserts_pendentes(n):
     return sorted(ruins)
 
 
-def marcadores_faltando(n):
-    if str(n).startswith("jh"):
-        return inserts_pendentes(n)
-    doc = os.path.join(str(ROTEIROS), f"ad{int(n):02d}.txt")
-    ins = os.path.join(V1, f"ad{n}v2_inserts.json")
-    if not (os.path.exists(doc) and os.path.exists(ins)):
-        return None
-    letras_doc = set(re.findall(r"\]\[([a-z]{1,2})\]", open(doc, encoding="utf-8").read()))
-    # excecoes DOCUMENTADAS: marcador que nao e asset baixavel (ex: link de design que o
-    # doc manda CRIAR, ou marcador de direcao). Ficam num json a parte pra a dispensa ser
-    # explicita e auditavel, nunca uma decisao silenciosa minha no meio do codigo.
-    exc_path = gate_excecoes()
-    if exc_path and os.path.exists(exc_path):
-        exc = json.load(open(exc_path, encoding="utf-8")).get(n, {})
-        letras_doc -= set(exc)
-    d = json.load(open(ins, encoding="utf-8"))
-    usadas = set()
-    for v in d.values():
-        # aceita sufixo depois do marcador (ad07_ai_video.mp4 = marcador [ai] convertido
-        # de PNG pra video). Sem isso o gate acusava marcador faltando por causa do nome.
-        m = re.match(rf"ad{int(n):02d}_([a-z]{{1,2}})(?:[._])", os.path.basename(v["file"]))
-        if m:
-            usadas.add(m.group(1))
-    return sorted(letras_doc - usadas)
-
-
 def lufs(video):
     r = sh(["ffmpeg", "-i", video, "-af", "ebur128=framelog=quiet", "-f", "null", "-"])
     m = re.search(r"I:\s*(-?[0-9.]+)\s*LUFS", r.stderr)
     return float(m.group(1)) if m else None
 
 
-def main():
-    if any(a in ("-h", "--help") for a in sys.argv[1:]):
-        print(__doc__)
-        return
-    if not os.path.isdir(OUT):
-        # a pasta de renders e do SEU anuncio (_local): mensagem unica, sem traceback
-        from material_local import exigir
-        exigir(OUT, "a pasta de saída dos renders do seu anúncio")
-    alvos = sys.argv[1:] or [f"{i:02d}" for i in range(1, 13)]
-    reprovou = False
-    for n in alvos:
-        v = achar_video(n)
-        print(f"\n===== AD{n} [{FMT}] =====")
-        if not v:
-            print("  video nao encontrado"); reprovou = True; continue
-        problemas = []
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(prog="gate-ad", description="O gate obrigatorio do arquivo entregue.")
+    ap.add_argument("--video", help="o arquivo entregue (mp4)")
+    ap.add_argument("--overlay", help="o overlay com alfa (mov): todo pixel opaco e texto nosso")
+    ap.add_argument("--inserts", help="o mapa de inserts do motor (json)")
+    ap.add_argument("--formato", default="9x16", choices=("9x16", "1x1"))
+    ap.add_argument("resto", nargs="*", help=argparse.SUPPRESS)
+    a = ap.parse_args(argv)
+    if a.resto or not a.video:
+        print("uso: gate-ad.py --video <final.mp4> --overlay <overlay.mov> [--inserts <inserts.json>]\n"
+              "  (o modo por numero de anuncio saiu: quem chama e o `vam montar <slug>`)", file=sys.stderr)
+        return 2
+    v, ov = a.video, a.overlay
+    if not os.path.isfile(v):
+        print(f"video nao encontrado: {v}", file=sys.stderr)
+        return 2
+    if ov and not os.path.isfile(ov):
+        print(f"overlay nao encontrado: {ov}", file=sys.stderr)
+        return 2
+    print(f"\n===== {os.path.basename(v)} [{a.formato}] =====")
+    problemas = []
 
-        ov = achar_overlay(n)
-        pct, maior, buracos = sem_legenda(v, overlay=ov)
-        print(f"  sem texto na tela: {pct:.0f}% | maior vao: {maior:.1f}s")
-        if pct > MAX_SEM_LEGENDA_PCT:
-            problemas.append(f"{pct:.0f}% sem texto (teto {MAX_SEM_LEGENDA_PCT:.0f}%)")
-        if maior > MAX_BURACO_S:
-            pior = max(buracos, key=lambda b: b[1] - b[0])
-            problemas.append(f"vao de {maior:.1f}s sem texto em {pior[0]:.1f}s")
+    pct, maior, buracos = sem_legenda(v, overlay=ov)
+    print(f"  sem texto na tela: {pct:.0f}% | maior vao: {maior:.1f}s")
+    if pct > MAX_SEM_LEGENDA_PCT:
+        problemas.append(f"{pct:.0f}% sem texto (teto {MAX_SEM_LEGENDA_PCT:.0f}%)")
+    if maior > MAX_BURACO_S:
+        pior = max(buracos, key=lambda b: b[1] - b[0])
+        problemas.append(f"vao de {maior:.1f}s sem texto em {pior[0]:.1f}s")
 
-        hk_sem, hk_1o = checar_hook(v, overlay=ov)
-        if hk_sem is not None:
-            p1 = "nunca" if hk_1o is None else f"{hk_1o:.2f}s"
-            print(f"  hook (0-{HOOK_JANELA_S:.0f}s): {hk_sem:.2f}s sem texto | 1o texto em {p1}")
-            estourou = hk_sem > HOOK_MAX_SEM_TEXTO_S or hk_1o is None or hk_1o > HOOK_MAX_SEM_TEXTO_S
-            if estourou:
-                msg = (f"hook sem texto: {hk_sem:.1f}s vazios nos primeiros "
-                       f"{HOOK_JANELA_S:.0f}s (teto {HOOK_MAX_SEM_TEXTO_S:.1f}s)")
-                if ov:
-                    problemas.append(msg)
-                else:
-                    # sem overlay a medicao usa so a faixa da legenda e pode ser falso
-                    # positivo com hook de lettering central: reportar, nao reprovar.
-                    print(f"  AVISO (sem overlay, conferir a olho): {msg}")
+    hk_sem, hk_1o = checar_hook(v, overlay=ov)
+    if hk_sem is not None:
+        p1 = "nunca" if hk_1o is None else f"{hk_1o:.2f}s"
+        print(f"  hook (0-{HOOK_JANELA_S:.0f}s): {hk_sem:.2f}s sem texto | 1o texto em {p1}")
+        estourou = hk_sem > HOOK_MAX_SEM_TEXTO_S or hk_1o is None or hk_1o > HOOK_MAX_SEM_TEXTO_S
+        if estourou:
+            msg = (f"hook sem texto: {hk_sem:.1f}s vazios nos primeiros "
+                   f"{HOOK_JANELA_S:.0f}s (teto {HOOK_MAX_SEM_TEXTO_S:.1f}s)")
+            if ov:
+                problemas.append(msg)
+            else:
+                # sem overlay a medicao usa so a faixa da legenda e pode ser falso
+                # positivo com hook de lettering central: reportar, nao reprovar.
+                print(f"  AVISO (sem overlay, conferir a olho): {msg}")
 
-        p = frames_soltos(v)
-        print(f"  frames soltos/piscadas: {len(p)}")
-        if p:
-            problemas.append(f"{len(p)} piscadas (1a em {p[0]:.1f}s)")
+    p = frames_soltos(v)
+    print(f"  frames soltos/piscadas: {len(p)}")
+    if p:
+        problemas.append(f"{len(p)} piscadas (1a em {p[0]:.1f}s)")
 
-        rot = "inserts pendentes" if str(n).startswith("jh") else "marcadores do doc"
-        falt = marcadores_faltando(n)
-        if falt:
-            print(f"  {rot}: {', '.join(falt)}")
-            problemas.append(f"{rot}: {', '.join(falt)}")
-        elif falt is not None:
-            print(f"  {rot}: nenhum" if str(n).startswith("jh")
-                  else "  marcadores do doc: todos usados")
+    falt = inserts_pendentes(a.inserts)
+    if falt:
+        print(f"  inserts pendentes: {', '.join(falt)}")
+        problemas.append(f"inserts pendentes: {', '.join(falt)}")
+    elif falt is not None:
+        print("  inserts pendentes: nenhum")
 
-        L = lufs(v)
-        print(f"  loudness: {L} LUFS | duracao: {dur(v):.1f}s")
-        if L is not None and abs(L - LUFS_ALVO) > LUFS_TOL:
-            problemas.append(f"loudness {L} fora de {LUFS_ALVO}±{LUFS_TOL}")
+    L = lufs(v)
+    print(f"  loudness: {L} LUFS | duracao: {dur(v):.1f}s")
+    if L is not None and abs(L - LUFS_ALVO) > LUFS_TOL:
+        problemas.append(f"loudness {L} fora de {LUFS_ALVO}+-{LUFS_TOL}")
 
-        if problemas:
-            reprovou = True
-            print("  >> REPROVA:")
-            for x in problemas:
-                print("     - " + x)
-        else:
-            print("  >> PASSA")
-
-    sys.exit(1 if reprovou else 0)
+    if problemas:
+        print("  >> REPROVA:")
+        for x in problemas:
+            print("     - " + x)
+        return 1
+    print("  >> PASSA")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
