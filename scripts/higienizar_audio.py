@@ -81,7 +81,10 @@ def silences(mp3):
     return out
 
 def whisper_words(mp3):
-    """So pra conferencia (nao dirige o corte). Se faltar faster-whisper, retorna []."""
+    """So pra conferencia (nao dirige o corte). Se faltar faster-whisper, retorna []. HIGIENIZAR_SEM_CONFERENCIA=1
+    pula (o `vam audio` re-transcreve a fala ele mesmo; baixar o modelo do whisper num HOME novo levava minutos)."""
+    if os.environ.get("HIGIENIZAR_SEM_CONFERENCIA") == "1":
+        return []
     try:
         from faster_whisper import WhisperModel
         model = WhisperModel(os.environ.get("WHISPER_SIZE","small"), device="cpu", compute_type="int8")

@@ -47,6 +47,7 @@ def higienizar(bruto, limpo, aceleracao):
     env = dict(os.environ)
     env.update(auditar_audio.PARAMS)
     env["ACCEL_FINAL"] = str(aceleracao)
+    env["HIGIENIZAR_SEM_CONFERENCIA"] = "1"      # a fala é conferida abaixo (gate_entrada), com o transcritor da máquina
     r = subprocess.run([sys.executable, str(CODIGO / "higienizar_audio.py"), str(bruto), str(limpo)],
                        capture_output=True, text=True, env=env)
     if r.returncode != 0 or not Path(limpo).is_file():

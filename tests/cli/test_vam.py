@@ -374,8 +374,10 @@ def test_higienizar_voz_em_wav_sem_silencio_grande_sai_mp3_valido(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=2", "-ar", "48000", str(wav)],
                    check=True)
     saida = tmp_path / "limpo.mp3"
+    import os
     r = subprocess.run([sys.executable, str(SCRIPTS / "higienizar_audio.py"), str(wav), str(saida)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, timeout=120,
+                       env=dict(os.environ, HIGIENIZAR_SEM_CONFERENCIA="1"))
     assert r.returncode == 0, r.stderr[-400:]
     o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(saida)],
                        capture_output=True, text=True).stdout.strip()
