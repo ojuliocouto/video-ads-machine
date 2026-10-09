@@ -293,6 +293,10 @@ def empurrar_pos_split(groups, janelas_split):
     legenda em posição de tela cheia sobre o rosto do painel de baixo, atravessando os OLHOS por 3
     quadros (gate: 7,6% e depois 9,8% do rosto). Grupo que nasce a menos de GUARDA_POS_SPLIT do fim
     de um split é empurrado para depois da guarda; palavra que ficaria antes do novo início cai fora.
+
+    Empurrar pode deixar o grupo sem palavra, curto ou com o início depois do fim (quando o logo vem logo depois do
+    split). Quem decide se ele fica é o `legendas.fechar_grupos`, que roda em seguida e aplica o piso depois de
+    truncar no logo (W3.X A1).
     """
     for g in groups:
         for _a, _b in janelas_split:

@@ -5,7 +5,8 @@ O agrupamento (até 3 palavras por grupo, fechando na pontuação, segurando a f
 
   - nenhuma legenda enquanto o hook está na tela (`cap_gate`) nem a partir da janela do logo;
   - o grupo que atravessa a fronteira do logo é TRUNCADO, não descartado (a legenda vai até o último
-    instante livre sem invadir o logo);
+    instante livre sem invadir o logo), e o piso de 0,20 s vale DEPOIS do truncamento: nenhum grupo sai
+    invertido nem como um piscar;
   - legenda e lettering NÃO dividem a tela: o lettering vira o texto principal do trecho. O ECO (a
     mesma frase nos dois) é descartado por inteiro, inclusive o grupo que só ENCOSTA no lettering
     (a legenda "o pulo do" fechava 0,05 s antes de "o pulo do gato" começar, e a mesma frase
@@ -43,15 +44,23 @@ def filtrar_corpo(groups, cap_gate, logo_start):
     return [g for g in groups if cap_gate < g["start"] < logo_start - 0.05]
 
 
+PISO_GRUPO = 0.20       # legenda com menos que isso na tela não é lida: é um piscar
+
+
 def fechar_grupos(groups, logo_start):
-    """Tira grupo sem palavra ou com menos de 0,20 s, e TRUNCA no início da janela do logo o que
-    atravessa a fronteira (um grupo de 1 s que começa antes do logo continua na tela quando ele sobe:
-    "o motor é mais." atrás do wordmark)."""
-    groups = [g for g in groups if g["words"] and g["end"] - g["start"] >= 0.20]
+    """TRUNCA no início da janela do logo o que atravessa a fronteira (um grupo de 1 s que começa antes do logo
+    continua na tela quando ele sobe: "o motor é mais." atrás do wordmark) e DEPOIS tira o grupo sem palavra ou com
+    menos de PISO_GRUPO.
+
+    A ordem é o conserto (W3.X A1). O original filtrava antes de truncar: o grupo que o `empurrar_pos_split` jogava
+    para depois da fronteira e que o truncamento cortava no logo sobrava com 0,1 s, ou INVERTIDO (início 13,43 e fim
+    13,25, medido num roteiro com o último insert em split com `dur_max` e o CTA logo depois). No overlay antigo ele
+    não aparecia; na timeline o contrato o recusa e o anúncio inteiro parava. O piso é a última palavra sobre o grupo
+    como ele vai para a tela."""
     for g in groups:
         if g["end"] > logo_start:
             g["end"] = logo_start
-    return groups
+    return [g for g in groups if g["words"] and g["end"] - g["start"] >= PISO_GRUPO]
 
 
 def frases_dos_letterings(letts):
