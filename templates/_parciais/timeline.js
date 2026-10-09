@@ -118,6 +118,51 @@
         tl.set(grp, { opacity: 0, visibility: "hidden" }, gEnd);
       });
 
+      // ===== ENTRADAS DOS ESTILOS DE LETTERING (C7; cinema/lettering_estilos) =====
+      // Todas com alfa cheio no primeiro quadro: a KEY está legível em até 0,15 s. O movimento é só de escala ou
+      // posição e assenta em até 0,14 s. A saída é seca, como a do editorial. O estilo vem em data-estilo.
+      function _alvos(lead, keys) { return [lead].concat(Array.prototype.slice.call(keys)).filter(Boolean); }
+      var ENTRADAS = {
+        caixa_nativa: function (el, at, dur, lead, keys) {      // widget nativo: um pop curto, sem brilho
+          var a = _alvos(lead, keys);
+          gsap.set(a, { scale: 0.96, transformOrigin: "50% 50%" });
+          tl.to(a, { scale: 1, duration: 0.10, ease: "power2.out" }, at);
+        },
+        punch: function (el, at, dur, lead, keys) {             // carimbo
+          gsap.set(keys, { scale: 1.25, transformOrigin: "50% 55%" });
+          tl.to(keys, { scale: 1, duration: 0.10, ease: "power4.out" }, at);
+        },
+        marcador: function (el, at, dur, lead, keys) {          // texto seco, marca-texto se desenha em 0,12 s
+          gsap.set(keys, { scale: 1.06, transformOrigin: "50% 60%" });
+          tl.to(keys, { scale: 1, duration: 0.10, ease: "power3.out" }, at);
+          tl.fromTo(el, { "--hx": 0.02 }, { "--hx": 1, duration: 0.12, ease: "power2.out", immediateRender: false }, at);
+        },
+        statement: function (el, at, dur, lead, keys) {         // linhas sobem 30 px
+          gsap.set(keys, { y: 30 });
+          tl.to(keys, { y: 0, duration: 0.14, ease: "power3.out" }, at);
+        },
+        lateral: function (el, at, dur, lead, keys) {           // entra deslizando da esquerda
+          var a = _alvos(lead, keys);
+          gsap.set(a, { x: -60 });
+          tl.to(a, { x: 0, duration: 0.14, ease: "power3.out" }, at);
+        },
+        seta_cta: function (el, at, dur, lead, keys) {          // chamada seca + seta que quica (C9)
+          gsap.set(keys, { scale: 1.06, transformOrigin: "50% 50%" });
+          tl.to(keys, { scale: 1, duration: 0.12, ease: "power3.out" }, at);
+          var seta = el.querySelector(".seta");
+          if (seta) {
+            var voltas = Math.max(1, Math.floor((dur - 0.2) / 0.45));
+            tl.fromTo(seta, { y: 0 }, { y: 14, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: voltas,
+                                       immediateRender: false }, at + 0.15);
+          }
+        },
+        gigante_atras: function (el, at, dur, lead, keys) {     // chega grande, assenta e respira
+          gsap.set(keys, { scale: 1.14, transformOrigin: "50% 50%" });
+          tl.to(keys, { scale: 1, duration: 0.14, ease: "power3.out" }, at);
+          if (dur > 0.5) tl.to(keys, { scale: 1.03, duration: dur - 0.2, ease: "sine.inOut" }, at + 0.16);
+        }
+      };
+
       // ===== LETTERINGS (data-driven): cada .lett.clip tem data-start/data-duration =====
       // ENTRADA SECA (18/08/2026): o fade de 0,25 s deixava o lettering "surgindo" e o trecho lia como tempo
       // morto. Entrada instantânea com um assentamento de escala de 0,12 s, que o olho lê como CORTE; saída
@@ -127,6 +172,14 @@
         var dur = parseFloat(el.dataset.duration);
         var lead = el.querySelector(".lead");
         var keys = el.querySelectorAll(".key");
+        var entrada = ENTRADAS[el.dataset.estilo || ""];
+        if (entrada) {
+          gsap.set(el, { opacity: 0 });
+          tl.set(el, { opacity: 1 }, at);
+          entrada(el, at, dur, lead, keys);
+          tl.set(el, { opacity: 0 }, at + dur);
+          return;
+        }
         gsap.set(el, { opacity: 0 });
         if (lead) gsap.set(lead, { opacity: 0 });
         gsap.set(keys, { opacity: 0, scale: 1.08, transformOrigin: "50% 60%" });
@@ -194,4 +247,32 @@
           document.addEventListener('DOMContentLoaded', ajustar);
         else ajustar();
         document.fonts && document.fonts.ready && document.fonts.ready.then(ajustar);
+      })();
+
+      // ===== KEY DOS ESTILOS NOVOS: no máximo 2 linhas; a gigante numa linha só, até 700 px =====
+      // A estimativa do gate (cinema/lettering_estilos.linhas_estimadas) barra a KEY longa antes do render; aqui o
+      // corpo encolhe se a fonte real ainda quebrar em 3. Mede a caixa de layout (offset/scroll), que o transform
+      // da entrada não altera.
+      (function () {
+        function caber() {
+          document.querySelectorAll(".lett[data-estilo] .key").forEach(function (k) {
+            var est = k.parentElement.dataset.estilo;
+            var cs = getComputedStyle(k);
+            var px = parseFloat(cs.fontSize);
+            var lh = parseFloat(cs.lineHeight) / px || 1.1;
+            var pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+            for (var i = 0; i < 40; i++) {
+              var cabe = est === "gigante_atras"
+                ? (k.scrollWidth <= 700 || px <= 120)
+                : (Math.round((k.offsetHeight - pad) / (px * lh)) <= 2 || px <= 40);
+              if (cabe) break;
+              px -= 4;
+              k.style.fontSize = px + "px";
+            }
+          });
+        }
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', caber);
+        else caber();
+        document.fonts && document.fonts.ready && document.fonts.ready.then(caber);
       })();

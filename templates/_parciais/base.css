@@ -12,6 +12,11 @@
       @font-face { font-family:"Playfair Display"; font-weight:700; font-style:italic; font-display:block; src:url("fonts/playfair-italic-700.woff2") format("woff2"); }
       @font-face { font-family:"Montserrat"; font-weight:500; font-style:normal; font-display:block; src:url("fonts/montserrat-500.woff2") format("woff2"); }
       @font-face { font-family:"Montserrat"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/montserrat-600.woff2") format("woff2"); }
+      /* fontes OFL dos estilos de lettering (licença em fonts/OFL.txt; o .ttf ao lado serve ao libass) */
+      @font-face { font-family:"Montserrat"; font-weight:800; font-style:normal; font-display:block; src:url("fonts/montserrat-800.woff2") format("woff2"); }
+      @font-face { font-family:"PT Serif"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/pt-serif-400.woff2") format("woff2"); }
+      @font-face { font-family:"PT Serif"; font-weight:700; font-style:normal; font-display:block; src:url("fonts/pt-serif-700.woff2") format("woff2"); }
+      @font-face { font-family:"Anton"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/anton-400.woff2") format("woff2"); }
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family:"Inter", sans-serif; font-weight:300; }
 

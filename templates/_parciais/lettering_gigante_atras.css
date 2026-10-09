@@ -1,0 +1,6 @@
+      /* ===== lettering_gigante_atras.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Uma palavra gigante no alto da cabeça, sem dim. Encolhe até caber em 700 px (cabe inteira mesmo
+         na escala 1,14 da entrada). Atrás da pessoa só com o recorte da W5.C; sem ele, fica por cima. */
+      .lett.lett-gigante_atras { padding:260px 140px 0 140px; justify-content:flex-start; background:none; }
+      .lett.lett-gigante_atras .lead { font-size:30px; letter-spacing:8px; margin-bottom:4px; }
+      .lett.lett-gigante_atras .key { font-family:"Anton", sans-serif; font-weight:400; font-style:normal; font-size:230px; line-height:0.95; letter-spacing:.01em; text-transform:uppercase; text-align:center; white-space:nowrap; color:#fff; text-shadow:0 10px 60px rgba(0,0,0,.55); }

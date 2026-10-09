@@ -1,0 +1,10 @@
+      /* ===== lettering_caixa_nativa.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Caixa de canto RETO, fundo sólido sem sombra nem contorno: imita o widget de texto nativo do app,
+         e o olho lê como post, não como anúncio editado. PT Serif. Cada linha na sua caixa (LEAD menor
+         acima). Sem dim de tela: o nativo não escurece nada. Colorways: ambar, branco, preto. */
+      .lett.lett-caixa_nativa { padding:0 160px 286px 160px; gap:0; background:none; }
+      .lett.lett-caixa_nativa .lead { font-family:"PT Serif", serif; font-weight:400; font-style:normal; font-size:34px; line-height:1.2; letter-spacing:0; text-transform:none; text-shadow:none; margin:0; padding:10px 22px; border-radius:0; }
+      .lett.lett-caixa_nativa .key { font-family:"PT Serif", serif; font-weight:400; font-style:normal; font-size:64px; line-height:1.12; letter-spacing:0; text-align:center; text-wrap:balance; text-shadow:none; max-width:760px; padding:26px 40px; border-radius:0; }
+      .lett.lett-caixa_nativa.cor-ambar .lead, .lett.lett-caixa_nativa.cor-ambar .key { background:#FEC64D; color:#0A0A0A; }
+      .lett.lett-caixa_nativa.cor-branco .lead, .lett.lett-caixa_nativa.cor-branco .key { background:#FFFFFF; color:#0A0A0A; }
+      .lett.lett-caixa_nativa.cor-preto .lead, .lett.lett-caixa_nativa.cor-preto .key { background:#000000; color:#FFFFFF; }
