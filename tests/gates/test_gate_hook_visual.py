@@ -30,11 +30,12 @@ TAMANHO = "108x192"
 
 # =================================================================================== arquivos sintéticos
 
-def video_cinza(destino, dur=5.0, fade_in=0.0, tamanho=TAMANHO, fps=10):
-    """Quadro cinza médio (luminância ~128). Com `fade_in` o quadro 0 nasce preto."""
+def video_cinza(destino, dur=5.0, fade_in=0.0, tamanho=TAMANHO, fps=10, cor="0x303030"):
+    """Quadro cinza escuro liso (o texto branco do overlay LÊ sobre ele: W5.X mede a legibilidade). Com `fade_in` o
+    quadro 0 nasce preto. `cor` clara faz o texto branco virar ilegível."""
     vf = "fade=t=in:st=0:d=%s," % fade_in if fade_in else ""
     cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
-           "color=c=0x808080:s=%s:r=%d:d=%s,%sformat=yuv420p" % (tamanho, fps, dur, vf),
+           "color=c=%s:s=%s:r=%d:d=%s,%sformat=yuv420p" % (cor, tamanho, fps, dur, vf),
            "-c:v", "libx264", "-crf", "16", str(destino)]
     subprocess.run(cmd, check=True, capture_output=True)
     return Path(destino)
@@ -267,3 +268,42 @@ def test_cli_devolve_0_passa_1_reprova(bom, capsys):
     assert "REPROVA" in capsys.readouterr().out
     assert gate_hook_visual.main([str(bom["tmp"] / "nada.mp4"), "--timeline", str(bom["tmp"] / "timeline.json"),
                                   "--overlay", str(bom["overlay"])]) == 2
+
+
+# =================================================================================== W5.X: texto que não lê não é gancho
+
+def test_mutante_gancho_presente_mas_ilegivel_reprova(bom):
+    """O defeito do v1 (0 a 2,1 s): o gancho ESTÁ na tela, mas branco sobre claro. Presença não é leitura: texto que
+    não lê conta como tempo sem texto."""
+    claro = video_cinza(bom["tmp"] / "claro.mp4", cor="0xE6E6E6")
+    g = rodar(bom, video=claro)
+    assert g["resultado"] == "REPROVA", g
+    assert "legível" in g["motivo"]
+    assert g["medido"]["sem_texto_legivel_s"] > 1.0
+
+
+def test_gancho_legivel_tem_texto_legivel_desde_o_quadro_0(bom):
+    g = rodar(bom)
+    assert g["medido"]["primeiro_texto_legivel_s"] == 0.0
+    assert g["medido"]["sem_texto_legivel_s"] == 0.0
+
+
+def _v1():
+    import os
+    base = os.environ.get("VAM_PARIDADE_MIDIA")
+    pasta = Path(base) / "regressao" / "w5x_v1" if base else None
+    if not pasta or not (pasta / "final_9x16.mp4").is_file():
+        pytest.skip("render real da W5.A ausente ($VAM_PARIDADE_MIDIA/regressao/w5x_v1)")
+    return pasta
+
+
+@pytest.mark.midia_real
+def test_render_real_v1_gancho_ilegivel_de_0_a_2_08_s_reprova():
+    """O render da W5.A: o gancho branco fino sobre o insert de navegador claro não lê em 0,3 s nem em 2,08 s."""
+    p = _v1()
+    t = json.loads((p / "timeline.json").read_text(encoding="utf-8"))
+    g = gate_hook_visual.rodar(str(p / "final_9x16.mp4"), t, overlay=str(p / "overlay.mov"), cortes_confirmados=[])
+    assert g["resultado"] == "REPROVA", g
+    leg = dict((round(x, 2), v) for x, v in g["medido"]["legivel_por_instante"])
+    assert leg[0.3] is False and leg[2.1] is False, leg
+    assert g["medido"]["sem_texto_legivel_s"] > 2.0
