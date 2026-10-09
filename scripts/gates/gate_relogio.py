@@ -18,9 +18,13 @@ O que é comparado (limite: 1 quadro, `1 / relogio.fps` da própria timeline, nu
   footage       `timing.json`: a0 e fim iguais a `relogio.a0` e `duracao_s`
   janelas       `janelas_split.json` do overlay: as mesmas janelas de `janelas_split`
   blocos        `prancha.json` do overlay: os mesmos blocos (s, e) de `blocos`
-  duração       a do overlay (`prancha.total`) é `duracao_s`; deslocada de -a0 no composite, ela é a da
-                footage (`timing.total - timing.a0`). Com `--footage-mp4` ou `--overlay-mov`, a duração MEDIDA
-                no arquivo (ffprobe) também entra
+  duração       a da footage (`timing.total - timing.a0`) é a da timeline; a do overlay (`prancha.total`) é a
+                `duracao_do_overlay` da timeline (o fim da footage mais a folga de cauda)
+  cauda         W3.X M1: o overlay deslocado de -a0 dura pelo menos 1 quadro a mais que a footage, senão o
+                composite (shortest=1) corta a imagem e o áudio segue. Medida nos ARQUIVOS: a footage é o mp4 ao lado
+                do `_ritmo.json` (`<nome>_ritmo.json` -> `<nome>.mp4`) sempre que ele existe, ou o `--footage-mp4`; o
+                overlay, o `--overlay-mov`. A duração da footage é a do VÍDEO (o composite enxerga o vídeo; o áudio do
+                mux pode passar dele)
 
 Saída: uma linha `RELOGIO REPROVA: <o quê>: <detalhe>` por falha, ou `RELOGIO OK` com os números.
 """
@@ -102,18 +106,52 @@ def checar(tl, *, ritmo, timing, prancha, janelas, sha_alinhamento, dur_footage=
                           "a prancha do overlay")
 
     dur_tl = fim - a0
+    ovl_tl = TC.duracao_do_overlay(tl)
     dur_ovl = float(prancha["total"]) - a0
     dur_ft = float(timing["total"]) - float(timing["a0"])
-    if not _perto(prancha["total"], fim, lim):
-        falhas.append(f"duração do overlay: {_fmt(prancha['total'])}, a timeline acaba em {_fmt(fim)}")
-    if not _perto(dur_ovl, dur_ft, lim):
-        falhas.append(f"duração: overlay {_fmt(dur_ovl)} (deslocado de -a0) x footage {_fmt(dur_ft)}")
-    if dur_footage is not None and not _perto(dur_footage, dur_tl, lim):
-        falhas.append(f"duração medida da footage: {_fmt(dur_footage)}, a timeline diz {_fmt(dur_tl)}")
-    if dur_overlay is not None and not _perto(float(dur_overlay) - a0, dur_tl, lim):
-        falhas.append(f"duração medida do overlay: {_fmt(dur_overlay)} ({_fmt(float(dur_overlay) - a0)} depois "
-                      f"de -a0), a timeline diz {_fmt(dur_tl)}")
+    if not _perto(prancha["total"], ovl_tl, lim):
+        falhas.append(f"duração do overlay: {_fmt(prancha['total'])}, a timeline diz {_fmt(ovl_tl)} (o fim da "
+                      f"footage, {_fmt(fim)}, mais a folga de cauda)")
+    falhas += _cauda("timing.json", dur_ovl, dur_ft, lim)
+    if dur_footage is not None:
+        if not _perto(dur_footage, dur_tl, lim):
+            falhas.append(f"duração medida da footage: {_fmt(dur_footage)}, a timeline diz {_fmt(dur_tl)}")
+        falhas += _cauda("footage medida", dur_ovl, dur_footage, lim)
+    if dur_overlay is not None:
+        mov = float(dur_overlay) - a0
+        if not _perto(mov, ovl_tl - a0, lim):
+            falhas.append(f"duração medida do overlay: {_fmt(dur_overlay)} ({_fmt(mov)} depois de -a0), a timeline "
+                          f"diz {_fmt(ovl_tl - a0)}")
+        falhas += _cauda("overlay medido", mov, dur_footage if dur_footage is not None else dur_ft, lim)
     return falhas
+
+
+def _cauda(o_que, overlay, footage, lim):
+    """Pelo menos 1 quadro de overlay (deslocado de -a0) depois do último quadro da footage."""
+    if overlay - footage >= lim - 1e-6:
+        return []
+    return [f"cauda ({o_que}): o overlay deslocado de -a0 acaba em {_fmt(overlay)} e a footage em {_fmt(footage)} "
+            f"(folga {overlay - footage:+.3f}s, mínimo 1 quadro = {lim:.3f}s): o composite (shortest=1) cortaria a "
+            "imagem e o áudio seguiria"]
+
+
+def mp4_da_footage(caminho_ritmo):
+    """A footage que gravou este `_ritmo.json` (`<nome>_ritmo.json` -> `<nome>.mp4`), se existe; senão None."""
+    p = Path(caminho_ritmo)
+    if not p.name.endswith("_ritmo.json"):
+        return None
+    mp4 = p.with_name(p.name[:-len("_ritmo.json")] + ".mp4")
+    return mp4 if mp4.is_file() else None
+
+
+def medir_duracao_video(caminho):
+    """Duração do VÍDEO (stream v:0) pelo ffprobe, em segundos: é o que o composite (shortest=1) enxerga."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+                        "-of", "default=nw=1:nk=1", str(caminho)], capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        raise InsumoInvalido(f"o ffprobe não mediu o vídeo de {caminho}: {(r.stderr or '').strip()[-200:]}")
 
 
 def medir_duracao(caminho):
@@ -141,7 +179,8 @@ def main(argv=None):
     ap.add_argument("--footage-ritmo", required=True, help="o <saida>_ritmo.json da footage")
     ap.add_argument("--footage-timing", required=True, help="o timing.json da footage")
     ap.add_argument("--overlay-dir", required=True, help="a pasta do overlay (prancha.json, janelas_split.json)")
-    ap.add_argument("--footage-mp4", help="a footage renderizada: mede a duração de verdade")
+    ap.add_argument("--footage-mp4", help="a footage renderizada (padrão: o mp4 ao lado do --footage-ritmo, se "
+                                          "existir): mede a duração e a cauda de verdade")
     ap.add_argument("--overlay-mov", help="o overlay renderizado: mede a duração de verdade")
     try:
         a = ap.parse_args(argv)
@@ -161,7 +200,8 @@ def main(argv=None):
             sha = AL.sha256_arquivo(p_al)
         except OSError as e:
             raise InsumoInvalido(f"alinhamento citado pela timeline ilegível ({p_al}): {e.strerror or e}")
-        dur_footage = medir_duracao(a.footage_mp4) if a.footage_mp4 else None
+        mp4 = a.footage_mp4 or mp4_da_footage(a.footage_ritmo)
+        dur_footage = medir_duracao_video(mp4) if mp4 else None
         dur_overlay = medir_duracao(a.overlay_mov) if a.overlay_mov else None
         falhas = checar(tl, ritmo=ritmo, timing=timing, prancha=prancha, janelas=janelas, sha_alinhamento=sha,
                         dur_footage=dur_footage, dur_overlay=dur_overlay)

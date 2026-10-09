@@ -20,7 +20,16 @@ funções que a footage usava sozinha (`footage.blocos`: atribuir_spans, tornar_
 uma transcrição feita do mesmo jeito que a footage antiga fazia (`timeline.alinhar`, perfil "alinhamento"). O que foi
 medido (W3.X A2): com a mesma transcrição o golden da footage não muda; com o chunk de 15/3 s do parakeet, que a W3.A
 usava, a fronteira de bloco andava até 0,16 s no avatar do fixture. O que muda é o overlay, que passa a usar este
-relógio no lugar do dele (e a duração dele passa a ser a da footage).
+relógio no lugar do dele, com a duração da footage mais a folga de cauda (`duracao_do_overlay`).
+
+## A folga de cauda (W3.X, M1)
+
+O composite usa `shortest=1`: se o overlay (deslocado de -a0) acaba antes da footage, a imagem perde a cauda e o
+áudio segue. A W3.A zerou a folga (overlay = fim da fala) e a auditoria somou -0,037 s com VAM_XF=0.12. A footage
+entregue nunca passa da própria janela de áudio (`duracao_s - a0`): o mux final corta a cadeia mais longa com
+-shortest (medido com ffmpeg em tests/footage/test_cadeia.py, cadeia de 1 a 9 quadros mais longa). Então o overlay
+dura `duracao_s` mais QUADROS_DE_FOLGA quadros, arredondado para cima no centésimo: 1 quadro de folga garantida e 1
+para o render do overlay que arredonda a duração para quadro inteiro. O `gate_relogio` mede a cauda nos arquivos.
 
 ## O que vem de onde
 
@@ -51,6 +60,7 @@ timeline (`<projeto>/render/timeline.json`; no motor antigo, `<dados>/output/<ad
 """
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -67,6 +77,7 @@ from timeline import alinhar as AL  # noqa: E402
 FPS = 30                    # a footage renderiza a 30 quadros por segundo (o mesmo do overlay)
 ACELERACAO_PADRAO = 1.35    # build_composite.ACCEL: aceleração do arquivo entregue com avatar
 CAUDA_S = 0.45              # build_composite.TAIL_FINAL: último quadro congelado depois da aceleração
+QUADROS_DE_FOLGA = 2        # overlay além da footage: 1 quadro de folga + 1 do arredondamento do render (M1)
 ESTILO_LETTERING = "serif_editorial"
 DUCKING_SEM_TRILHA = {"desligado": True,
                       "motivo": "a timeline ainda não planeja a cama musical: o mix de hoje é do build_composite"}
@@ -145,6 +156,13 @@ def spans(tl):
 def janelas_split(tl):
     """[(início, fim)] onde a tela está dividida de verdade."""
     return [(j["s"], j["e"]) for j in tl["janelas_split"]]
+
+
+def duracao_do_overlay(tl):
+    """Até onde o overlay vai, no relógio da timeline: o fim da footage mais QUADROS_DE_FOLGA quadros do fps dela,
+    arredondado para cima no centésimo (ver "A folga de cauda" no topo)."""
+    fim = float(tl["duracao_s"]) + QUADROS_DE_FOLGA / float(tl["relogio"]["fps"])
+    return math.ceil(fim * 100 - 1e-6) / 100
 
 
 # ======================================================================================== o texto da tela

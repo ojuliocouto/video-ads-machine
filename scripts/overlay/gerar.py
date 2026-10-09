@@ -11,8 +11,9 @@ Config: {"ad", "look", "avatar", "out_dir", "hook": {eyebrow, l1, accent[, style
 
 RELÓGIO ÚNICO (W3.A). Com `"timeline": <caminho da timeline.json>` o overlay não transcreve nem alinha:
 lê da timeline as palavras (o alinhamento único que ela cita, conferido pelo sha256), os spans, o plano
-de ritmo, as janelas de split e a duração, que são os mesmos da footage. Roda a 1x (`speed` 1.0: a
-aceleração é do arquivo entregue). Sem timeline segue o caminho antigo e avisa no fim (stderr).
+de ritmo, as janelas de split e a duração (a da footage mais a folga de cauda, `timeline.construir.
+duracao_do_overlay`). Roda a 1x (`speed` 1.0: a aceleração é do arquivo entregue). Sem timeline segue o
+caminho antigo e avisa no fim (stderr).
 
 Importar este módulo não executa nada. O pipeline, na ordem em que o original o fazia (a ordem
 importa: cada passo lê o que o anterior decidiu):
@@ -113,7 +114,8 @@ def main(cfg_path):
         blocks, inserts_map = _roteiro_e_inserts(ad)
         words = transcricao.alinhar_palavras(blocks, transcript)
     else:
-        total = tl["duracao_s"]      # o fim da footage: overlay e footage com a mesma duração
+        from timeline import construir as TC
+        total = TC.duracao_do_overlay(tl)      # o fim da footage mais a folga de cauda (W3.X M1)
     transcricao.marcar_kw(words, cfg.get("kw_phrases", []))
     spans = spans_m.da_timeline(tl) if tl else spans_m.calcular_spans(blocks, words)
     h = hook_m.calcular_hook(blocks, spans)
