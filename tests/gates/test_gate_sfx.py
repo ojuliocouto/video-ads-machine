@@ -7,7 +7,6 @@ Reprova quando (e cada regra tem o seu mutante abaixo, provado vermelho):
   - volta_ao_avatar: evento (que não seja o riser) a menos de 0,25 s da volta de um insert para o apresentador;
   - funcao: riser fora de 1,0 s antes do CTA, tick sem linha de pilha, boom sem KEY gigante-atrás.
 """
-import copy
 import json
 import random
 import subprocess
@@ -300,10 +299,20 @@ def test_cli_sai_2_sem_timeline(tmp_path, capsys):
 
 def test_cli_sai_2_com_timeline_que_nao_cumpre_o_contrato(tmp_path, capsys):
     t = exemplo()
-    t["sfx"][0]["efeito"] = "whoosh"                # o contrato recusa antes de o gate olhar
+    t["relogio"]["aceleracao"] = 9.0                # fora do contrato: o relógio não é confiável para medir nada
     estado, pj = _projeto_com_timeline(tmp_path, t)
     assert gate_sfx.main(["anuncio", "--estado", str(estado)]) == 2
-    assert "efeito" in capsys.readouterr().err
+    assert "aceleracao" in capsys.readouterr().err
+
+
+def test_cli_reprova_whoosh_e_nivel_fora_mesmo_que_o_contrato_tambem_os_recuse(tmp_path, capsys):
+    t = exemplo()
+    t["sfx"][0]["efeito"] = "whoosh"
+    t["sfx"][1]["nivel_dbfs"] = -27.2
+    estado, pj = _projeto_com_timeline(tmp_path, t)
+    assert gate_sfx.main(["anuncio", "--estado", str(estado)]) == 1
+    saida = capsys.readouterr().out
+    assert "REPROVA (efeito)" in saida and "REPROVA (nivel)" in saida
 
 
 def test_cli_sai_2_com_slug_invalido(tmp_path, capsys):

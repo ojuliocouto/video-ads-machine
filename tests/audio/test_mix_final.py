@@ -280,22 +280,36 @@ def test_entrega_a_menos_14_lufs_mais_ou_menos_1_2_e_true_peak_ate_menos_1_5(tmp
     assert rel["loudness"]["lufs"] == pytest.approx(m.integrado_lufs, abs=0.15)
 
 
+def voz_quente(destino, tmp_path, lufs_alvo=-13.3, tp_alvo=-0.3):
+    """Voz que chega ao mixer ACIMA do teto de true peak: -13,3 LUFS com picos a -0,3 dBFS. Fala sintética
+    mais um pulso gaussiano por 1,3 s (energia desprezível, pico alto), com o ganho posto para cair nos dois
+    alvos. O LUFS vem de uma medição, não de uma conta, porque a fala sintética muda com o piso."""
+    base = voz_sintetica(tmp_path / "base.wav")
+    ganho = lufs_alvo - loudness.medir(base).integrado_lufs
+    pico = 10 ** ((tp_alvo - ganho) / 20)                  # antes do ganho; depois dele o pico cai em tp_alvo
+    pulso = "aevalsrc=exprs='%g*exp(-pow((mod(t\\,1.3)-0.1)/0.0003\\,2))':s=48000:d=%s" % (pico, DUR)
+    _ffmpeg(["-i", str(base), "-f", "lavfi", "-i", pulso, "-filter_complex",
+             "[0:a][1:a]amix=inputs=2:duration=first:normalize=0,volume=%.3fdB" % ganho, "-ac", "1",
+             "-c:a", "pcm_s16le", str(tmp_path / "quente.wav")])
+    return com_video(tmp_path / "quente.wav", destino)
+
+
 @pytest.mark.lento
 def test_voz_que_chega_com_true_peak_alto_sai_dentro_da_entrega(tmp_path):
     """O mix soma a música e os efeitos em cima de uma voz que já encosta no teto: o mixer confere a
-    entrega no arquivo FINAL e corrige o ganho uma vez, a partir do PCM (um AAC só)."""
-    bruta = voz_sintetica(tmp_path / "bruta.wav", fala_db=-30.0, piso_db=-45.0)
-    normalizado = loudness.normalizar(com_video(bruta, tmp_path / "bruto.mp4"), tmp_path / "voz_norm.mp4")
-    quente = tmp_path / "voz_quente.mp4"                       # +1,3 dB por cima do teto de -1,5
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(normalizado), "-af", "volume=1.3dB",
-                    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", str(quente)], check=True)
-    assert loudness.medir(quente).true_peak_dbtp > -1.0                 # a entrada está fora
+    entrega no arquivo FINAL e corrige o ganho a partir do PCM (um AAC só)."""
+    quente = voz_quente(tmp_path / "voz_quente.mp4", tmp_path)
+    antes = loudness.medir(quente)
+    assert antes.true_peak_dbtp > -1.0 and antes.integrado_lufs == pytest.approx(-13.3, abs=0.4)   # a entrada está fora
     saida = tmp_path / "final.mp4"
-    rel = mix_final.mixar(quente, saida, trilha=trilha_rosa(tmp_path / "t.wav"))
+    rel = mix_final.mixar(quente, saida, trilha=trilha_rosa(tmp_path / "t.wav"), voz_ref=tmp_path / "ref.wav")
     m = loudness.medir(saida)
     assert m.true_peak_dbtp <= -1.5
     assert abs(m.integrado_lufs + 14.0) <= 1.2
-    assert rel["loudness"]["ajuste_db"] < 0
+    ajuste = rel["loudness"]["ajuste_db"]
+    assert -3.0 < ajuste < -0.5                                      # tirou o que sobrava e só isso
+    # a voz de referência é a voz como está no final: baixou o mesmo tanto, senão o gate leria "cama negativa"
+    assert nivel_db(tmp_path / "ref.wav", 3.0) == pytest.approx(nivel_db(quente, 3.0) + ajuste, abs=0.15)
 
 
 # --- o bloco de áudio do build_composite ----------------------------------------------------------

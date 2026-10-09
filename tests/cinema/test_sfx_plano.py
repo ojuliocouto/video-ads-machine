@@ -12,7 +12,6 @@ Duas leituras que o plano pede e que estes testes prendem:
   - a pilha é atômica na disputa por espaço: ou entra inteira ou sai inteira. Meia pilha tocando é
     um ritmo que o diretor não escolheu.
 """
-import copy
 import json
 import subprocess
 from pathlib import Path

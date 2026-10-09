@@ -25,7 +25,7 @@ import pytest
 from audio import loudness, pausas_reais
 from cinema import musica, sfx_plano
 from gates import auditar_ad, gate_mix
-from projeto import modelo, pastas, status
+from projeto import modelo, pastas
 from tests.fixtures import sinteticos as SIN
 
 SR = 16000
@@ -327,7 +327,9 @@ def test_mix_real_do_mixer_passa_no_gate_e_os_mutantes_reprovam(tmp_path):
     r = gate_mix.avaliar(sem, ref_sem, trilha=trilha, transcritor=lambda p: [])
     assert not r.ok and "cama_nas_pausas" in regras(r)
 
-    alta, ref_alta = gerar("cama_alta", cama_fala=0.9)
+    # A régua de "sob a fala" (+1,5 dB sobre a voz sozinha) só vê a música a menos de uns 4 dB da voz. Com a voz
+    # a -14 LUFS e a trilha a -20 dBFS, o mutante realista é a trilha no talo, sem ducking nenhum.
+    alta, ref_alta = gerar("cama_alta", cama_fala=1.0, cama_pausa=1.0, nivel_trilha_dbfs=-14.0)
     r = gate_mix.avaliar(alta, ref_alta, trilha=trilha, transcritor=lambda p: [])
     assert not r.ok and "sob_a_fala" in regras(r)
 
@@ -356,6 +358,8 @@ def test_cli_sai_2_sem_a_voz_de_referencia(tmp_path, capsys):
     estado = tmp_path / "_local"
     pj = pastas.projeto("anuncio", estado).criar()
     modelo.escrever(pj.projeto_json, modelo.minimo("anuncio", "gravado", sem_trilha="só voz neste teste"))
+    pj.final_9x16.parent.mkdir(parents=True, exist_ok=True)
+    pj.final_9x16.write_bytes(b"x")                      # o final existe; falta a voz pré-mix
     assert gate_mix.main(["anuncio", "--estado", str(estado)]) == 2
     assert "voz_pre_mix.wav" in capsys.readouterr().err
 
