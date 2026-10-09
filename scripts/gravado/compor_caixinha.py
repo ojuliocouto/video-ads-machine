@@ -7,6 +7,14 @@ vier em 1080x1920, respeita a posição que veio; se vier recortado, usa a posi�
 O TETO da caixinha é MEDIDO na peça, não fixo: `area_ad_inteiro` acha o ponto em que a cabeça
 sobe mais, e a caixinha avisa se desce além dele. Passe `--teto-y` para usar um valor já medido.
 
+## A caixa de lettering nativa (W5.D)
+
+Sem arte pronta do diretor, a caixa nasce do TEXTO: `gerar_png` pede a `caixa_lettering` o bloco sólido de
+canto reto que imita o widget de texto nativo do Instagram (PT Serif do REPO, três colorways, nunca um
+quarto), no topo do quadro (abaixo da faixa de UI do Reels), e `compor_texto` a põe sobre a peça. O texto da
+caixa é exatamente o que o apresentador lê; a caixa não leva legenda por baixo dela porque a legenda mora
+mais abaixo (y 1300).
+
     python3 scripts/gravado/compor_caixinha.py PECA caixinha.png [--sombra] [--x 40] [--y 210]
                                                [--topo 200] [--teto-y 557] [--projeto DIR]
 PECA é o nome da peça montada, como A1_normal (ou A1, que vale A1_normal).
@@ -85,6 +93,25 @@ def preparar(png, x, y, sombra, topo=None):
     return tela, topo_real, base
 
 
+def gerar_png(texto, colorway="ambar", topo=POS_PADRAO[1], centro_y=None):
+    """A caixa de lettering nativa como PNG RGBA 1080x1920 (transparente fora da caixa). Pronta para
+    `compor`. `topo`: o y onde a caixa COMEÇA (padrão 210, abaixo da UI do Reels); `centro_y` (fração da
+    altura) manda no lugar de `topo` quando vem (a caixa do one-shot, mais embaixo). InsumoInvalido se o
+    colorway não é um dos três, ou se o texto não cabe em 2 linhas."""
+    import caixa_lettering as cl
+    if colorway not in cl.COLORWAYS:
+        raise InsumoInvalido("colorway %r não existe: use um dos três (%s), nunca um quarto"
+                             % (colorway, ", ".join(cl.COLORWAYS)))
+    if not str(texto or "").strip():
+        raise InsumoInvalido("a caixa precisa do texto: o que o apresentador lê, palavra por palavra")
+    if centro_y is None:
+        centro_y = (int(topo) + round(cl.ALTURA_CAIXA * H) / 2.0) / float(H)
+    try:
+        return cl.montar_overlay(str(texto).strip(), canvas=(W, H), centro_y=centro_y, colorway=colorway)
+    except SystemExit as e:                      # o caixa_lettering nasceu script: erro dele é SystemExit
+        raise InsumoInvalido("não consegui desenhar a caixa: %s" % e)
+
+
 def aviso_de_teto(base, teto_y):
     if base <= teto_y:
         return ""
@@ -111,6 +138,16 @@ def compor(proj, nome, png, x=POS_PADRAO[0], y=POS_PADRAO[1], sombra=False, topo
     if r.returncode != 0:
         raise InsumoInvalido("o ffmpeg não conseguiu compor a caixinha: %s" % r.stderr.strip()[-300:])
     return destino, aviso_de_teto(base, teto_y)
+
+
+def compor_texto(proj, nome, texto, colorway="ambar", topo=POS_PADRAO[1], teto_y=None):
+    """Desenha a caixa nativa do `texto`, guarda o PNG em `caixinhas/<peça>.png` e a compõe sobre a peça
+    montada. Devolve (Path do mp4 com caixinha, aviso de teto ou "")."""
+    nome = nome if nome.endswith(("normal", "desconto")) else nome + "_normal"
+    imagem = gerar_png(texto, colorway, topo)
+    png = proj.garantir("caixinhas") / (nome + ".png")
+    imagem.save(str(png))
+    return compor(proj, nome, png, topo=topo, teto_y=teto_y)
 
 
 def main(argv=None):
