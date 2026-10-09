@@ -78,6 +78,8 @@ ANEL_MIN = 40              # pixels de anel num ladrilho para ele valer
 AREA_MIN = 150             # componente menor que isso é pingo solto, não texto
 TRANSICAO_S = 0.15         # entrada ou saída: menos que isso até o texto sumir (ou depois de nascer)
 PRESENCA_MIN = 0.5         # fração dos pixels do pedaço que precisa estar lá para ele "estar na tela"
+TROCA_ALFA = 96            # mudança de opacidade que é troca de texto (o preenchimento do karaokê muda 77)
+TROCA_FRACAO = 0.3         # fração do pedaço que muda assim: troca (contorno e sombra das duas se sobrepõem: 0,48)
 
 
 # --- leitura ------------------------------------------------------------------------------------------------
@@ -369,6 +371,23 @@ def em_transicao(video, overlay, t, relogio, dims, pedaco, piso=PISO, transicao_
     não é desculpado: no meio da dissolução lenta, os dois lados ainda têm o texto."""
     larg, alt = dims
     caixa = (pedaco["x0"], pedaco["y0"], pedaco["x1"], pedaco["y1"])
+    x0, y0, x1, y1 = caixa
+
+    def le_em(tt):
+        pedacos, _ = medir_instante(video, overlay, tt, relogio, dims, piso)
+        meus = [p for p in pedacos if min(x1, p["x1"]) > max(x0, p["x0"]) and min(y1, p["y1"]) > max(y0, p["y0"])]
+        return bool(meus) and all(p["ok"] for p in meus)
+
+    antes = ler_quadro(overlay, relogio.overlay(t - transicao_s), larg, alt, canais=4)
+    depois = ler_quadro(overlay, relogio.overlay(t + transicao_s), larg, alt, canais=4)
+    if antes is not None and depois is not None:
+        # TROCA no mesmo lugar (a legenda nova entra antes de a velha sair): 30% ou mais do pedaço muda de
+        # opacidade em mais de 96 níveis entre um lado e outro. O preenchimento do karaokê muda 77 (de .70 a 1).
+        aa = antes[y0:y1, x0:x1, 3].astype(np.int16)
+        ad = depois[y0:y1, x0:x1, 3].astype(np.int16)
+        tinta = np.maximum(aa, ad) >= ALFA_TINTA
+        if tinta.any() and float((np.abs(ad - aa)[tinta] > TROCA_ALFA).mean()) >= TROCA_FRACAO:
+            return le_em(t - transicao_s) or le_em(t + transicao_s)
     agora = ler_quadro(overlay, relogio.overlay(t), larg, alt, canais=4)
     if agora is None:
         return False
@@ -380,11 +399,7 @@ def em_transicao(video, overlay, t, relogio, dims, pedaco, piso=PISO, transicao_
         if lado is not None and presenca(lado, caixa) >= PRESENCA_MIN * base:
             continue
         # some (ou ainda não nasceu) deste lado: do outro lado ele tem que ler
-        outro = t - dt
-        pedacos, _ = medir_instante(video, overlay, outro, relogio, dims, piso)
-        x0, y0, x1, y1 = caixa
-        meus = [p for p in pedacos if min(x1, p["x1"]) > max(x0, p["x0"]) and min(y1, p["y1"]) > max(y0, p["y0"])]
-        return bool(meus) and all(p["ok"] for p in meus)
+        return le_em(t - dt)
     return False
 
 

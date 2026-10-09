@@ -43,6 +43,9 @@
          e o alfa são os de overlay.fundo_claro (PLACA_COR, PLACA_ALFA). */
       #caps .cgrp-placa .cw { background:rgba(8,9,14,.82); border-radius:.16em; padding:.2em .26em;
         filter:none; text-shadow:none; }
+      /* a camada acesa é absoluta na caixa da palavra: com a folga da placa ela tem que andar a mesma folga, senão
+         sai deslocada da apagada (o primeiro render da W5.X mostrou a palavra dobrada) */
+      #caps .cgrp-placa .cw .fill { left:.26em; top:.2em; }
       #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
       /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
          tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá

@@ -113,6 +113,16 @@ class TestGateCli:
                                             (2.0,) + _legivel()])
         assert ruim.returncode == 1, ruim.stdout + ruim.stderr
 
+    def test_troca_de_grupo_no_mesmo_lugar_e_transicao(self, tmp_path):
+        """A legenda nova entra 0,12 s antes de a velha sair (gIn): no quadro da troca as duas estão a meio caminho,
+        uma por cima da outra. Os dois lados leem: é transição, não defeito (o 1º render da W5.X acusou 1,02:1 ali)."""
+        a = legenda(T.vazio(ALT, LARG), texto="designer profissional.")
+        b = legenda(T.vazio(ALT, LARG), texto="Agora eu construo")
+        meio = (a.astype(np.float32) * 0.5 + b.astype(np.float32) * 0.5).astype(np.uint8)
+        fundo = T.fundo(ALT, LARG, ESCURO)
+        r = _rodar_gate(tmp_path, [(2.0, a, fundo), (0.1, meio, fundo), (2.0, b, fundo)])
+        assert r.returncode == 0, r.stdout + r.stderr
+
     def test_sem_texto_nenhum_reprova(self, tmp_path):
         r = _rodar_gate(tmp_path, [(2.0, T.vazio(ALT, LARG), T.fundo(ALT, LARG, ESCURO))])
         assert r.returncode == 1
