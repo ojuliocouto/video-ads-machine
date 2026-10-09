@@ -20,9 +20,8 @@
         font-family:"Inter"; font-weight:600; letter-spacing:1px;
         text-transform:none; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4); }
       /* SETA DO CTA (C9, elemento de atenção): triângulo por borda, em CSS puro (o glifo ▼ não vem nos subsets
-         de fonte). É pseudo-elemento da pílula, não um filho: assim o texto da pílula é só o rótulo e o
-         `overlay.cta` troca o rótulo nos dois formatos. O GSAP mexe a seta pela variável --arw-y; sem a
-         variável não há transform nenhum (a seta parada fica idêntica à de antes). */
-      #cta .pill::after { content:""; width:0; height:0; border-left:26px solid transparent;
-        border-right:26px solid transparent; border-top:30px solid rgba(255,255,255,.92);
-        transform:translate3d(0px, var(--arw-y), 0px); }
+         de fonte). O <i class="arw"> é criado pelo timeline.js dentro da pílula: no HTML a pílula leva só o
+         rótulo, e assim o `overlay.cta` troca o rótulo nos dois formatos (com a seta escrita no HTML a troca
+         não achava o texto e o 9x16 saía sempre com "saiba mais"). */
+      #cta .pill .arw { width:0; height:0; border-left:26px solid transparent;
+        border-right:26px solid transparent; border-top:30px solid rgba(255,255,255,.92); }

@@ -205,14 +205,21 @@
       });
 
       // ===== CTA =====
+      // a seta entra aqui, como último filho da pílula (o HTML traz só o rótulo, que o gerador troca)
+      (function () {
+        var pilula = document.getElementById("cta-pill");
+        if (pilula && !pilula.querySelector(".arw")) {
+          var seta = document.createElement("i"); seta.className = "arw"; pilula.appendChild(seta);
+        }
+      })();
       gsap.set("#cta", { opacity: 0 });
       gsap.set("#cta .lead", { opacity: 0, y: 14 });
       gsap.set("#cta-pill", { opacity: 0, y: 16 });
       tl.to("#cta", { opacity: 1, duration: 0.35 }, 50.5);
       tl.to("#cta .lead", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 50.6);
       tl.to("#cta-pill", { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 50.75);
-      // a seta (pseudo-elemento da pílula) desce e sobe pela variável --arw-y (C9: movimento medido)
-      tl.fromTo("#cta-pill", { "--arw-y": "0px" }, { "--arw-y": "8px", duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 4, immediateRender: false }, 51.0);
+      // a seta desce e sobe (C9: o gate_lettering mede o movimento)
+      tl.to("#cta .pill .arw", { y: 8, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 4 }, 51.0);
 
       // ===== BEAT PRETO E BRANCO (manifesto) =====
       // Dessatura a imagem pela variável --bw (grayscale) e volta. O gerador remove este bloco.
