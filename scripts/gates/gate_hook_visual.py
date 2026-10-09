@@ -13,7 +13,11 @@ Reprova quando:
   - não há nenhum evento visual (corte confirmado, punch ou insert) em 0 a 3 s: texto sobre imagem parada
     é slide, não gancho;
   - o quadro 0 tem luminância média abaixo de 0,6x a MEDIANA dos quadros (a abertura escura: medida em
-    57% mais escura que o resto do anúncio; é a janela que decide a retenção no Reels).
+    57% mais escura que o resto do anúncio; é a janela que decide a retenção no Reels);
+  - (W5.X) o 1º texto LEGÍVEL aparece depois de 0,25 s, ou passa de 1,0 s o tempo sem texto LEGÍVEL em 0 a 3 s.
+    Texto presente que não lê conta como tempo sem texto: no render real da W5.A o gancho branco e fino ficou 2,1 s
+    sobre um insert de navegador claro e este gate passava, porque só media PRESENÇA (alfa acima de 190). A leitura
+    é a régua de `gates/contraste_texto` (4,5:1 contra o fundo local, no quadro entregue), a cada 0,1 s.
 
 ## Como mede
 
@@ -58,6 +62,7 @@ TEXTO_AREA_MIN = 0.002           # fração do quadro com alfa acima de ALFA_MIN
 LARGURA_AMOSTRA = 270
 LUM_FPS = 4                      # quadros por segundo para a mediana da luminância
 FORMATOS_COM_ALFA = ("yuva", "rgba", "bgra", "argb", "abgr", "gbrap", "ya8", "ya16", "pal8")
+LEGIVEL_PASSO_S = 0.1            # a leitura (contraste) se mede a cada 0,1 s: 30 amostras nos 3 s
 _EPS = 1e-9
 
 
@@ -150,6 +155,28 @@ def _texto_por_instante(overlay, rel, janela_s):
     return [(round(i * PASSO_S, 6), tem[i]) for i in range(n)]
 
 
+def _legibilidade(video, overlay, rel, janela_s):
+    """[(t_entregue, True | False | None)] a cada LEGIVEL_PASSO_S: True se todo texto da amostra lê (pela régua do
+    `contraste_texto`, com a dissolução de entrada e saída de fora), False se algum não lê, None sem texto medido."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from gates import contraste_texto as C
+    larg, alt, _dur, desloc = C.info_video(video)
+    relo = C.Relogio(float(rel["aceleracao"]), float(rel.get("a0", 0.0)), desloc)
+    dims = (larg, alt)
+
+    def um(t):
+        pedacos, _ = C.medir_instante(video, overlay, t, relo, dims)
+        if not pedacos:
+            return t, None
+        ruins = [p for p in pedacos if not p["ok"] and not C.em_transicao(video, overlay, t, relo, dims, p)]
+        return t, not ruins
+
+    alvos = [round(i * LEGIVEL_PASSO_S, 3) for i in range(int(round(janela_s / LEGIVEL_PASSO_S)))]
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        return list(ex.map(um, alvos))
+
+
 def _luminancias(video):
     """Luminância média (0 a 255) de cada quadro a LUM_FPS; o primeiro é o quadro 0."""
     import numpy as np
@@ -211,6 +238,20 @@ def medir(video, tl, overlay, cortes_confirmados=None):
     texto = _texto_por_instante(overlay, rel, janela)
     primeiro = next((t for t, tem in texto if tem), None)
     sem = round(sum(PASSO_S for _t, tem in texto if not tem), 3)
+    leg = _legibilidade(video, overlay, rel, janela)
+
+    def le(t):
+        """A leitura das amostras vizinhas que MEDIRAM texto (a de 0,1 s pode cair antes do texto nascer); sem
+        nenhuma medida perto, texto presente não conta como lido."""
+        if not leg:
+            return False
+        k0 = min(len(leg) - 1, int(t / LEGIVEL_PASSO_S + 1e-6))
+        vizinhas = [leg[k][1] for k in (k0, k0 + 1) if 0 <= k < len(leg) and leg[k][1] is not None]
+        return bool(vizinhas) and vizinhas[0] is True
+
+    legivel = [(t, tem and le(t)) for t, tem in texto]
+    primeiro_leg = next((t for t, ok in legivel if ok), None)
+    sem_leg = round(sum(PASSO_S for _t, ok in legivel if not ok), 3)
 
     lum = _luminancias(video)
     if not lum:
@@ -225,6 +266,8 @@ def medir(video, tl, overlay, cortes_confirmados=None):
     eventos = eventos_visuais(tl, cortes_confirmados, janela)
     return {"janela_s": round(janela, 3), "primeiro_texto_s": None if primeiro is None else round(primeiro, 3),
             "sem_texto_s": sem,
+            "primeiro_texto_legivel_s": None if primeiro_leg is None else round(primeiro_leg, 3),
+            "sem_texto_legivel_s": sem_leg, "legivel_por_instante": [[t, v] for t, v in leg],
             "quadro0": {"luminancia": round(lum[0], 2), "mediana_dos_quadros": round(mediana, 2),
                         "razao": round(razao, 3)},
             "eventos": eventos}
@@ -241,6 +284,15 @@ def _motivos(m):
     if m["sem_texto_s"] > SEM_TEXTO_MAX_S + _EPS:
         motivos.append("%.2f s sem texto em 0 a %.0f s, acima do limite de %.1f s"
                        % (m["sem_texto_s"], JANELA_S, SEM_TEXTO_MAX_S))
+    pl = m.get("primeiro_texto_legivel_s", p)
+    if p is not None and (pl is None or pl > PRIMEIRO_TEXTO_MAX_S + _EPS):
+        motivos.append("o texto está na tela mas não é legível: %s (contraste abaixo de 4,5:1 contra o fundo em volta "
+                       "das letras)" % ("nenhum instante legível em 0 a %.0f s" % JANELA_S if pl is None
+                                        else "primeiro texto legível só em %.2f s" % pl))
+    sl = m.get("sem_texto_legivel_s", m["sem_texto_s"])
+    if sl > SEM_TEXTO_MAX_S + _EPS and sl > m["sem_texto_s"] + _EPS:
+        motivos.append("%.2f s sem texto legível em 0 a %.0f s, acima do limite de %.1f s (texto que não lê conta "
+                       "como tempo sem texto)" % (sl, JANELA_S, SEM_TEXTO_MAX_S))
     if not m["eventos"]:
         motivos.append("nenhum evento visual (corte confirmado, punch ou insert) em 0 a %.0f s: texto sobre imagem "
                        "parada é slide, não gancho" % JANELA_S)

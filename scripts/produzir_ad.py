@@ -371,13 +371,10 @@ def _g_colisao(ctx):
 
 
 def _g_contraste(ctx):
+    """Todo texto na tela, CTA incluído (W5.X): o corte no CTA (`--ate`) deixava o botão e o logo sem medida."""
     m = ctx.motor
     argv = [GATES / "gate-contraste-legenda.py", m.final, "--overlay", m.overlay_mov, "--accel", ctx.accel,
-            "--a0", ctx.a0, "--intervalo", "0.5"]
-    html = m.overlay_dir / "index_overlay.html"
-    ate = ate_do_cta(html.read_text(encoding="utf-8"), ctx.a0, ctx.accel) if html.is_file() else None
-    if ate is not None:
-        argv += ["--ate", "%.3f" % ate]
+            "--a0", ctx.a0, "--json", _log_dos_gates(ctx) / "gate-contraste-legenda.json"]
     return _cli(ctx, "gate-contraste-legenda", argv)
 
 
@@ -395,12 +392,15 @@ def _g_hook_visual(ctx):
 
 def _g_camera(ctx):
     from gates import gate_camera
-    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto)
+    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto, overlay=str(ctx.motor.overlay_mov))
 
 
 def _g_cor(ctx):
+    """Com a caixa do rosto medida no entregue (W5.X, pendência c): sem ela o R/G do C5 nunca era medido."""
     from gates import gate_cor
-    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto, planos=gate_cor.planos_da_timeline(ctx.timeline()))
+    tl = ctx.timeline()
+    rosto = gate_cor.caixa_rosto_entregue(str(ctx.motor.final), tl)
+    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto, planos=gate_cor.planos_da_timeline(tl, rosto))
 
 
 def _g_mix(ctx):

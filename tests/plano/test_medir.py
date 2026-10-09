@@ -205,7 +205,8 @@ def test_ritmo_e_o_do_arquivo_entregue_dividido_pela_aceleracao(exemplo):
     dur = plano["duracao_s"] / ACEL
     planos = [(x["e"] - x["s"]) / ACEL for x in segs]
     r = plano["ritmo"]
-    assert r["cortes_min"] == pytest.approx((len(segs) - 1) / (dur / 60), abs=0.06)
+    cortes = len(medir.cortes_previstos(segs, plano["blocos"]))          # W5.X: só fronteira que muda a imagem
+    assert r["cortes_min"] == pytest.approx(cortes / (dur / 60), abs=0.06)
     assert r["maior_plano_s"] == pytest.approx(max(planos), abs=0.01)
     assert r["plano_medio_s"] == pytest.approx(dur / len(segs), abs=0.01)
     assert r["frac_acima_6s"] == pytest.approx(sum(p for p in planos if p > 6) / dur, abs=1e-3)

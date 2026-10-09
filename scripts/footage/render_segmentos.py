@@ -72,6 +72,7 @@ class Contexto(object):
     paralelo: int = 4
     versao: str = VERSAO_RENDER
     split: Optional[enq.GeometriaSplit] = None    # a geometria do split do ambiente da montagem (L6)
+    camera: Optional[list] = None       # o plano de câmera da timeline (W5.X): punch e respiro chegam ao zoompan
 
 
 def _e_imagem(src):
@@ -80,9 +81,10 @@ def _e_imagem(src):
 
 # ------------------------------------------------------------------ apresentador
 
-def r_orig(avatar, s, e, out, idx=0, base=1.0):
-    """Bloco de avatar. O zoom ALTERNA de sentido a cada bloco (ver `filtros_avatar`)."""
-    run(FA.cmd_orig(avatar, s, e, out, idx, base))
+def r_orig(avatar, s, e, out, idx=0, base=1.0, punches=None):
+    """Bloco de avatar. O zoom ALTERNA de sentido a cada bloco (ver `filtros_avatar`); `punches` (relativos ao
+    plano) multiplicam o zoom no instante deles."""
+    run(FA.cmd_orig(avatar, s, e, out, idx, base, punches=punches))
 
 
 # ------------------------------------------------------------------ tela dividida
@@ -226,10 +228,12 @@ def _renderizar_um(i, blocks, spans, ctx, cache_dir):
     out = os.path.join(ctx.tmp, f"s{i:02d}.mp4")
     tipo = b["type"]
     cfg = BL.preparar_insert_cfg(b, ctx.inserts) if tipo == "insert" else None
+    from cinema import camera as _camera
+    punches = _camera.eventos_do_segmento(ctx.camera, s, e) if tipo in ("orig", "lettering") else []
 
     def renderizar():
         if tipo in ("orig", "lettering"):
-            r_orig(ctx.avatar, s, ee, out, idx=i, base=b["_base"])
+            r_orig(ctx.avatar, s, ee, out, idx=i, base=b["_base"], **({"punches": punches} if punches else {}))
         elif tipo == "insert":
             r_insert(cfg, s, ee, out, ctx.avatar, ctx.dir_molduras, ctx.dir_gerados, split=ctx.split)
         elif tipo == "logo":
@@ -254,7 +258,7 @@ def _renderizar_um(i, blocks, spans, ctx, cache_dir):
     chave = cache_segmento.chave_segmento(
         tipo=tipo, narr=b["narr"], s=s, e=e, ee=ee,
         base=b.get("_base", 1.0), layout=b.get("_layout"), insert_cfg=cfg,
-        fonte_stat=fonte_stat, versao=versao)
+        fonte_stat=fonte_stat, versao=versao, punches=punches or None)
     cache_path = os.path.join(cache_dir, chave + ".mp4")
     if os.path.exists(cache_path):
         shutil.copyfile(cache_path, out)

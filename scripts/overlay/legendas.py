@@ -28,6 +28,8 @@ FOLGA_LETT = 0.35       # a folga de 0,05 s era menor que a animação do letter
 PECA_MIN = 0.60         # sobra de legenda com menos que isso não entra: um piscar de duas palavras
                         # entre dois letterings é ruído, não informação
 LETT_LOOKBACK = 2.6     # janela retroativa do eco: o grupo logo ANTES do lettering
+PISO_GRUPO = 0.20       # legenda com menos que isso na tela não é lida: é um piscar
+FOLGA_ECO_ADIADO = 0.40 # lettering ADIADO (não coube antes da troca de layout): só é eco o grupo que encosta nele
 
 
 def agrupar(words):
@@ -36,15 +38,26 @@ def agrupar(words):
 
 
 def filtrar_corpo(groups, cap_gate, logo_start):
-    """Só os grupos que COMEÇAM depois do hook e antes da janela do logo.
+    """Os grupos depois do hook e antes da janela do logo.
 
     O logo entra `LOGO_LEAD` antes do pill e a legenda do corpo some a partir daí: um gate só até
     `cta_start` deixava a legenda do penúltimo bloco aparecer ATRÁS do logo já visível.
+
+    O grupo que COMEÇA com o hook na tela e termina depois dele entra APARADO no fim do hook (W5.X, pendência d):
+    descartado inteiro, ele deixava a tela vazia até o grupo seguinte (o gate-ad acusou 15% do anúncio sem texto num
+    roteiro com a fala do gancho continuando depois dele). Só entra se sobrar o piso de PISO_GRUPO depois do hook.
     """
-    return [g for g in groups if cap_gate < g["start"] < logo_start - 0.05]
+    saida = []
+    for g in groups:
+        if not g["start"] < logo_start - 0.05:
+            continue
+        if g["start"] > cap_gate:
+            saida.append(g)
+        elif g["end"] - cap_gate >= PISO_GRUPO:
+            saida.append(dict(g, start=cap_gate))
+    return saida
 
 
-PISO_GRUPO = 0.20       # legenda com menos que isso na tela não é lida: é um piscar
 
 
 def fechar_grupos(groups, logo_start):
@@ -75,11 +88,14 @@ def frases_dos_letterings(letts):
     return frases
 
 
-def eco_do_lettering(g, frases):
-    """True se o texto INTEIRO do grupo faz parte da frase de um lettering, na janela retroativa."""
+def eco_do_lettering(g, frases, adiados=None):
+    """True se o texto INTEIRO do grupo faz parte da frase de um lettering, na janela retroativa. Com o lettering
+    ADIADO a janela é só a folga de encosto (W5.X): a legenda da frase fica na tela enquanto ela é falada e o
+    lettering entra depois da troca; descartar o eco a 2,6 s deixava a frase muda até o lettering chegar."""
     gw = [norm(w["text"]) for w in g["words"] if norm(w["text"])]
-    for ls, le, toks in frases:
-        if g["start"] < le + 0.2 and g["end"] > ls - LETT_LOOKBACK and gw and all(x in toks for x in gw):
+    for k, (ls, le, toks) in enumerate(frases):
+        recuo = FOLGA_ECO_ADIADO if adiados and adiados[k] else LETT_LOOKBACK
+        if g["start"] < le + 0.2 and g["end"] > ls - recuo and gw and all(x in toks for x in gw):
             return True
     return False
 
@@ -93,9 +109,10 @@ def aparar_nos_letterings(groups, letts, lett_windows):
     rodando muda. Hoje só o eco sai por inteiro; o resto perde o miolo.
     """
     lett_phrases = frases_dos_letterings(letts)
+    adiados = [bool(l.get("adiado")) for l in letts]
     _aparados = []
     for g in groups:
-        if eco_do_lettering(g, lett_phrases):
+        if eco_do_lettering(g, lett_phrases, adiados):
             continue
         fatias = [dict(g)]
         for ws, we in sorted(lett_windows):

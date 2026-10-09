@@ -40,6 +40,7 @@ número que fez o gate decidir.
 """
 import argparse
 import json
+import statistics
 import subprocess
 import sys
 import time
@@ -296,6 +297,49 @@ def rodar_projeto(pj, caixa_rosto=None, planos=None):
     except modelo.ContratoInvalido as e:
         return _gate("ERRO", 2, motivo=str(e))
     return rodar(pj.final_9x16, projeto=projeto, planos=planos, caixa_rosto=caixa_rosto)
+
+
+def _detectar_rosto(video, t):
+    """A maior caixa de rosto [x, y, largura, altura] (pixels do vídeo) no quadro `t`, pelo Haar do OpenCV; None se
+    não achar ou se o OpenCV não estiver instalado."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return None
+    try:
+        r = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-ss", "%.3f" % max(0.0, t), "-i", str(video),
+                            "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True)
+        if r.returncode != 0 or not r.stdout:
+            return None
+        img = cv2.imdecode(np.frombuffer(r.stdout, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return None
+        casc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        achados = casc.detectMultiScale(img, 1.1, 5, minSize=(120, 120))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    if not len(achados):
+        return None
+    x, y, w, h = max(achados, key=lambda b: b[2] * b[3])
+    return int(x), int(y), int(w), int(h)
+
+
+def caixa_rosto_entregue(video, timeline):
+    """A caixa do rosto MEDIDA no arquivo entregue (W5.X, pendência c): a mediana das caixas achadas no meio de cada
+    plano de apresentador. Sem ela o C5 (R/G na caixa do rosto) nunca era medido no montar. None se não achar."""
+    a0 = timeline["relogio"]["a0"]
+    acel = timeline["relogio"]["aceleracao"]
+    caixas = []
+    for sg in timeline["segmentos"]:
+        if sg["tipo"] != "apresentador":
+            continue
+        c = _detectar_rosto(video, ((sg["s"] + sg["e"]) / 2.0 - a0) / acel)
+        if c:
+            caixas.append(c)
+    if not caixas:
+        return None
+    return [int(statistics.median(c[i] for c in caixas)) for i in range(4)]
 
 
 def planos_da_timeline(timeline, rosto=None):

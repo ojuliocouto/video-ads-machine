@@ -700,8 +700,10 @@ def test_equivalencia_visitas_janelas_e_brolls(original):
 def test_equivalencia_letterings_pilha_e_trava_de_layout(original):
     velho = fatiar(original, [(482, 531), (540, 583)],
                    ["cfg", "words", "spans", "blocks", "janelas_split"], ["letts", "lett_windows"])
-    novo = lambda cfg, words, spans, blocks, janelas_split: LE.montar(      # noqa: E731
-        cfg.get("letterings", []), words, spans, blocks, janelas_split)
+    def novo(cfg, words, spans, blocks, janelas_split):
+        letts, janelas = LE.montar(cfg.get("letterings", []), words, spans, blocks, janelas_split)
+        # W5.X: a marca `adiado` é nova (o eco do lettering adiado só sai se encostar); o resto é o original
+        return [{k: v for k, v in l.items() if k != "adiado"} for l in letts], janelas
 
     def gerar(rnd):
         words = g_palavras(rnd, rnd.randint(8, 40))

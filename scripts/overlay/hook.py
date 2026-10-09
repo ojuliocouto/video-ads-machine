@@ -74,7 +74,7 @@ def calcular_hook(blocks, spans):
 
 def aplicar_html(html, cfg_hook, h):
     """Textos, duração, fade e (se `style` for `punch`) a variante, na ordem do original."""
-    hk = {k: sem_emoji(v) for k, v in cfg_hook.items()}
+    hk = {k: sem_emoji(v) for k, v in cfg_hook.items() if isinstance(v, str)}
     html = html.replace('id="hook" class="clip" data-start="0" data-duration="2.5"',
                         f'id="hook" class="clip" data-start="0" data-duration="{h.hook_dur}"')
     html = html.replace('<div data-hf-id="hf-bc1a" class="eyebrow">uma skill de</div>',
@@ -88,6 +88,8 @@ def aplicar_html(html, cfg_hook, h):
     html = html.replace('#hook .accent { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;',
                         '#hook .accent { font-family:"Playfair Display", serif; font-weight:600; font-style:italic; '
                         'text-align:center;')
+    if (cfg_hook or {}).get("placa"):            # W5.X: footage clara atrás do gancho
+        html = html.replace('id="hook" class="clip"', 'id="hook" class="clip placa"')
     if (cfg_hook or {}).get("style") == "punch":
         html = html.replace("</style>", CSS_PUNCH)
         html = html.replace('id="hook" class="clip"', 'id="hook" class="clip punch"')

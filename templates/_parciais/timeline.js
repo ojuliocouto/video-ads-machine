@@ -239,7 +239,11 @@
         function ajustar() {
           var a = document.querySelector('#hook .accent');
           if (!a) return;
-          var caixa = a.parentElement.clientWidth || 880;
+          // a largura ÚTIL do bloco: o clientWidth inclui a folga interna, e com a placa do gancho (W5.X) o destaque
+          // ajustado à caixa inteira vazava da placa (o "P" e o "NAL" de PROFISSIONAL fora dela, 1,7:1 sobre a página)
+          var est = window.getComputedStyle(a.parentElement);
+          var caixa = (a.parentElement.clientWidth || 880) - (parseFloat(est.paddingLeft) || 0)
+                      - (parseFloat(est.paddingRight) || 0);
           var px = 118;
           a.style.fontSize = px + 'px';
           var alturaLinha = 1.02;

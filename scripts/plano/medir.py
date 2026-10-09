@@ -343,11 +343,36 @@ def _densidade(segmentos, duracao, propostas):
             "piso": PISO, "teto": TETO, "propostas": propostas}
 
 
-def _ritmo_entregue(segmentos, duracao, aceleracao):
+def _bloco_do(seg, blocos):
+    meio = (seg["s"] + seg["e"]) / 2.0
+    return next((b for b in blocos or () if b["s"] <= meio < b["e"]), None)
+
+
+def cortes_previstos(segmentos, blocos):
+    """Os instantes (relógio da footage a 1x) das fronteiras de plano que a IMAGEM entrega como corte.
+
+    Corte é onde entra na tela conteúdo que não estava nela (W5.X, pendência a): o plano contava TODA fronteira e
+    previa 27,2 cortes/min onde o render entregou 18,1. Ficam de fora o salto de escala entre dois planos de
+    apresentador (o zoom alterna a base; é o mesmo plano) e a saída de um insert em tela dividida para o apresentador
+    (ele já estava na tela, no painel de baixo). O medidor de ritmo recusou exatamente esses dois no render real."""
+    cortes = []
+    for a, b in zip(segmentos, segmentos[1:]):
+        ba, bb = _bloco_do(a, blocos), _bloco_do(b, blocos)
+        if a["tipo"] != "insert" and b["tipo"] != "insert":
+            continue
+        if a["tipo"] == "insert" and b["tipo"] == "insert" and ba is bb:
+            continue
+        if a["tipo"] == "insert" and b["tipo"] != "insert" and (ba or {}).get("layout") == "split":
+            continue
+        cortes.append(round(b["s"], 3))
+    return cortes
+
+
+def _ritmo_entregue(segmentos, duracao, aceleracao, blocos=None):
     dur = duracao / aceleracao
     planos = [(sg["e"] - sg["s"]) / aceleracao for sg in segmentos]
     lentos = sum(p for p in planos if p > medir_ritmo.PLANO_LONGO_S)
-    return {"cortes_min": round((len(segmentos) - 1) / (dur / 60), 2),
+    return {"cortes_min": round(len(cortes_previstos(segmentos, blocos)) / (dur / 60), 2),
             "frac_acima_6s": round(lentos / dur, 3), "maior_plano_s": round(max(planos), 2),
             "plano_medio_s": round(dur / len(segmentos), 2)}
 
@@ -578,7 +603,7 @@ def medir(pj, *, palavras=None, asr=None, sondar=None, sugestoes=None, agora=Non
         "densidade": _densidade(segmentos, duracao, propostas),
         "referencias": _referencias(blocos, segmentos, mapa, letterings, efeitos, extras_ref),
         "efeitos": efeitos,
-        "ritmo": _ritmo_entregue(segmentos, duracao, aceleracao),
+        "ritmo": _ritmo_entregue(segmentos, duracao, aceleracao, blocos),
     }
     plano["checklist"] = checklist.avaliar(plano, projeto)
     if modo == "gravado":
