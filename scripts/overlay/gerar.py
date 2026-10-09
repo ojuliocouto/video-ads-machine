@@ -7,12 +7,14 @@ cards, legendas palavra a palavra (kw por frase), letterings, CTA e logo no bloc
 Uso: `python3 gen_ad_v2.py <config.json>` (o wrapper chama `main`).
 Config: {"ad", "look", "avatar", "out_dir", "hook": {eyebrow, l1, accent[, style]}, "cta_label",
          "kw_phrases": [...], "letterings": [{"lead", "key", "anchor", "nth": 1, "dur": 2.2}],
-         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead", "timeline"}
+         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead", "timeline",
+         "look_plano": "fechado" | "medio" | "aberto" (o `plano` do look no looks.json do aluno)}
 
 RELÓGIO ÚNICO (W3.A). Com `"timeline": <caminho da timeline.json>` o overlay não transcreve nem alinha:
 lê da timeline as palavras (o alinhamento único que ela cita, conferido pelo sha256), os spans, o plano
-de ritmo, as janelas de split e a duração, que são os mesmos da footage. Roda a 1x (`speed` 1.0: a
-aceleração é do arquivo entregue). Sem timeline segue o caminho antigo e avisa no fim (stderr).
+de ritmo, as janelas de split e a duração (a da footage mais a folga de cauda, `timeline.construir.
+duracao_do_overlay`). Roda a 1x (`speed` 1.0: a aceleração é do arquivo entregue). Sem timeline segue o
+caminho antigo e avisa no fim (stderr).
 
 Importar este módulo não executa nada. O pipeline, na ordem em que o original o fazia (a ordem
 importa: cada passo lê o que o anterior decidiu):
@@ -46,21 +48,23 @@ def _preparar_pasta(out, tmpl):
 
 
 def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert, letts,
-                     lett_windows, medir_rosto=None, medir_fundo=True):
+                     lett_windows, medir_rosto=None, medir_fundo=True, a0=None):
     """Os grupos de legenda finais, na ordem do original: corpo, texto próprio, look fechado,
     fronteira de split, costura, tinta invertida, guarda pós-split, fechamento e letterings.
 
     `medir_rosto` (padrão: a medição do `medir_rosto`) e `medir_fundo` existem para a timeline montar as
-    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida)."""
+    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida). `a0` é o
+    início da footage no relógio do overlay (a timeline sabe): o fundo claro mede a footage em t - a0."""
     groups = legendas.agrupar(words)
     groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
     layout_texto.descer_para_rodape_em_texto(groups, janelas_texto)
-    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto)
+    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto,
+                                        plano_do_look=cfg.get("look_plano"))
     if janelas_split:
         groups = layout_texto.cortar_na_fronteira(groups, janelas_split)
         layout_texto.marcar_costura(groups, janelas_split)
     if medir_fundo:
-        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert)
+        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert, a0=a0)
     layout_texto.empurrar_pos_split(groups, janelas_split)
     groups = legendas.fechar_grupos(groups, logo_start)
     return legendas.aparar_nos_letterings(groups, letts, lett_windows)
@@ -106,6 +110,7 @@ def main(cfg_path):
     if cfg.get("timeline"):
         tl, blocks, inserts_map, words = _relogio_da_timeline(cfg, cfg["timeline"], speed)
     dst, total = transcricao.preparar_avatar(Path(cfg["avatar"]), out, speed)
+    total_relogio_antigo = total      # fim do áudio + TAIL_PAD: o relógio em que o teto do CTA foi calibrado (M2)
     _preparar_pasta(out, tmpl)
     if tl is None:
         transcript = transcricao.transcrever(dst, out)
@@ -113,7 +118,8 @@ def main(cfg_path):
         blocks, inserts_map = _roteiro_e_inserts(ad)
         words = transcricao.alinhar_palavras(blocks, transcript)
     else:
-        total = tl["duracao_s"]      # o fim da footage: overlay e footage com a mesma duração
+        from timeline import construir as TC
+        total = TC.duracao_do_overlay(tl)      # o fim da footage mais a folga de cauda (W3.X M1)
     transcricao.marcar_kw(words, cfg.get("kw_phrases", []))
     spans = spans_m.da_timeline(tl) if tl else spans_m.calcular_spans(blocks, words)
     h = hook_m.calcular_hook(blocks, spans)
@@ -142,13 +148,14 @@ def main(cfg_path):
     lead = cta_m.logo_lead(blocks)
     logo_start = cta_m.logo_start(cta_start, lead)
     groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert,
-                              letts, lett_windows)
+                              letts, lett_windows, a0=tl["relogio"]["a0"] if tl else None)
     caps_html = legendas.html(groups)
     letts_html = letterings_m.html(letts)
     cta_s, logo_s = cta_m.janela(cta_start, lead)
 
     # ---------- gate de tela vazia (barato, antes do render) ----------
-    vao = tela_vazia.checar(h.hook_dur, groups, lett_windows, cta_s, total)
+    vao = tela_vazia.checar(h.hook_dur, groups, lett_windows, cta_s, total,
+                            fim_janela_cta=total_relogio_antigo if tl else None)
 
     # ---------- montar html ----------
     chips = chips_m.calcular(plano_ritmo, groups, lett_windows, logo_s)

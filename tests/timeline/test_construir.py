@@ -463,11 +463,12 @@ def test_overlay_com_timeline_nao_transcreve_e_usa_spans_plano_janelas_e_duracao
     janelas = json.loads((out / "janelas_split.json").read_text(encoding="utf-8"))["segs"]
     assert [(j["s"], j["e"]) for j in janelas] == TC.janelas_split(tl)
     prancha = json.loads((out / "prancha.json").read_text(encoding="utf-8"))
-    assert prancha["total"] == round(tl["duracao_s"], 2)
+    assert prancha["total"] == TC.duracao_do_overlay(tl)
     assert [(b["s"], b["e"]) for b in prancha["blocos"]] == [(round(b["s"], 2), round(b["e"], 2))
                                                              for b in tl["blocos"]]
     html = (out / "index.html").read_text(encoding="utf-8")
-    assert f'id="root" data-composition-id="main" data-start="0" data-duration="{tl["duracao_s"]}"' in html
+    assert (f'id="root" data-composition-id="main" data-start="0" data-duration="{TC.duracao_do_overlay(tl)}"'
+            in html)
 
 
 def test_overlay_e_footage_leem_o_mesmo_plano_e_as_mesmas_janelas(mundo, overlay_falso, footage_falsa,
@@ -639,7 +640,10 @@ def test_fixture_uma_transcricao_e_overlay_e_footage_no_mesmo_relogio():
     depois = json.loads(cap["overlay/prancha.json"])["total"] - a0
     print(f"\n[relogio] footage {dur_footage:.3f}s | overlay antes {antes:.3f}s (deriva {antes - dur_footage:+.3f}s)"
           f" | overlay depois {depois:.3f}s (deriva {depois - dur_footage:+.3f}s)")
-    assert abs(depois - dur_footage) <= QUADRO + 1e-6
+    # W3.X M1: o overlay cobre a footage com pelo menos 1 quadro de folga (o composite usa shortest=1) e a folga
+    # é a da timeline, não a cauda de 0,65 s do caminho antigo
+    folga = TC.duracao_do_overlay(tl) - tl["duracao_s"]
+    assert QUADRO - 1e-6 <= depois - dur_footage <= folga + 2 * QUADRO + 1e-6
 
 
 @pytest.mark.midia_real
@@ -668,3 +672,245 @@ def test_fixture_gate_relogio_passa_nos_arquivos_reais_e_pega_a_janela_deslocada
     tl["janelas_split"][0]["e"] = round(tl["janelas_split"][0]["e"] + 2 * QUADRO, 4)
     (out / "f_timeline.json").write_text(json.dumps(tl), encoding="utf-8")
     assert G.main(argv) == 1
+
+
+# ============================================================================ W3.X A1: nenhuma legenda invertida
+# Invariante: toda legenda da timeline tem início < fim e pelo menos 0,20 s (o piso do fechamento), em qualquer
+# roteiro que o overlay aceita. O padrão comum que quebrava: o último insert é split com `dur_max` e o CTA vem logo
+# depois; o grupo cortado na fronteira do split era truncado no logo DEPOIS do filtro de 0,20 s e nascia invertido
+# ("$.legendas[11]: início 13.43 não é menor que o fim 13.25"). A timeline é construída nos 25 cenários fixos do
+# diferencial do overlay (tests/overlay/test_gerar.py), com dois modelos de fala sintética.
+
+INSERTS_DO_FIXTURE = {"demo a": {"file": "broll01.mp4", "start": 0, "speed": 1.0},
+                      "demo b": {"file": "broll02.mp4", "start": 1.0, "speed": 1.0, "split": True}}
+
+
+def _tempos(n, pausas, ini=0.4, dur=0.26, vao=0.06):
+    """A fala sintética da auditoria: 0,26 s por palavra, 0,06 s de vão e pausas nos índices dados."""
+    t, out = ini, []
+    for i in range(n):
+        t += pausas.get(i, 0.0)
+        out.append((round(t, 2), round(t + dur, 2)))
+        t = round(t + dur + vao, 2)
+    return out
+
+
+def _cenarios_da_timeline():
+    """Os 25 cenários fixos do diferencial do overlay e o que a auditoria mediu quebrando (o 26º): o último insert
+    é split com `dur_max` e o CTA vem logo depois dele."""
+    from tests.overlay import test_gerar as TG
+
+    cenarios = {c.nome: c for c in TG._cenarios_fixos()}
+    auditoria = TG.Cenario(
+        "dur_max_fatias_da_auditoria", inserts={"demo a": {"dur_max": 2.0}, "demo b": {"dur_max": 2.5}},
+        blocos=[(TG.AVATAR, 0, 6), ("inserção de vídeo: demo a", 6, 24),
+                ("apresentador + lettering | LEAD: sabe qual é | KEY: O MELHOR", 24, 30),
+                ("inserção de vídeo: demo b", 30, 47),
+                ("apresentador + lettering + logo | LEAD: eu consigo | KEY: PRODUZIR", 47, 52)])
+    cenarios[auditoria.nome] = auditoria
+    return cenarios
+
+
+def _construir_cenario(cen, pasta, modelo):
+    from tests.overlay import test_gerar as TG
+
+    pasta = Path(pasta)
+    (pasta / "inputs").mkdir(parents=True, exist_ok=True)
+    blocks = _blocos_do_texto(TG.leva(cen.blocos, cen.trocas), pasta)
+    narr = BL.palavras_da_narracao(blocks)
+    if modelo == "auditoria":
+        tempos = _tempos(len(narr), {14: 0.35, 28: 0.4, 33: 0.3, 45: 0.3})
+    else:                               # pausa de 0,35 s em cada troca de bloco DESTE cenário
+        inicios, k = set(), 0
+        for b in blocks[1:]:
+            k += len(blocks[len(inicios)]["narr"].split())
+            inicios.add(k)
+        tempos = _tempos(len(narr), {i: 0.35 for i in inicios})
+    inserts = copy.deepcopy(INSERTS_DO_FIXTURE)
+    for extra in cen.extras:
+        if extra in ("branco", "escuro", "imagem"):
+            inserts["demo c"] = {"file": "figura.png" if extra == "imagem" else f"{extra}.mp4", "start": 0,
+                                 "speed": 1.0}
+    for chave_i, mudancas in cen.inserts.items():
+        if mudancas is None:
+            inserts.pop(chave_i, None)
+        else:
+            inserts.setdefault(chave_i, {}).update(mudancas)
+    cfg = dict(CFG, format=cen.formato, letterings=copy.deepcopy(TG.LETTERINGS_BASE))
+    if cen.letterings is not None:
+        cfg["letterings"] = copy.deepcopy(cen.letterings)
+    cfg.update(cen.cfg)
+    avatar = pasta / "inputs" / "avatar.mp4"
+    avatar.write_bytes(b"avatar")
+    casadas = [(s, e, w) for (s, e), w in zip(tempos, narr)]
+    al = {"versao": 1, "avatar": "inputs/avatar.mp4", "avatar_sha256": hashlib.sha256(b"avatar").hexdigest(),
+          "duracao_audio_s": round(tempos[-1][1] + 0.6, 2),
+          "transcricao": [{"text": w, "start": s, "end": e} for s, e, w in casadas],
+          "palavras": [{"t": w, "s": s, "e": e} for s, e, w in casadas]}
+    p_al = pasta / "output" / "alinhamento.json"
+    AL.gravar(al, p_al)
+    return TC.construir(blocks, al, inserts_map=inserts, cfg=cfg, caminho_alinhamento=p_al, raiz=pasta)
+
+
+@pytest.mark.parametrize("modelo", ["auditoria", "pausa_por_bloco"])
+@pytest.mark.parametrize("nome", sorted(_cenarios_da_timeline()))
+def test_a1_nenhuma_legenda_invertida_nos_25_cenarios_do_diferencial(nome, modelo, tmp_path, capsys):
+    cen = _cenarios_da_timeline()[nome]
+    try:
+        tl = _construir_cenario(cen, tmp_path, modelo)
+    except TC.ErroTimeline as e:
+        assert "não é menor que o fim" not in str(e), f"{nome}: legenda invertida ({e})"
+        assert nome.startswith("erro_"), f"{nome}: a timeline não construiu ({e})"
+        return
+    for k, lg in enumerate(tl["legendas"]):
+        assert lg["s"] < lg["e"], f"{nome}: legenda {k} invertida ({lg['s']}, {lg['e']})"
+        assert lg["e"] - lg["s"] >= 0.20 - 1e-9, f"{nome}: legenda {k} com {lg['e'] - lg['s']:.3f}s"
+
+
+def test_a1_os_cenarios_fixos_sao_os_25_do_diferencial_mais_o_da_auditoria():
+    from tests.overlay import test_gerar as TG
+
+    assert len(TG._cenarios_fixos()) == 25
+    assert len(_cenarios_da_timeline()) == 26
+
+
+
+# ============================================================================ W3.X M1: folga de cauda
+# Invariante: o overlay (deslocado de -a0 no composite) dura pelo menos 1 quadro a mais que a footage, em qualquer
+# configuração de transição. A footage nunca passa da própria janela de áudio (o mux final usa -shortest e corta a
+# cadeia mais longa: test_cadeia mede isso com ffmpeg de verdade), então a timeline dá ao overlay a duração da fala
+# mais 2 quadros: 1 de folga e 1 para o render do overlay que arredonda a duração para quadro inteiro.
+
+def test_m1_duracao_do_overlay_e_a_da_footage_mais_2_quadros_arredondada_para_cima(mundo):
+    import math
+
+    tl = mundo.timeline
+    dur = TC.duracao_do_overlay(tl)
+    fps = tl["relogio"]["fps"]
+    assert dur - tl["duracao_s"] >= 2.0 / fps - 1e-9
+    assert dur - tl["duracao_s"] < 2.0 / fps + 0.01
+    assert dur == math.ceil(dur * 100 - 1e-6) / 100
+
+
+@pytest.mark.parametrize("xf", ["0.08", "0.12", "0.2"])
+def test_m1_folga_do_overlay_nunca_negativa_qualquer_que_seja_o_whip(mundo, footage_falsa, overlay_falso, monkeypatch,
+                                                                    xf):
+    """A footage nominal (timing.json) e o overlay que saem da MESMA timeline, com o whip pedido."""
+    monkeypatch.setattr(OG, "V1", mundo.dados)
+    env = dict(_env_footage(mundo), VAM_XF=xf)
+    assert MO.main(env=env) == 0
+    timing = json.loads((mundo.output / "timing.json").read_text(encoding="utf-8"))
+    cfg, out = _cfg_overlay(mundo)
+    OG.main(str(cfg))
+    prancha = json.loads((out / "prancha.json").read_text(encoding="utf-8"))
+    folga = (prancha["total"] - timing["a0"]) - (timing["total"] - timing["a0"])
+    assert folga >= QUADRO - 1e-9, f"VAM_XF={xf}: folga de cauda {folga:+.3f}s"
+
+
+# ============================================================================ W3.X M2: janela do CTA no relógio antigo
+
+def test_m2_overlay_com_timeline_mede_a_janela_do_cta_no_relogio_em_que_o_teto_foi_calibrado(
+        mundo, overlay_falso, monkeypatch, capsys):
+    """O teto de 12 s foi calibrado no relógio do overlay antigo (fim do áudio + TAIL_PAD); com a timeline a conta
+    é a mesma, sobre o total do caminho antigo, e não sobre o fim da fala (que mediria 0,97 s a menos no fixture)."""
+    import re
+
+    monkeypatch.setattr(OG, "V1", mundo.dados)
+    cfg, _out = _cfg_overlay(mundo)
+    OG.main(str(cfg))
+    linha = next(l for l in capsys.readouterr().out.splitlines() if "janela do CTA" in l)
+    janela = float(re.search(r"janela do CTA: ([0-9.]+)s", linha).group(1))
+    cta_s = round(mundo.timeline["cta"]["inicio"], 2)
+    assert janela == pytest.approx(TOTAL_LEGADO - cta_s, abs=0.006)
+
+
+# ============================================================================ W3.X M4: fundo claro no relógio da footage
+
+def test_m4_overlay_com_timeline_passa_o_a0_para_medir_o_fundo_na_footage(mundo, overlay_falso, monkeypatch):
+    recebidos = []
+    monkeypatch.setattr(OF, "marcar_grupos_claros", lambda *a, **k: recebidos.append(k.get("a0")))
+    monkeypatch.setattr(OG, "V1", mundo.dados)
+    cfg, _out = _cfg_overlay(mundo)
+    OG.main(str(cfg))
+    assert recebidos == [mundo.timeline["relogio"]["a0"]]
+
+
+# ============================================================================ W3.X M5: o que a timeline registra é desenhado
+
+def _cli(mundo, cfg, destino):
+    p = mundo.base / "cfg_cli.json"
+    p.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+    return TC.main(["--avatar", str(mundo.avatar), "--roteiro", str(mundo.leva), "--inserts", str(mundo.inserts),
+                    "--config", str(p), "--timeline", str(destino)])
+
+
+def _cli_sem_midia(mundo, monkeypatch):
+    transcricao = mundo.alinhamento["transcricao"]
+    monkeypatch.setattr(T, "transcrever", lambda audio, **kw: [dict(p) for p in transcricao])
+    monkeypatch.setattr(AL, "duracao_do_audio", lambda p: mundo.alinhamento["duracao_audio_s"])
+
+
+def test_m5_cli_mede_o_rosto_e_a_posicao_das_legendas_segue_o_look_fechado(mundo, monkeypatch, capsys):
+    """A CLI nunca passava `medir_rosto` e a timeline registrava legenda padrão num look fechado medido."""
+    import sys
+    import types
+
+    _cli_sem_midia(mundo, monkeypatch)
+    rosto = types.ModuleType("medir_rosto")
+    medidos = []
+    rosto.caixa_rosto = lambda video, *a, **k: medidos.append(str(video)) or (900, 600)   # queixo em 78%
+    monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
+    destino = mundo.output / "fechado_timeline.json"
+    assert _cli(mundo, mundo.cfg, destino) == 0, capsys.readouterr().err
+    tl = TC.ler(destino)
+    assert medidos and medidos[0] == str(mundo.avatar)
+    posicoes = {lg["posicao"] for lg in tl["legendas"]}
+    assert "padrao" not in posicoes and "rodape" in posicoes
+
+
+def test_m5_cli_com_look_aberto_mantem_a_legenda_padrao(mundo, monkeypatch, capsys):
+    import sys
+    import types
+
+    _cli_sem_midia(mundo, monkeypatch)
+    rosto = types.ModuleType("medir_rosto")
+    rosto.caixa_rosto = lambda video, *a, **k: (488, 425)                                # queixo em 47%
+    monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
+    destino = mundo.output / "aberto_timeline.json"
+    assert _cli(mundo, mundo.cfg, destino) == 0, capsys.readouterr().err
+    assert "padrao" in {lg["posicao"] for lg in TC.ler(destino)["legendas"]}
+
+
+def test_m5_rotulo_do_cta_da_timeline_e_o_texto_do_botao_no_html(mundo, overlay_falso, monkeypatch):
+    import re
+
+    cfg_tl = dict(mundo.cfg, cta_label="ver agora")
+    tl = TC.construir(mundo.blocks, mundo.alinhamento, inserts_map=mundo.inserts_map, cfg=cfg_tl,
+                      caminho_alinhamento=mundo.caminho_alinhamento, raiz=mundo.dados)
+    TC.gravar(tl, mundo.caminho_timeline)
+    monkeypatch.setattr(OG, "V1", mundo.dados)
+    cfg, out = _cfg_overlay(mundo)
+    dados = json.loads(cfg.read_text(encoding="utf-8"))
+    dados["cta_label"] = "ver agora"
+    cfg.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")
+    OG.main(str(cfg))
+    html = (out / "index.html").read_text(encoding="utf-8")
+    botao = re.search(r'id="cta-pill">([^<]*)', html).group(1)
+    assert botao == tl["cta"]["label"] == "ver agora"
+
+
+# ============================================================================ W3.X L8: diagnósticos no stderr
+
+def test_l8_a_cli_imprime_so_o_resumo_no_stdout(mundo, monkeypatch, capsys):
+    import sys
+    import types
+
+    _cli_sem_midia(mundo, monkeypatch)
+    rosto = types.ModuleType("medir_rosto")
+    rosto.caixa_rosto = lambda video, *a, **k: None
+    monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
+    assert _cli(mundo, mundo.cfg, mundo.output / "l8_timeline.json") == 0
+    cap = capsys.readouterr()
+    linhas = [l for l in cap.out.splitlines() if l.strip()]
+    assert len(linhas) == 1 and linhas[0].startswith("[timeline]"), cap.out
+    assert "[ritmo]" in cap.err or "[split]" in cap.err or "[look]" in cap.err

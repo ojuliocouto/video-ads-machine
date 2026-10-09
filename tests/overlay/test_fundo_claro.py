@@ -191,7 +191,7 @@ def test_com_footage_mede_na_footage_na_classe_de_cada_grupo(v1, monkeypatch, ca
 
     monkeypatch.setattr(FC, "fundo_claro_footage", falso)
     grupos = [g(1.0, 2.0, costura=True), g(3.0, 4.0, baixa=True), g(5.0, 6.0)]
-    FC.marcar_grupos_claros(grupos, "ad1", "lk", [])
+    FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
     assert [x.get("claro") for x in grupos] == [True, None, None]
     assert [c[3] for c in chamadas] == ["costura", "baixa", "padrao"]
     assert chamadas[0][0] == "ad1_lk_footage_1x.mp4"
@@ -203,7 +203,7 @@ def test_footage_none_nao_marca(v1, monkeypatch):
     (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
     monkeypatch.setattr(FC, "fundo_claro_footage", lambda *a: None)
     grupos = [g(1.0, 2.0)]
-    FC.marcar_grupos_claros(grupos, "ad1", "lk", [])
+    FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
     assert "claro" not in grupos[0]
 
 
@@ -246,3 +246,37 @@ def test_sem_footage_o_arquivo_fonte_e_arredondado_a_um_decimo(v1, monkeypatch):
     mapa = [{"a": 0.0, "b": 9.0, "file": "i.mp4", "start": 0.0, "speed": 1.0, "s2": 0.0}]
     FC.marcar_grupos_claros([g(1.0, 1.3)], "ad1", "lk", mapa)       # meio 1,15
     assert vistas == [1.1]                                            # round(1.15, 1) em float
+
+
+# --- W3.X M4: a footage é amostrada no relógio DELA ------------------------------------------------------------
+# O overlay é deslocado de -a0 no composite: o instante t do overlay é o instante t - a0 da footage. Amostrar a
+# footage em t media outro quadro (0,62 s depois no fixture). Sem o a0 (nem passado nem no _ritmo.json da footage)
+# a footage não é medida: cai no arquivo-fonte, que não depende do relógio da footage.
+
+def test_m4_footage_e_amostrada_em_t_menos_a0(v1, monkeypatch):
+    (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
+    vistas = []
+    monkeypatch.setattr(FC, "fundo_claro_footage", lambda video, ini, fim, classe: vistas.append((ini, fim)))
+    FC.marcar_grupos_claros([g(3.0, 4.0)], "ad1", "lk", [], a0=0.62)
+    assert vistas == [(pytest.approx(2.38), pytest.approx(3.38))]
+
+
+def test_m4_sem_a0_passado_le_o_a0_do_ritmo_da_footage(v1, monkeypatch):
+    (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
+    (v1 / "output" / "ad1_lk_footage_1x_ritmo.json").write_text(
+        '{"segs": [{"s": 0.4, "e": 5.0, "tipo": "orig"}], "total": 5.0}', encoding="utf-8")
+    vistas = []
+    monkeypatch.setattr(FC, "fundo_claro_footage", lambda video, ini, fim, classe: vistas.append((ini, fim)))
+    FC.marcar_grupos_claros([g(3.0, 4.0)], "ad1", "lk", [])
+    assert vistas == [(pytest.approx(2.6), pytest.approx(3.6))]
+
+
+def test_m4_sem_a0_nenhum_a_footage_nao_e_medida_no_relogio_errado(v1, monkeypatch, capsys):
+    (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
+    monkeypatch.setattr(FC, "fundo_claro_footage", lambda *a: pytest.fail("mediu a footage sem saber o a0"))
+    vistas = []
+    monkeypatch.setattr(FC, "fundo_claro", lambda arquivo, t: vistas.append(t) or False)
+    mapa = [{"a": 0.0, "b": 9.0, "file": "i.mp4", "start": 0.0, "speed": 1.0, "s2": 0.0}]
+    FC.marcar_grupos_claros([g(1.0, 2.0)], "ad1", "lk", mapa)
+    assert vistas == [1.5]
+    assert "a0" in capsys.readouterr().out

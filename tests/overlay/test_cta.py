@@ -147,3 +147,48 @@ def test_nos_templates_reais_nenhum_tempo_do_modelo_sobra(pasta):
     assert 'data-start="50.4" data-duration="4.96"' not in html
     assert 'data-start="46.7" data-duration="8.68"' not in html
     assert "}, 50.5);" not in html and "}, 46.9);" not in html
+
+
+# --- W3.X M5: o que a timeline registra é o que o overlay desenha, nos DOIS templates ----------------------------
+# O rótulo do botão nunca entrava no 9x16 (o template tem `saiba mais<i class="arw"></i>` e a troca procurava
+# `saiba mais</div>`), e o `cta_sem_lead` nunca funcionava no 1x1 (o template diz "toque em" e a troca procurava
+# "toca em"). A troca agora acha os elementos pelo `data-hf-id`, não pelo texto que o template escreveu.
+
+import re  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+TEMPLATES = ["reel-editorial", "reel-editorial-1x1"]
+
+
+def _template(pasta):
+    return (Path(__file__).resolve().parents[2] / "templates" / pasta / "index.html").read_text(encoding="utf-8")
+
+
+def _texto_do_botao(html):
+    m = re.search(r'<div data-hf-id="hf-wto1" class="pill" id="cta-pill">([^<]*)', html)
+    return m.group(1) if m else None
+
+
+@pytest.mark.parametrize("pasta", TEMPLATES)
+def test_m5_rotulo_do_cta_entra_nos_dois_templates_reais(pasta):
+    html = C.aplicar_html(_template(pasta), {"cta_label": "ver agora"}, 12.3, 11.4, 20.7, [])
+    assert _texto_do_botao(html) == "ver agora"
+
+
+def test_m5_rotulo_no_9x16_mantem_a_seta_do_botao():
+    html = C.aplicar_html(_template("reel-editorial"), {"cta_label": "ver agora"}, 12.3, 11.4, 20.7, [])
+    assert 'id="cta-pill">ver agora<i class="arw"></i></div>' in html
+
+
+@pytest.mark.parametrize("pasta", TEMPLATES)
+def test_m5_cta_sem_lead_tira_o_lead_nos_dois_templates_reais(pasta):
+    assert 'data-hf-id="hf-laqu"' in _template(pasta)
+    html = C.aplicar_html(_template(pasta), {"cta_sem_lead": True}, 12.3, 11.4, 20.7, [])
+    assert 'data-hf-id="hf-laqu"' not in html
+
+
+def test_m5_template_sem_o_botao_avisa_que_o_rotulo_nao_entrou(capsys):
+    html = C.aplicar_html("<div>sem cta</div>", {"cta_label": "ver agora"}, 12.3, 11.4, 20.7, [])
+    assert "ver agora" not in html
+    err = capsys.readouterr().err
+    assert "ver agora" in err and "AVISO" in err

@@ -89,3 +89,26 @@ def test_o_hook_e_o_cta_tambem_contam_como_texto():
     # sem legenda nenhuma, o hook ate 2,5 s e o CTA a partir de 4,0 s deixam 1,5 s de vao
     pior, quando = T.checar(2.5, [], [], 4.0, 6.0)
     assert (pior, quando) == (1.5, 2.5)
+
+
+# --- W3.X M2: a janela do CTA no relógio em que o teto foi calibrado -----------------------------------------
+# O teto de 12 s foi calibrado no relógio do overlay antigo, que ia até o fim do ÁUDIO mais a folga de cauda
+# (TAIL_PAD). Com a timeline o total do overlay é o fim da fala, e a mesma janela media menos (no fixture, 3,13 s
+# viraram 2,16 s): o teto ficava mais frouxo sem ninguém decidir. Com `fim_janela_cta` a conta é a de antes.
+
+def test_m2_janela_do_cta_usa_o_fim_do_relogio_antigo_quando_dado():
+    T.checar(2.0, [g(2.0, 9.0)], [], 9.0, 18.0)                       # 9,0 s no total da timeline: passa
+    with pytest.raises(SystemExit) as e:
+        T.checar(2.0, [g(2.0, 9.0)], [], 9.0, 18.0, fim_janela_cta=21.5)   # 12,5 s no relógio antigo: aborta
+    assert str(e.value).startswith("JANELA DE CTA LONGA DEMAIS: 12.50s de audio a partir de 9.00s")
+
+
+def test_m2_sem_fim_dado_a_conta_e_a_de_sempre():
+    with pytest.raises(SystemExit):
+        T.checar(2.0, [g(2.0, 5.0)], [], 5.0, 20.0, fim_janela_cta=None)
+
+
+def test_m2_o_vao_continua_medido_no_total_da_tela():
+    """O fim do relógio antigo só mede a janela do CTA; o vão sem texto é sobre o que a tela mostra."""
+    pior, _ = T.checar(2.0, [g(2.0, 9.0)], [], 9.0, 18.0, fim_janela_cta=19.5)
+    assert pior == pytest.approx(0.0)

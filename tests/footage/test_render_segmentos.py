@@ -1104,7 +1104,7 @@ def falsos(monkeypatch):
         chamadas.append(("orig", idx, round(s, 3), round(e, 3), base))
         Path(out).write_bytes(b"o")
 
-    def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados):
+    def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados, split=None):
         chamadas.append(("insert", cfg.get("_layout"), round(s, 3), round(e, 3)))
         Path(out).write_bytes(b"i")
 
@@ -1287,3 +1287,50 @@ def test_real_tela_dividida_e_apresentador(tmp_path, midia_sintetica, sem_medica
     RS.r_orig(midia_sintetica["avatar"], 0.0, 1.0, str(orig), idx=1, base=1.14)
     assert _dim(split) == "1080x1920" and _quadros(split) == 30
     assert _dim(orig) == "1080x1920" and _quadros(orig) == 30
+
+
+# ------------------------------------------------------------------ W3.X L6: a geometria do split vem do ambiente PASSADO
+# `montar.main(env=...)` ignorava parte do ambiente: VAM_SPLIT_TOP_H e VAM_SPLIT_GRAD eram lidos no IMPORT do
+# filtros_avatar e VAM_SPLIT_BIAS do os.environ do processo. Quem monta a footage com outro ambiente (testes, a
+# orquestração da W5.A) recebia a geometria do processo, não a pedida.
+
+def test_l6_split_usa_a_geometria_do_ambiente_passado_e_nao_a_do_processo(gravador, dirs, monkeypatch):
+    caso = next(c for c in GOLDEN if c["nome"] == "split_h16_escuro_pushin")
+    fixar_medidas(monkeypatch, caso["medidas"])
+    monkeypatch.setenv("VAM_SPLIT_BIAS", "0.9")              # o processo diz outra coisa
+    geo = ENQ.GeometriaSplit.do_ambiente({"VAM_SPLIT_TOP_H": "1000", "VAM_SPLIT_GRAD": "60",
+                                          "VAM_SPLIT_BIAS": "0.25"})
+    RS.r_split_tela(copy.deepcopy(caso["cfg"]), caso["s"], caso["e"], caso["out"], AV, str(dirs["molduras"]),
+                    split=geo)
+    fc = gravador[0][gravador[0].index("-filter_complex") + 1]
+    assert "scale=1080:1000:force_original_aspect_ratio=increase,crop=1080:1000" in fc
+    assert "crop=1080:920:0:400,setsar=1[bot]" in fc            # painel de 920 e bias 0,25 da altura útil
+    assert "[c1][bot]overlay=0:1000[c2]" in fc
+    assert "color=black:s=1080x60" in fc and "[c2][grad]overlay=0:940" in fc
+
+
+def test_l6_sem_geometria_passada_le_o_ambiente_na_hora_da_chamada(gravador, dirs, monkeypatch):
+    """Compatível com quem chama sem `split`: o ambiente é lido NA CHAMADA, não no import."""
+    caso = next(c for c in GOLDEN if c["nome"] == "split_h16_escuro_pushin")
+    fixar_medidas(monkeypatch, caso["medidas"])
+    monkeypatch.setenv("VAM_SPLIT_TOP_H", "1000")
+    RS.r_split_tela(copy.deepcopy(caso["cfg"]), caso["s"], caso["e"], caso["out"], AV, str(dirs["molduras"]))
+    fc = gravador[0][gravador[0].index("-filter_complex") + 1]
+    assert "[c1][bot]overlay=0:1000[c2]" in fc
+
+
+def test_l6_geometria_padrao_e_a_do_motor():
+    from footage import filtros_avatar as FA
+
+    geo = ENQ.GeometriaSplit.do_ambiente({})
+    assert (geo.top_h, geo.grad, geo.bias) == (1150, 90, None)
+    assert geo.bot_h == FA.H - 1150
+
+
+def test_l6_o_insert_repassa_a_geometria_ao_split(gravador, dirs, monkeypatch):
+    caso = next(c for c in GOLDEN if c["nome"] == "split_h16_escuro_pushin")
+    fixar_medidas(monkeypatch, caso["medidas"])
+    geo = ENQ.GeometriaSplit.do_ambiente({"VAM_SPLIT_TOP_H": "1000", "VAM_SPLIT_BIAS": "0.25"})
+    RS.r_insert(copy.deepcopy(caso["cfg"]), caso["s"], caso["e"], caso["out"], AV, str(dirs["molduras"]),
+                str(dirs["gerados"]), split=geo)
+    assert "[c1][bot]overlay=0:1000[c2]" in gravador[0][gravador[0].index("-filter_complex") + 1]

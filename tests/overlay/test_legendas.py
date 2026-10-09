@@ -78,10 +78,32 @@ def test_grupo_que_atravessa_o_logo_e_truncado_nao_descartado():
     assert saida == [g] and saida[0]["end"] == 10.0 and saida[0]["start"] == 8.0
 
 
-def test_o_piso_de_0_20s_vale_antes_do_truncamento():
-    g = grupo(pal("a", 9.9, 11.0))                     # 1,1 s: passa; vira 0,1 s depois de truncar
-    saida = G.fechar_grupos([g], 10.0)
-    assert saida[0]["end"] == 10.0 and saida[0]["end"] - saida[0]["start"] < 0.20
+def test_o_piso_de_0_20s_vale_depois_do_truncamento():
+    """W3.X A1: o piso rodava ANTES de truncar no logo (herdado do gen_ad_v2.py:957-967), e o que o truncamento
+    encurtava passava com 0,1 s ou até invertido. O piso é a última palavra: vale sobre o grupo como ele fica."""
+    g = grupo(pal("a", 9.9, 11.0))                     # 1,1 s; vira 0,1 s depois de truncar: sai
+    assert G.fechar_grupos([g], 10.0) == []
+
+
+def test_grupo_empurrado_para_depois_do_logo_nunca_nasce_invertido():
+    """O caso medido pela auditoria (dur_max com o CTA logo depois do último split): o grupo cortado na fronteira
+    nasce em 13,37 e o logo entra em 13,25. Truncar daria início 13,37 e fim 13,25; o contrato da timeline recusa."""
+    from overlay import layout_texto as LT
+
+    g = {"start": 13.37, "end": 14.2, "words": [pal("um", 13.0, 13.2), pal("que", 13.4, 13.6), pal("dois", 13.7, 14.0)]}
+    groups = [g]
+    LT.empurrar_pos_split(groups, [(12.0, 13.25)])
+    saida = G.fechar_grupos(groups, 13.25)
+    assert all(x["start"] < x["end"] and x["end"] - x["start"] >= 0.20 for x in saida)
+    assert saida == []
+
+
+@pytest.mark.parametrize("logo", [5.0, 5.15, 5.3, 6.0, 9.0])
+def test_nenhum_grupo_sai_do_fechamento_com_menos_de_0_20s_nem_invertido(logo):
+    gs = [grupo(pal("a", 4.0, 4.5)), grupo(pal("b", 5.1, 5.6)), grupo(pal("c", 5.2, 5.25)),
+          {"start": 7.0, "end": 6.0, "words": [pal("d", 6.0, 6.5)]}]
+    for x in G.fechar_grupos(gs, logo):
+        assert x["words"] and x["end"] - x["start"] >= 0.20, x
 
 
 # --- eco do lettering -------------------------------------------------------------------------------

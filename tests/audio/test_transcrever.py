@@ -318,3 +318,63 @@ def test_monotonizar_conserta_sobreposicao_regressao_e_fim_antes_do_inicio():
 
 def test_monotonizar_aceita_lista_vazia():
     assert T.monotonizar([]) == []
+
+
+# --- perfil "alinhamento" (W3.X A2) ----------------------------------------------------------
+# O relógio do anúncio é transcrito do jeito da footage antiga (parakeet sem chunk, wav 16 kHz): medido no fixture,
+# o chunk move fronteira em até 0,16 s. Os outros chamadores (gates, plano) seguem com o perfil padrão. Os dois
+# perfis nunca se misturam no cache: a mesma fala transcrita de dois jeitos é guardada em dois arquivos.
+
+class EspiaoComPerfil(Espiao):
+    NOME = "espiao_perfil"
+    PERFIS = ("padrao", "alinhamento")
+
+    def __init__(self, palavras=None):
+        super().__init__(palavras)
+        self.perfis = []
+
+    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt", perfil="padrao"):
+        self.perfis.append(perfil)
+        return super().transcrever(audio, amb=amb, workdir=workdir, prompt=prompt, idioma=idioma)
+
+
+class EspiaoSemPerfil(Espiao):
+    """Backend que não distingue perfil (faster-whisper e Groq não fatiam como o parakeet): não recebe o argumento."""
+    NOME = "espiao_sem_perfil"
+
+    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt"):
+        return super().transcrever(audio, amb=amb, workdir=workdir, prompt=prompt, idioma=idioma)
+
+
+def test_perfil_alinhamento_chega_ao_backend_que_o_declara(tmp_path):
+    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    esp = EspiaoComPerfil()
+    T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb(), perfil="alinhamento")
+    T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb())
+    assert esp.perfis == ["alinhamento", "padrao"]
+
+
+def test_perfil_alinhamento_e_padrao_tem_caches_separados(tmp_path):
+    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    cache = tmp_path / "c"
+    sha = T.sha_do_conteudo(a)
+    esp = EspiaoComPerfil()
+    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb(), perfil="alinhamento")
+    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb(), perfil="alinhamento")
+    assert esp.chamadas == 1 and (cache / f"{sha}.alinhamento.json").is_file()
+    assert not (cache / f"{sha}.json").exists(), "o perfil padrão não pode achar a transcrição do alinhamento"
+    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb())
+    assert esp.chamadas == 2 and (cache / f"{sha}.json").is_file()
+
+
+def test_backend_sem_perfil_recebe_a_chamada_de_sempre(tmp_path):
+    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    esp = EspiaoSemPerfil()
+    assert T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb(), perfil="alinhamento")
+    assert esp.chamadas == 1
+
+
+def test_perfil_desconhecido_e_erro_de_uso(tmp_path):
+    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    with pytest.raises(ValueError, match="perfil"):
+        T.transcrever(a, cache_dir=tmp_path / "c", backend=Espiao(), amb=amb(), perfil="rapido")

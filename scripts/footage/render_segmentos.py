@@ -52,7 +52,7 @@ from .filtros_avatar import FPS, H, W, nframes
 
 # VERSAO do render por segmento (cache). Mude sempre que qualquer r_orig/r_insert/r_split_tela
 # mudar o filtro de vídeo, senão o build próximo reaproveita cache velho (pixel errado).
-VERSAO_RENDER = "v1"
+VERSAO_RENDER = "v2"      # v2 (W3.X B1): a bolinha do pip ancora no rosto medido e a medição degenerada sai
 
 _IMAGENS = (".jpg", ".jpeg", ".png", ".webp")
 _ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
@@ -71,6 +71,7 @@ class Contexto(object):
     cache: bool = True
     paralelo: int = 4
     versao: str = VERSAO_RENDER
+    split: Optional[enq.GeometriaSplit] = None    # a geometria do split do ambiente da montagem (L6)
 
 
 def _e_imagem(src):
@@ -86,14 +87,18 @@ def r_orig(avatar, s, e, out, idx=0, base=1.0):
 
 # ------------------------------------------------------------------ tela dividida
 
-def r_split_tela(cfg, s, e, out, avatar, dir_molduras):
+def r_split_tela(cfg, s, e, out, avatar, dir_molduras, split=None):
     """Tela dividida: insert em cima, apresentador embaixo.
 
     Resolve a gravação de tela LARGA: encaixada num canvas 9:16 pela largura ela vira uma tira de
     ~600 px dentro de 1920 e sobra borrão (o "fora de enquadro" de um anúncio). Num painel largo e
     baixo ela cabe inteira, no tamanho natural; de quebra o apresentador fica na tela durante o insert,
     o que mata o vão de avatar sozinho. O `crop` declarado NÃO entra no filtro (ele decapitava a fonte
-    antes de chegar na moldura: cinco inserts descartavam de 31% a 60% da largura)."""
+    antes de chegar na moldura: cinco inserts descartavam de 31% a 60% da largura).
+
+    `split` é a geometria do ambiente da montagem (`enquadramento.GeometriaSplit`); sem ela, o ambiente é lido NA
+    CHAMADA (nunca no import)."""
+    geo = split or enq.GeometriaSplit.do_ambiente()
     d = e - s
     src = cfg["file"]
     sp = cfg.get("speed", 1.0)
@@ -107,8 +112,8 @@ def r_split_tela(cfg, s, e, out, avatar, dir_molduras):
     # ordem das medições = ordem em que o filtro era montado no motor original
     expo_bg = exp.eq_exposicao(cfg)
     painel = FI.painel_mockup(src, exp.eq_exposicao(cfg), e - s, float(cfg.get("start", 0) or 0), dir_molduras)
-    avatar_split = FA.filtro_avatar_split(enq.medir_bias_split(avatar))
-    fc = FI.fc_split_tela(sp, expo_bg, painel, avatar_split, N)
+    avatar_split = FA.filtro_avatar_split(enq.medir_bias_split(avatar, env=geo.env_do_bias()), bot_h=geo.bot_h)
+    fc = FI.fc_split_tela(sp, expo_bg, painel, avatar_split, N, top_h=geo.top_h, grad=geo.grad)
     run(["ffmpeg", "-y", "-ss", str(st), "-t", str(take + 0.4), "-i", src,
          "-ss", str(s), "-t", str(d + 0.4), "-i", avatar,
          "-filter_complex", fc, "-r", str(FPS), "-map", "[v]", "-an", *_ENCODE, out])
@@ -139,7 +144,7 @@ def r_insert_moldura(cfg, s, e, out, dir_molduras):
 
 # ------------------------------------------------------------------ despacho dos inserts
 
-def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados):
+def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados, split=None):
     """Despacha o insert. O layout marcado pelo ritmo VENCE o `split` do config: é ele que faz a
     visita seguinte ao mesmo asset parecer outra coisa. Asset em pé não ganha moldura (a guarda é a
     mesma de `painel_mockup`); imagem estática e asset em pé seguem pelo caminho de tela cheia."""
@@ -148,7 +153,7 @@ def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados):
             if enq.aspecto(cfg["file"]) >= 1.05:
                 return r_insert_moldura(cfg, s, e, out, dir_molduras)
         else:
-            return r_split_tela(cfg, s, e, out, avatar, dir_molduras)
+            return r_split_tela(cfg, s, e, out, avatar, dir_molduras, split=split)
     # INSERT HORIZONTAL EM TELA CHEIA TAMBÉM ENTRA INTEIRO: o veto ao `crop` pegou só as entradas com
     # `split: true`, e as sem a flag ainda recortavam (775x1080 de uma fonte 1916x1080 jogava fora
     # 59,5% da área e o quadro mostrava só a coluna do preview, sem a sidebar nem o chat).
@@ -226,7 +231,7 @@ def _renderizar_um(i, blocks, spans, ctx, cache_dir):
         if tipo in ("orig", "lettering"):
             r_orig(ctx.avatar, s, ee, out, idx=i, base=b["_base"])
         elif tipo == "insert":
-            r_insert(cfg, s, ee, out, ctx.avatar, ctx.dir_molduras, ctx.dir_gerados)
+            r_insert(cfg, s, ee, out, ctx.avatar, ctx.dir_molduras, ctx.dir_gerados, split=ctx.split)
         elif tipo == "logo":
             r_logo(s, ee, out, ctx.logo, ctx.dir_gerados)
         elif tipo == "lettering_logo":

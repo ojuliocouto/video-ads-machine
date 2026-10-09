@@ -12,6 +12,14 @@ da bolinha em y=640. Chute com cara de medição, e ninguém via. Agora:
 
 A única forma de pular a medição do split é digitar `VAM_SPLIT_BIAS`, como exceção declarada.
 
+## Medição degenerada não é medição (W3.X, B1)
+
+Uma "pessoa" do topo ao pé do quadro (topo 0,0 e base acima de 0,99, ou `topo_px` 0) quer dizer que o detector
+não separou a pessoa do fundo. Foi o que o avatar do fixture da paridade devolveu (0,0/0,998: luz central no fundo)
+e a bolinha recortou y 0 a 720, com 55% do rosto. Aceitar o número era o chute de antes com outra cara: agora é
+`ErroEnquadramento` com os números. E a bolinha existe para mostrar o ROSTO: quando a medição traz a caixa do rosto
+(`rosto_y`, `rosto_h`), o quadrado é centrado nele; só sem rosto ela parte do topo da pessoa.
+
 ## Sondas do arquivo
 
 `aspecto`, `largura_fonte` e `pular_preto` leem o arquivo com ffprobe/ffmpeg. São cacheadas por
@@ -23,6 +31,8 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from typing import Optional
 
 import caminhos
 
@@ -62,20 +72,74 @@ def _medir_json(args, executar, o_que, dica=""):
         r = _executar(executar)([sys.executable, str(script), *args],
                                 capture_output=True, text=True, timeout=180)
     except Exception as e:  # tempo esgotado, interpretador sumido, etc.
-        raise ErroEnquadramento(f"A medição de enquadramento de {o_que} não rodou ({type(e).__name__}: {e}). "
+        raise ErroEnquadramento(f"A medição de enquadramento {o_que} não rodou ({type(e).__name__}: {e}). "
                                 f"{dica}".strip())
     if r.returncode != 0:
         cauda = (r.stderr or r.stdout or "").strip()[-300:]
-        raise ErroEnquadramento(f"A medição de enquadramento de {o_que} saiu com código {r.returncode}: "
+        raise ErroEnquadramento(f"A medição de enquadramento {o_que} saiu com código {r.returncode}: "
                                 f"{cauda or 'sem mensagem'}. {dica}".strip())
     try:
         dados = json.loads(r.stdout)
         if not isinstance(dados, dict):
             raise ValueError("a saída não é um objeto JSON")
     except ValueError as e:
-        raise ErroEnquadramento(f"A medição de enquadramento de {o_que} devolveu uma saída que não é JSON "
+        raise ErroEnquadramento(f"A medição de enquadramento {o_que} devolveu uma saída que não é JSON "
                                 f"({e}): {(r.stdout or '')[:120]!r}. {dica}".strip())
     return dados
+
+
+BASE_DEGENERADA = 0.99      # base da pessoa acima disso + topo em zero = a "pessoa" é o quadro inteiro
+
+
+def validar_pessoa(dados, avatar, dica=""):
+    """Recusa a medição que não separou a pessoa do fundo. Devolve `dados` quando ela é uma medição.
+
+    Degenerada: `topo_px` 0, ou topo em 0,0 com a base acima de BASE_DEGENERADA. Sem a caixa da pessoa não há como
+    saber se o detector a viu, e isso também é erro."""
+    try:
+        topo, base, topo_px = float(dados["pessoa_topo"]), float(dados["pessoa_base"]), int(dados["topo_px"])
+    except (KeyError, TypeError, ValueError):
+        raise ErroEnquadramento(f"A medição de enquadramento do avatar {avatar} não trouxe a caixa da pessoa "
+                                f"(pessoa_topo, pessoa_base, topo_px; veio {sorted(dados)}). {dica}".strip())
+    if topo_px == 0 or (topo <= 0.0 and base > BASE_DEGENERADA):
+        raise ErroEnquadramento(
+            f"A medição de enquadramento do avatar {avatar} é degenerada: a pessoa ocupa o quadro inteiro "
+            f"(pessoa_topo {topo}, pessoa_base {base}, topo_px {topo_px}). O detector não separou a pessoa do fundo "
+            "(luz ou cenário que muda do meio para as laterais); o recorte sairia de um número que não mediu nada. "
+            f"Rode `python3 scripts/medir_enquadramento.py avatar {avatar}` para ver a medição. {dica}".strip())
+    return dados
+
+
+# ------------------------------------------------------------------ geometria do split (W3.X L6)
+
+SPLIT_TOP_H_PADRAO = 1150   # os padrões do filtros_avatar (painel de cima de 1150 e degradê de 90 na emenda)
+SPLIT_GRAD_PADRAO = 90
+ALTURA_QUADRO = 1920
+
+
+@dataclass(frozen=True)
+class GeometriaSplit(object):
+    """Altura do painel de cima, altura do degradê da emenda e o bias digitado (None = medir), lidos do ambiente
+    que a montagem RECEBEU. Antes, VAM_SPLIT_TOP_H e VAM_SPLIT_GRAD eram lidos no import do `filtros_avatar` e o
+    VAM_SPLIT_BIAS do `os.environ`: `montar.main(env=...)` montava com a geometria do processo, não com a pedida."""
+    top_h: int = SPLIT_TOP_H_PADRAO
+    grad: int = SPLIT_GRAD_PADRAO
+    bias: Optional[str] = None
+
+    @property
+    def bot_h(self):
+        return ALTURA_QUADRO - self.top_h
+
+    @classmethod
+    def do_ambiente(cls, env=None):
+        env = os.environ if env is None else env
+        return cls(top_h=int(env.get("VAM_SPLIT_TOP_H") or SPLIT_TOP_H_PADRAO),
+                   grad=int(env.get("VAM_SPLIT_GRAD") or SPLIT_GRAD_PADRAO),
+                   bias=env.get("VAM_SPLIT_BIAS") or None)
+
+    def env_do_bias(self):
+        """O ambiente que `medir_bias_split` lê: só o bias digitado, ou nada (mede)."""
+        return {"VAM_SPLIT_BIAS": self.bias} if self.bias else {}
 
 
 # ------------------------------------------------------------------ avatar
@@ -92,7 +156,8 @@ def medir_bias_split(avatar, env=None, executar=None):
             return float(digitado)
         except ValueError:
             raise ErroEnquadramento(f"VAM_SPLIT_BIAS={digitado!r} não é um número entre 0 e 1.")
-    dados = _medir_json(["avatar", avatar, "--json"], executar, f"o avatar {avatar}", AVISO_SEM_MEDICAO)
+    dados = _medir_json(["avatar", avatar, "--json"], executar, f"do avatar {avatar}", AVISO_SEM_MEDICAO)
+    validar_pessoa(dados, avatar, AVISO_SEM_MEDICAO)
     try:
         bias = float(dados["VAM_SPLIT_BIAS"])
     except (KeyError, TypeError, ValueError):
@@ -102,20 +167,27 @@ def medir_bias_split(avatar, env=None, executar=None):
     return bias
 
 
+LADO_PIP = 720           # lado do recorte quadrado da bolinha, na fonte 1080x1920
+
+
 def pip_crop(avatar, executar=None):
-    """Recorte quadrado da cabeça para a bolinha, MEDIDO no avatar: 720 px a partir de 60 px acima
-    do topo da pessoa, centrado. O chute antigo (640 em y=750) decapitava o apresentador quando o
-    topo estava em y~693. Cacheado por avatar."""
+    """Recorte quadrado da cabeça para a bolinha, MEDIDO no avatar e centrado na largura.
+
+    Com o rosto medido (`rosto_y`, `rosto_h`), o quadrado de 720 px é centrado no centro do rosto: a bolinha existe
+    para mostrar o rosto, e ancorar na pessoa dependia do detector de silhueta, que a luz do fundo cega (B1). Sem
+    rosto, 720 px a partir de 60 px acima do topo da pessoa. O chute antigo (640 em y=750) decapitava o
+    apresentador quando o topo estava em y~693. Medição degenerada é erro alto. Cacheado por avatar."""
     if avatar in _PIP_CROP_CACHE:
         return _PIP_CROP_CACHE[avatar]
-    dados = _medir_json(["avatar", avatar, "--json"], executar, f"o recorte da bolinha do avatar {avatar}")
+    dados = validar_pessoa(_medir_json(["avatar", avatar, "--json"], executar,
+                                       f"do recorte da bolinha do avatar {avatar}"), avatar)
+    lado = LADO_PIP
     try:
-        topo = int(dados["topo_px"])
+        centro = int(dados["rosto_y"]) + int(dados["rosto_h"]) // 2
+        y = min(max(0, centro - lado // 2), 1920 - lado)
     except (KeyError, TypeError, ValueError):
-        raise ErroEnquadramento(f"A medição de enquadramento do avatar {avatar} não trouxe topo_px "
-                                f"(veio {sorted(dados)}); sem ele o recorte da bolinha não é seguro.")
-    lado = 720
-    y = min(max(0, topo - 60), 1920 - lado)
+        topo = int(dados["topo_px"])
+        y = min(max(0, topo - 60), 1920 - lado)
     crop = f"{lado}:{lado}:{(1080 - lado) // 2}:{y}"
     _PIP_CROP_CACHE[avatar] = crop
     print(f"  [medido] recorte da bolinha: {crop}", flush=True)
@@ -132,7 +204,7 @@ def medir_conteudo(src, alvo_w, alvo_h, executar=None):
     (0,5, 0,5) cortava justamente o que a fala descrevia."""
     if src not in _CACHE_CONTEUDO:
         dados = _medir_json(["asset", src, "--painel", f"{alvo_w}x{alvo_h}", "--json"], executar,
-                            f"o asset {src}")
+                            f"do asset {src}")
         try:
             fx, fy = float(dados["centro_conteudo_x"]), float(dados["centro_conteudo_y"])
         except (KeyError, TypeError, ValueError):

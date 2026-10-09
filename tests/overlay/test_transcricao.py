@@ -208,6 +208,31 @@ def test_cache_hit_em_outro_out_dir_nao_chama_o_parakeet(tmp_path, cache_em_tmp,
     assert (tmp_path / "b" / "transcript.json").exists()
 
 
+def test_l5_copia_do_avatar_com_outro_mtime_acerta_o_cache(tmp_path, cache_em_tmp, monkeypatch):
+    """W3.X L5: a chave era 8 MB + tamanho + mtime, e a cópia do mesmo avatar em outra pasta (mtime novo) nunca
+    acertava. A chave agora é o sha256 do conteúdo inteiro, como a docstring sempre afirmou."""
+    import os
+    import time
+
+    conteudo = b"o mesmo avatar copiado para outra pasta"
+    for nome in ("a", "b"):
+        (tmp_path / nome).mkdir()
+        (tmp_path / nome / "avatar.mp4").write_bytes(conteudo)
+    os.utime(tmp_path / "b" / "avatar.mp4", (time.time() + 500, time.time() + 500))
+    rodou = []
+
+    def falso_run(cmd, **kw):
+        rodou.append(cmd)
+        (kw["cwd"] / "transcript.json").write_text(json.dumps([{"text": "um", "start": 0, "end": 1}]))
+
+    monkeypatch.setattr(T, "run", falso_run)
+    T.transcrever(tmp_path / "a" / "avatar.mp4", tmp_path / "a")
+    T.transcrever(tmp_path / "b" / "avatar.mp4", tmp_path / "b")
+    assert len(rodou) == 1
+    import hashlib
+    assert (cache_em_tmp / (hashlib.sha256(conteudo).hexdigest() + ".json")).is_file()
+
+
 # --- palavras do roteiro --------------------------------------------------------------------
 
 def test_alinhar_palavras_usa_a_grafia_do_roteiro_e_o_tempo_do_transcript():

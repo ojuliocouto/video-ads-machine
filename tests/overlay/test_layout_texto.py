@@ -14,6 +14,8 @@ defeito medido que o `gen_ad_v2.py` original documenta em comentário:
 """
 import json
 
+from pathlib import Path
+
 import pytest
 
 from overlay import layout_texto as LT
@@ -195,22 +197,43 @@ def test_queixo_alto_mantem_a_legenda_padrao(capsys):
     assert "aberto, legenda padrao" in capsys.readouterr().out
 
 
-def test_medidor_que_falha_cai_no_nome_do_look(capsys):
+def test_medidor_que_falha_cai_no_plano_declarado_do_look(capsys):
     def quebra(video):
         raise RuntimeError("sem opencv")
 
     gs = [grupo(pal("a", 1, 2))]
     LT.baixar_no_look_fechado(gs, "/x/avatar_comum.mp4", medir=quebra)
     assert "baixa" not in gs[0]
-    assert "nao consegui medir o avatar (sem opencv); caindo no nome do look" in capsys.readouterr().out
+    assert "nao consegui medir o avatar (sem opencv); caindo no plano declarado do look" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("nome", LT.NOMES_DE_LOOK_FECHADO)
-def test_nomes_de_look_fechado_antigos_continuam_valendo_quando_nao_ha_rosto(nome):
-    # legado por paridade: o criterio certo e o rosto medido; o nome so vale quando a medicao falha
+# W3.X L10: o look fechado DECLARADO vem do looks.json do aluno (campo `plano`), nunca de nome de look do dono
+# escrito no código. Nome de arquivo não é critério; o enquadramento medido é, e o plano declarado completa.
+
+def test_plano_fechado_declarado_manda_a_legenda_pro_rodape_mesmo_sem_rosto():
+    gs = [grupo(pal("a", 1, 2)), grupo(pal("b", 3, 4), costura=True)]
+    LT.baixar_no_look_fechado(gs, "/x/ad_comum_avatar.mp4", medir=lambda v: None, plano_do_look="fechado")
+    assert gs[0].get("baixa") is True and "baixa" not in gs[1]
+
+
+@pytest.mark.parametrize("plano", [None, "medio", "aberto"])
+def test_plano_que_nao_e_fechado_nao_baixa_a_legenda(plano):
     gs = [grupo(pal("a", 1, 2))]
-    LT.baixar_no_look_fechado(gs, f"/x/ad_{nome}_avatar.mp4", medir=lambda v: None)
-    assert gs[0].get("baixa") is True
+    LT.baixar_no_look_fechado(gs, "/x/ad_comum_avatar.mp4", medir=lambda v: None, plano_do_look=plano)
+    assert "baixa" not in gs[0]
+
+
+def test_nome_de_look_no_arquivo_nao_decide_mais_nada():
+    gs = [grupo(pal("a", 1, 2))]
+    LT.baixar_no_look_fechado(gs, "/x/ad99_" + "of" + "13_avatar.mp4", medir=lambda v: None)
+    assert "baixa" not in gs[0]
+
+
+def test_o_modulo_nao_carrega_nome_de_look_do_dono():
+    fonte = Path(LT.__file__).read_text(encoding="utf-8")
+    for nome in ("oficial" + "_13", "_of" + "13"):
+        assert nome not in fonte, nome
+    assert not hasattr(LT, "NOMES_DE_LOOK_FECHADO")
 
 
 def test_avatar_de_nome_comum_sem_rosto_nao_e_look_fechado():

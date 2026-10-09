@@ -10,6 +10,7 @@ pelo `audio.transcrever`. Sem timeline segue o caminho antigo, até a W5.A ligar
 o `hyperframes transcribe` com o motor parakeet, no diretório de saída, mais o cache por conteúdo em
 `<dados>/output/_cache/transcricao`, e o `gerar` avisa no fim (`AVISO_SEM_TIMELINE`).
 """
+import hashlib
 import json
 import math
 import re
@@ -20,7 +21,6 @@ import unicodedata
 from pathlib import Path
 
 import build_timeline
-import cache_transcricao
 from caminhos import V1, V2
 
 SPEED = 1.15         # aceleração global do vídeo (o motor antigo fazia 1.2x); pré-acelera o avatar
@@ -79,24 +79,38 @@ def preparar_avatar(avatar_src, out, speed):
     return dst, total
 
 
+def chave_do_conteudo(caminho):
+    """sha256 do conteúdo INTEIRO do arquivo: nem caminho, nem tamanho, nem mtime."""
+    h = hashlib.sha256()
+    with open(caminho, "rb") as f:
+        for bloco in iter(lambda: f.read(1 << 20), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
 def transcrever(dst, out):
     """Lista de palavras `{text, start, end}` do avatar, vinda do cache por CONTEÚDO se existir.
 
     Cache entre builds (31/08/2026): 8 builds do mesmo anúncio no mesmo dia rodaram o parakeet 8
     vezes para o MESMO avatar, cerca de 2,5 min cada, porque cada build cai num out_dir novo e a
-    checagem do `transcript.json` local nunca acerta entre eles. A chave é do conteúdo do
+    checagem do `transcript.json` local nunca acerta entre eles. A chave é o sha256 do conteúdo do
     `avatar.mp4`, então qualquer out_dir com o mesmo áudio reaproveita sem chamar o parakeet.
+
+    W3.X L5: a chave antiga (`cache_transcricao`) misturava os primeiros 8 MB com tamanho e MTIME, e a cópia
+    do mesmo avatar em outra pasta (mtime novo) nunca acertava. Agora é o conteúdo, como este docstring dizia.
     """
     dst, out = Path(dst), Path(out)
     pasta_cache = V1 / "output" / "_cache" / "transcricao"
     if not (out / "transcript.json").exists():
-        hit = cache_transcricao.obter(dst, pasta_cache)
-        if hit is not None:
-            shutil.copy(hit, out / "transcript.json")
-            print(f"   [cache] transcricao reaproveitada ({cache_transcricao.chave(dst)})")
+        chave = chave_do_conteudo(dst)
+        guardado = pasta_cache / f"{chave}.json"
+        if guardado.is_file():
+            shutil.copy(guardado, out / "transcript.json")
+            print(f"   [cache] transcricao reaproveitada ({chave[:16]})")
         else:
             run([HF, "transcribe", "avatar.mp4", "--engine", "parakeet", "--json", "-d", "."], cwd=out)
-            cache_transcricao.guardar(dst, out / "transcript.json", pasta_cache)
+            pasta_cache.mkdir(parents=True, exist_ok=True)
+            shutil.copy(out / "transcript.json", guardado)
     return json.loads((out / "transcript.json").read_text(encoding="utf-8"))
 
 

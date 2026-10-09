@@ -6,7 +6,10 @@ algoritmo próprio. Os dois relógios derivavam: 1,07 s no fim de um anúncio de
 
 Agora:
   - a transcrição sai do `audio.transcrever` (W1.C), uma chamada por alinhamento, com cache pelo sha256 do
-    CONTEÚDO do avatar: o mesmo avatar nunca é transcrito duas vezes, em build nenhum;
+    CONTEÚDO do avatar: o mesmo avatar nunca é transcrito duas vezes, em build nenhum. É o perfil "alinhamento", o
+    jeito que a footage sempre transcreveu (wav 16 kHz mono, parakeet SEM chunk, leitor da footage). Medido no
+    fixture com o parakeet real (W3.X A2): o chunk de 15/3 s que a W3.A usava deslocava fronteira de bloco em até
+    0,16 s, 16 de 52 palavras; mp4 x wav e leitor antigo x novo, zero. Com o perfil, a transcrição é a mesma;
   - o casamento roteiro x fala é o da FOOTAGE, o relógio que vale (`casar`, abaixo). A footage não tem mais
     cópia dele: `footage.blocos.alinhar_palavras` junta os tokens do parakeet e chama o `casar` daqui;
   - o resultado vai para um arquivo (`render/alinhamento.json` no projeto) cujo sha256 a timeline cita em
@@ -20,8 +23,11 @@ autojunk). Casou: herda o tempo da palavra ouvida. A grafia é SEMPRE a do rotei
     (duração - CAUDA_S, duração). Sem isso a interpolação ancorava na última palavra casada e cortava a fala
     real cerca de 1 s antes do fim;
   - no meio, ocupa o vão entre as vizinhas casadas; sem vão, dura SEM_PAR_S depois da anterior;
-  - antes da primeira casada, dura SEM_PAR_S e encosta nela (é assim que nasce o a0 de um anúncio cuja
-    primeira palavra o ASR errou);
+  - antes da primeira casada (W3.X M3): se o ASR OUVIU alguma coisa antes dela (a mesma palavra com outra grafia:
+    "Minha" ouvida como "My" de 0,40 a 0,56 no fixture), essas palavras dividem em partes iguais o trecho do início
+    da 1ª palavra ouvida até a primeira casada. É daí que nasce o a0: interpolar SEM_PAR_S antes da casada punha o
+    a0 em 0,62 e a footage e o áudio entregue começavam no meio da palavra (0,22 s cortados). Só quando o ASR não
+    ouviu nada antes da primeira casada não há início medido, e a palavra dura SEM_PAR_S e encosta nela;
   - nenhuma casada no roteiro inteiro: passo fixo de PASSO_SEM_PAR_S.
 
 ## O arquivo
@@ -69,9 +75,16 @@ def casar(palavras, narr_words, audio_dur):
     sn = [norm(w) for w in narr_words]
     sm = difflib.SequenceMatcher(None, pk_norm, sn, autojunk=False)
     times = [None] * len(narr_words)
-    for a, b, size in sm.get_matching_blocks():
+    blocos = [bl for bl in sm.get_matching_blocks() if bl.size]
+    for a, b, size in blocos:
         for k in range(size):
             times[b + k] = (palavras[a + k][0], palavras[a + k][1])
+    if blocos and blocos[0].b > 0 and blocos[0].a > 0:
+        # a cabeça sem par tem fala ouvida antes da primeira casada: ela começa onde a fala começa
+        ini, fim, n = palavras[0][0], palavras[blocos[0].a][0], blocos[0].b
+        passo = (fim - ini) / n
+        for i in range(n):
+            times[i] = (ini + i * passo, fim if i == n - 1 else ini + (i + 1) * passo)
     if times and times[-1] is None:
         times[-1] = (max(0.0, audio_dur - CAUDA_S), audio_dur)
     # interpola as palavras sem casamento (variações roteiro x voz) entre as vizinhas casadas
@@ -137,7 +150,7 @@ def alinhar(avatar, narr_words, *, cache_dir, raiz=None, glossario=None, duracao
         raise ErroAlinhamento(f"avatar não encontrado: {avatar}. Gere ou copie o avatar antes de alinhar.")
     duracao = duracao or duracao_do_audio
     try:
-        transcricao = _T.transcrever(avatar, cache_dir=Path(cache_dir), glossario=glossario)
+        transcricao = _T.transcrever(avatar, cache_dir=Path(cache_dir), glossario=glossario, perfil="alinhamento")
     except _T.SemTranscritor as e:
         raise ErroAlinhamento(str(e))
     dur = float(duracao(avatar))      # sem arredondar: a cauda sem par ancora neste número, como na footage

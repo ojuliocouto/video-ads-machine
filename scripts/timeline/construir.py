@@ -16,9 +16,20 @@ timeline e não decidem tempo por conta própria.
 Todo tempo está no relógio da footage a 1x, que é o do áudio do avatar: a footage começa em `relogio.a0`
 (o início do 1º bloco) e acaba em `duracao_s` (o fim do último). O arquivo entregue converte com
 `(t - a0) / aceleracao` e soma `cauda_s` só na duração total. Os spans e o plano de ritmo saem das MESMAS
-funções que a footage usava sozinha (`footage.blocos`: atribuir_spans, tornar_contiguos, plano_de_ritmo),
-por isso o golden da footage não muda. O que muda é o overlay, que passa a usar este relógio no lugar do
-dele (e a duração dele passa a ser a da footage, sem a folga de cauda que ninguém via).
+funções que a footage usava sozinha (`footage.blocos`: atribuir_spans, tornar_contiguos, plano_de_ritmo), sobre
+uma transcrição feita do mesmo jeito que a footage antiga fazia (`timeline.alinhar`, perfil "alinhamento"). O que foi
+medido (W3.X A2): com a mesma transcrição o golden da footage não muda; com o chunk de 15/3 s do parakeet, que a W3.A
+usava, a fronteira de bloco andava até 0,16 s no avatar do fixture. O que muda é o overlay, que passa a usar este
+relógio no lugar do dele, com a duração da footage mais a folga de cauda (`duracao_do_overlay`).
+
+## A folga de cauda (W3.X, M1)
+
+O composite usa `shortest=1`: se o overlay (deslocado de -a0) acaba antes da footage, a imagem perde a cauda e o
+áudio segue. A W3.A zerou a folga (overlay = fim da fala) e a auditoria somou -0,037 s com VAM_XF=0.12. A footage
+entregue nunca passa da própria janela de áudio (`duracao_s - a0`): o mux final corta a cadeia mais longa com
+-shortest (medido com ffmpeg em tests/footage/test_cadeia.py, cadeia de 1 a 9 quadros mais longa). Então o overlay
+dura `duracao_s` mais QUADROS_DE_FOLGA quadros, arredondado para cima no centésimo: 1 quadro de folga garantida e 1
+para o render do overlay que arredonda a duração para quadro inteiro. O `gate_relogio` mede a cauda nos arquivos.
 
 ## O que vem de onde
 
@@ -36,7 +47,8 @@ Decisões onde o motor e o contrato não falam a mesma língua (registradas, nã
     o bloco anterior ao CTA é apresentador (`overlay.cta.LOGO_LEAD`); aí a timeline registra o logo junto
     do CTA. A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
   - legenda: a posição sai do layout (costura no split, rodapé sobre insert com texto). O rodapé por look
-    fechado depende de medir o rosto: o chamador passa `medir_rosto` (o overlay mede no render);
+    fechado depende de medir o rosto: o chamador passa `medir_rosto`, e a CLI passa a medição do avatar que ela
+    alinhou (W3.X M5: sem isso a timeline registrava legenda padrão num look fechado medido);
   - lettering: estilo `serif_editorial` (o do template de hoje) até a W4.D trazer os estilos; o lettering
     que passaria do fim é aparado no fim.
 
@@ -48,7 +60,9 @@ resto no formato de cada motor. O caminho em `fontes` é relativo à pasta do pr
 timeline (`<projeto>/render/timeline.json`; no motor antigo, `<dados>/output/<ad>_timeline.json`).
 """
 import argparse
+import contextlib
 import json
+import math
 import os
 import re
 import sys
@@ -65,6 +79,7 @@ from timeline import alinhar as AL  # noqa: E402
 FPS = 30                    # a footage renderiza a 30 quadros por segundo (o mesmo do overlay)
 ACELERACAO_PADRAO = 1.35    # build_composite.ACCEL: aceleração do arquivo entregue com avatar
 CAUDA_S = 0.45              # build_composite.TAIL_FINAL: último quadro congelado depois da aceleração
+QUADROS_DE_FOLGA = 2        # overlay além da footage: 1 quadro de folga + 1 do arredondamento do render (M1)
 ESTILO_LETTERING = "serif_editorial"
 DUCKING_SEM_TRILHA = {"desligado": True,
                       "motivo": "a timeline ainda não planeja a cama musical: o mix de hoje é do build_composite"}
@@ -143,6 +158,13 @@ def spans(tl):
 def janelas_split(tl):
     """[(início, fim)] onde a tela está dividida de verdade."""
     return [(j["s"], j["e"]) for j in tl["janelas_split"]]
+
+
+def duracao_do_overlay(tl):
+    """Até onde o overlay vai, no relógio da timeline: o fim da footage mais QUADROS_DE_FOLGA quadros do fps dela,
+    arredondado para cima no centésimo (ver "A folga de cauda" no topo)."""
+    fim = float(tl["duracao_s"]) + QUADROS_DE_FOLGA / float(tl["relogio"]["fps"])
+    return math.ceil(fim * 100 - 1e-6) / 100
 
 
 # ======================================================================================== o texto da tela
@@ -228,9 +250,12 @@ def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, rai
     try:
         sp, _bwords = BL.atribuir_spans(blocks, words)
         sp = BL.tornar_contiguos(sp)
-        plano = BL.plano_de_ritmo(blocks, sp, inserts_map)
-        h, js, letts, groups, cta_start, logo_start, classe = _texto_da_tela(
-            blocks, words, sp, plano, inserts_map, cfg, medir_rosto)
+        # os diagnósticos do overlay ("[split]", "[look]", "[ritmo]") vão para o stderr: o stdout da timeline é só o
+        # resumo (W3.X L8), e quem lê a saída da CLI não tem que separar uma coisa da outra
+        with contextlib.redirect_stdout(sys.stderr):
+            plano = BL.plano_de_ritmo(blocks, sp, inserts_map)
+            h, js, letts, groups, cta_start, logo_start, classe = _texto_da_tela(
+                blocks, words, sp, plano, inserts_map, cfg, medir_rosto)
     except SystemExit as e:                 # o overlay para o motor com sys.exit(mensagem)
         raise ErroTimeline(str(e.code))
     except BL.CA.ErroFootage as e:
@@ -341,6 +366,16 @@ def ler_para_motor(caminho_timeline, blocks, avatar=None):
 
 # ======================================================================================== CLI
 
+def medir_rosto_do_avatar(avatar):
+    """A medição do rosto que o overlay usa (`medir_rosto.caixa_rosto`), sempre sobre o avatar que a CLI alinhou (e
+    não sobre o `avatar` do config do overlay, que pode ser outra cópia). Falha de medição chega ao overlay como
+    exceção e ele cai no plano declarado do look."""
+    def medir(_avatar_do_config):
+        import medir_rosto
+        return medir_rosto.caixa_rosto(str(avatar))
+    return medir
+
+
 def _alinhamento_padrao(timeline):
     nome = timeline.name
     if nome == "timeline.json":
@@ -391,7 +426,7 @@ def main(argv=None):
                         raiz=raiz, glossario=glossario)
         sha = AL.gravar(al, alinhamento)
         tl = construir(blocks, al, inserts_map=inserts_map, cfg=cfg, caminho_alinhamento=alinhamento, raiz=raiz,
-                       fps=a.fps, aceleracao=a.aceleracao)
+                       fps=a.fps, aceleracao=a.aceleracao, medir_rosto=medir_rosto_do_avatar(a.avatar))
         gravar(tl, timeline)
     except (ErroTimeline, AL.ErroAlinhamento) as e:
         sys.stderr.write(f"ERRO: {e}\n")

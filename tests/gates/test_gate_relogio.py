@@ -32,7 +32,7 @@ class Artefatos(object):
         self.ritmo = {"segs": json.loads(json.dumps(plano)), "total": total}
         self.timing = {"a0": a0, "total": total, "xf": 0.08, "avatar": str(self.m.avatar), "inserts": [],
                        "letterings": []}
-        self.prancha = {"total": round(total, 2),
+        self.prancha = {"total": TC.duracao_do_overlay(tl),       # a duração da fala + a folga de cauda (W3.X M1)
                         "blocos": [{"i": b["i"], "s": round(b["s"], 2), "e": round(b["e"], 2)} for b in tl["blocos"]]}
         self.janelas = {"segs": [{"s": j["s"], "e": j["e"], "layout": "split"} for j in tl["janelas_split"]]}
         self.ovl = Path(base) / "ovl"
@@ -135,11 +135,11 @@ def test_a0_da_footage_diferente_reprova(art):
 def test_duracao_medida_da_footage_entra_quando_passada(art, monkeypatch):
     tl = art.tl
     dur = tl["duracao_s"] - tl["relogio"]["a0"]
-    mp4 = art.m.output / "f.mp4"
+    mp4 = art.m.output / "outra.mp4"
     mp4.write_bytes(b"x")
-    monkeypatch.setattr(G, "medir_duracao", lambda p: dur + 0.5 * QUADRO)
+    monkeypatch.setattr(G, "medir_duracao_video", lambda p: dur + 0.5 * QUADRO)
     assert G.main(art.argv("--footage-mp4", str(mp4))) == 0
-    monkeypatch.setattr(G, "medir_duracao", lambda p: dur + 2 * QUADRO)
+    monkeypatch.setattr(G, "medir_duracao_video", lambda p: dur + 2 * QUADRO)
     assert G.main(art.argv("--footage-mp4", str(mp4))) == 1
 
 
@@ -147,10 +147,56 @@ def test_duracao_medida_do_overlay_entra_quando_passada(art, monkeypatch):
     tl = art.tl
     mov = art.ovl / "o.mov"
     mov.write_bytes(b"x")
-    monkeypatch.setattr(G, "medir_duracao", lambda p: tl["duracao_s"])
+    monkeypatch.setattr(G, "medir_duracao", lambda p: TC.duracao_do_overlay(tl))
     assert G.main(art.argv("--overlay-mov", str(mov))) == 0
-    monkeypatch.setattr(G, "medir_duracao", lambda p: tl["duracao_s"] + 3 * QUADRO)
+    monkeypatch.setattr(G, "medir_duracao", lambda p: TC.duracao_do_overlay(tl) + 3 * QUADRO)
     assert G.main(art.argv("--overlay-mov", str(mov))) == 1
+
+
+# --- W3.X M1: a cauda ----------------------------------------------------------------------------------------------
+# O composite usa shortest=1: se o overlay (deslocado de -a0) acaba antes da footage, a cauda da imagem é cortada e
+# o áudio segue. O gate exige pelo menos 1 quadro de overlay depois do último quadro da footage, e mede a footage
+# de verdade sempre que o mp4 dela existe ao lado do _ritmo.json (não só quando alguém lembra de passar o caminho).
+
+def test_m1_overlay_sem_folga_de_cauda_reprova(art, capsys):
+    art.prancha["total"] = round(art.tl["duracao_s"], 2)        # o overlay da W3.A: termina junto com a footage
+    art.gravar()
+    assert G.main(art.argv()) == 1
+    assert "cauda" in capsys.readouterr().out
+
+
+def test_m1_overlay_mov_que_acaba_junto_com_a_footage_reprova(art, monkeypatch, capsys):
+    tl = art.tl
+    mov = art.ovl / "o.mov"
+    mov.write_bytes(b"x")
+    monkeypatch.setattr(G, "medir_duracao", lambda p: tl["duracao_s"])
+    assert G.main(art.argv("--overlay-mov", str(mov))) == 1
+    assert "cauda" in capsys.readouterr().out
+
+
+def test_m1_footage_ao_lado_do_ritmo_e_medida_por_padrao(art, monkeypatch, capsys):
+    tl = art.tl
+    mp4 = art.m.output / "f.mp4"            # o _ritmo.json é f_ritmo.json: a footage é f.mp4
+    mp4.write_bytes(b"x")
+    medidas = []
+    monkeypatch.setattr(G, "medir_duracao_video",
+                        lambda p: medidas.append(str(p)) or (TC.duracao_do_overlay(tl) - tl["relogio"]["a0"]))
+    assert G.main(art.argv()) == 1
+    assert medidas == [str(mp4)]
+    assert "cauda" in capsys.readouterr().out
+
+
+def test_m1_sem_o_mp4_da_footage_nada_e_medido(art, monkeypatch):
+    monkeypatch.setattr(G, "medir_duracao_video", lambda p: pytest.fail("mediu um arquivo que não existe"))
+    assert G.main(art.argv()) == 0
+
+
+def test_m1_a_duracao_da_footage_e_a_do_video_nao_a_do_arquivo():
+    """O áudio do mux pode passar do vídeo; o composite (shortest=1) enxerga o VÍDEO."""
+    import inspect
+
+    fonte = inspect.getsource(G.medir_duracao_video)
+    assert "v:0" in fonte and "stream=duration" in fonte
 
 
 def test_alinhamento_trocado_em_disco_reprova(art, capsys):
