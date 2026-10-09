@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import site
 import subprocess
 import sys
 import unicodedata
@@ -63,9 +64,9 @@ def _arquivos_do_unit():
 _SONDA = """
 import os, subprocess, sys
 def boom(*a, **k):
-    raise AssertionError("subprocess no import: %r" % (a,))
+    raise AssertionError("subprocess no import: " + repr(a))
 subprocess.Popen.__init__ = boom
-%s
+<<IMPORTACOES>>
 assert not os.path.exists(os.environ["VAM_DADOS"]), "o import criou a pasta de DADOS"
 assert not os.path.exists(os.environ["VAM_ESTADO"]), "o import criou a pasta de ESTADO"
 print("IMPORT-OK")
@@ -74,9 +75,10 @@ print("IMPORT-OK")
 
 def _roda_sonda(tmp_path, importacoes):
     env = {"PATH": "", "HOME": str(tmp_path / "home"), "PYTHONPATH": str(SCRIPTS), "PYTHONDONTWRITEBYTECODE": "1",
+           "PYTHONUSERBASE": site.getuserbase(),
            "VAM_DADOS": str(tmp_path / "dados_inexistente"), "VAM_ESTADO": str(tmp_path / "estado_inexistente")}
     (tmp_path / "cwd").mkdir()
-    r = subprocess.run([sys.executable, "-c", _SONDA % importacoes], env=env, cwd=str(tmp_path / "cwd"),
+    r = subprocess.run([sys.executable, "-c", _SONDA.replace("<<IMPORTACOES>>", importacoes)], env=env, cwd=str(tmp_path / "cwd"),
                        capture_output=True, text=True)
     return r, tmp_path / "cwd"
 
@@ -106,7 +108,8 @@ def test_wrapper_tem_ate_40_linhas():
 
 def test_wrapper_sem_variaveis_sai_com_erro_dizendo_o_que_falta(tmp_path):
     env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path), "VAM_DADOS": str(tmp_path / "d"),
-           "VAM_ESTADO": str(tmp_path / "e"), "PYTHONDONTWRITEBYTECODE": "1"}
+           "VAM_ESTADO": str(tmp_path / "e"), "PYTHONDONTWRITEBYTECODE": "1",
+           "PYTHONUSERBASE": site.getuserbase()}
     r = subprocess.run([sys.executable, str(SCRIPTS / "produzir_roteiro.py")], env=env, cwd=str(tmp_path),
                        capture_output=True, text=True)
     assert r.returncode == 1
@@ -302,7 +305,7 @@ def test_nenhum_modulo_nem_teste_carrega_nome_de_cliente():
 def test_zero_travessao_nos_arquivos_da_unidade():
     for arq in _arquivos_do_unit():
         texto = arq.read_text(encoding="utf-8")
-        assert "—" not in texto and "–" not in texto, f"travessão em {arq.name}"
+        assert "\u2014" not in texto and "\u2013" not in texto, f"travessão em {arq.name}"
 
 
 def test_nada_cravado_no_home_nem_assets_externos_nos_modulos():

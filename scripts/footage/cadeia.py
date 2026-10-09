@@ -81,7 +81,7 @@ class Transicao(object):
         Decisão de direção 18/08: tudo seco; o whip de 0,20 s comia o corte na detecção E no olho
         (21 cortes com whip contra 32 secos no mesmo plano de edição). O teto de 0,08 s vale porque
         `smoothleft` é mistura de OPACIDADE: 0,20 s deixa os dois planos legíveis ao mesmo tempo
-        (a página do Cloudflare mais DOIS rostos em escalas diferentes, medido em quadro). Entrada
+        (a página de um site mais DOIS rostos em escalas diferentes, medido em quadro). Entrada
         de insert fica quase seca (0,04 s, cerca de 1 quadro) e a VOLTA pro apresentador leva o
         whip. O concat puro só entra se os dois forem ~0. VAM_XF=0.20 volta o whip longo se o
         diretor pedir."""

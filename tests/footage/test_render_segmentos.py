@@ -1190,3 +1190,100 @@ def test_card_de_logo_usa_o_logo_do_contexto_e_a_chave_de_cache_acompanha_o_arqu
     os.utime(str(logo), (time.time() + 50, time.time() + 50))
     RS.renderizar_todos(blocos, [(0.0, 2.0)], ctx)
     assert sum(1 for c in falsos if c[0] == "logo") == 2
+
+
+# ------------------------------------------------------------------ ffmpeg de verdade (lento)
+# Os goldens acima provam que o comando é o do motor original. Estes provam que o ffmpeg ACEITA o que
+# sai (inclusive os PNG gerados por código no lugar dos arquivos antigos) e entrega a contagem exata de
+# quadros no canvas 1080x1920. Um segundo de vídeo cada; só com `--lento`.
+
+def _dim(p):
+    import subprocess
+
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                        "stream=width,height", "-of", "csv=p=0:s=x", str(p)], capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def _quadros(p):
+    return round(CA.vdur(str(p)) * 30)
+
+
+@pytest.fixture
+def midia_sintetica(tmp_path):
+    from tests.fixtures import sinteticos as fx
+
+    return {
+        "avatar": str(fx.testsrc_com_audio(tmp_path / "avatar.mp4", dur=3.0, tamanho="1080x1920", fps=30)),
+        "horizontal": str(fx.testsrc_com_audio(tmp_path / "h.mp4", dur=3.0, tamanho="640x360", fps=30)),
+        "vertical": str(fx.testsrc_com_audio(tmp_path / "v.mp4", dur=3.0, tamanho="360x640", fps=30)),
+    }
+
+
+@pytest.fixture
+def sem_medicao_externa(monkeypatch):
+    for nome in ("_CACHE_CONTEUDO", "_CACHE_ASPECTO", "_CACHE_LARG", "_PRETO_CACHE", "_PIP_CROP_CACHE"):
+        getattr(ENQ, nome).clear()
+    EX._CACHE_LUM.clear()
+    EX._CACHE_LUM_MED.clear()
+    monkeypatch.setenv("VAM_SPLIT_BIAS", "0.30")
+    monkeypatch.setattr(ENQ, "pip_crop", lambda avatar, executar=None: "720:720:180:640")
+    monkeypatch.setattr(ENQ, "medir_conteudo", lambda src, w, h, executar=None: (0.5, 0.5, "preencher"))
+
+
+@pytest.mark.lento
+def test_real_card_de_logo_com_ativos_gerados(tmp_path, sem_medicao_externa):
+    from PIL import Image
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (600, 200), (255, 255, 255, 255)).save(logo)
+    out = tmp_path / "logo.mp4"
+    RS.r_logo(0.0, 1.2, str(out), str(logo), str(tmp_path / "g"))
+    assert _dim(out) == "1080x1920" and _quadros(out) == 36
+
+
+@pytest.mark.lento
+def test_real_pip_sobre_video_em_pe(tmp_path, midia_sintetica, sem_medicao_externa):
+    out = tmp_path / "pip.mp4"
+    cfg = {"file": midia_sintetica["vertical"], "start": 0, "speed": 1.0, "pip": True}
+    RS.r_insert(cfg, 0.0, 1.0, str(out), midia_sintetica["avatar"], str(tmp_path / "m"), str(tmp_path / "g"))
+    assert _dim(out) == "1080x1920" and _quadros(out) == 30
+
+
+@pytest.mark.lento
+def test_real_imagem_estatica_com_ken_burns(tmp_path, sem_medicao_externa):
+    from PIL import Image
+
+    img = tmp_path / "tela.png"
+    Image.new("RGB", (1280, 720), (30, 60, 90)).save(img)
+    out = tmp_path / "img.mp4"
+    RS.r_insert({"file": str(img), "start": 0, "speed": 1.0}, 0.0, 1.0, str(out), AV, str(tmp_path / "m"),
+                str(tmp_path / "g"))
+    assert _dim(out) == "1080x1920" and _quadros(out) == 30
+
+
+@pytest.mark.lento
+def test_real_video_em_pe_com_zoom_e_recorte(tmp_path, midia_sintetica, sem_medicao_externa):
+    out = tmp_path / "zoom.mp4"
+    cfg = {"file": midia_sintetica["vertical"], "start": 0, "speed": 1.0, "zoom": 1.3,
+           "exposicao": 0.05}
+    RS.r_insert(cfg, 0.0, 1.0, str(out), midia_sintetica["avatar"], str(tmp_path / "m"), str(tmp_path / "g"))
+    assert _dim(out) == "1080x1920" and _quadros(out) == 30
+
+
+@pytest.mark.lento
+def test_real_tela_cheia_com_moldura(tmp_path, midia_sintetica, sem_medicao_externa):
+    out = tmp_path / "cheio.mp4"
+    RS.r_insert_moldura({"file": midia_sintetica["horizontal"], "start": 0, "speed": 1.0}, 0.0, 1.0, str(out),
+                        str(tmp_path / "m"))
+    assert _dim(out) == "1080x1920" and _quadros(out) == 30
+
+
+@pytest.mark.lento
+def test_real_tela_dividida_e_apresentador(tmp_path, midia_sintetica, sem_medicao_externa):
+    split, orig = tmp_path / "split.mp4", tmp_path / "orig.mp4"
+    RS.r_split_tela({"file": midia_sintetica["horizontal"], "start": 0, "speed": 1.0, "split": True}, 0.0, 1.0,
+                    str(split), midia_sintetica["avatar"], str(tmp_path / "m"))
+    RS.r_orig(midia_sintetica["avatar"], 0.0, 1.0, str(orig), idx=1, base=1.14)
+    assert _dim(split) == "1080x1920" and _quadros(split) == 30
+    assert _dim(orig) == "1080x1920" and _quadros(orig) == 30
