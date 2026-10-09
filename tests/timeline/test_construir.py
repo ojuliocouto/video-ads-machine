@@ -62,6 +62,7 @@ CFG = {
     ],
 }
 QUADRO = 1.0 / 30
+TOTAL_LEGADO = 21.53     # ceil((20,88 s de áudio + 0,65 de TAIL_PAD) * 100) / 100, a conta do caminho antigo
 
 
 def _blocos_do_texto(texto, pasta):
@@ -404,8 +405,9 @@ def overlay_falso(monkeypatch):
     capturado = {}
 
     def preparar_avatar(src, out, speed):
+        """O total do caminho antigo: duração do áudio (fim da fala + 0,4 s) mais a folga de cauda."""
         capturado["speed"] = speed
-        return Path(out) / "avatar.mp4", 99.0
+        return Path(out) / "avatar.mp4", TOTAL_LEGADO
 
     def preparar_arquivos(brolls, out):
         for k, b in enumerate(brolls):
