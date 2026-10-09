@@ -7,7 +7,8 @@ cards, legendas palavra a palavra (kw por frase), letterings, CTA e logo no bloc
 Uso: `python3 gen_ad_v2.py <config.json>` (o wrapper chama `main`).
 Config: {"ad", "look", "avatar", "out_dir", "hook": {eyebrow, l1, accent[, style]}, "cta_label",
          "kw_phrases": [...], "letterings": [{"lead", "key", "anchor", "nth": 1, "dur": 2.2}],
-         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead", "timeline"}
+         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead", "timeline",
+         "look_plano": "fechado" | "medio" | "aberto" (o `plano` do look no looks.json do aluno)}
 
 RELÓGIO ÚNICO (W3.A). Com `"timeline": <caminho da timeline.json>` o overlay não transcreve nem alinha:
 lê da timeline as palavras (o alinhamento único que ela cita, conferido pelo sha256), os spans, o plano
@@ -57,7 +58,8 @@ def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas
     groups = legendas.agrupar(words)
     groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
     layout_texto.descer_para_rodape_em_texto(groups, janelas_texto)
-    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto)
+    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto,
+                                        plano_do_look=cfg.get("look_plano"))
     if janelas_split:
         groups = layout_texto.cortar_na_fronteira(groups, janelas_split)
         layout_texto.marcar_costura(groups, janelas_split)

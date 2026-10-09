@@ -38,10 +38,7 @@ MARGEM_SEM_LEAD = 0.35    # grupo que nasce a menos disso de uma borda não ante
 FRACAO_COSTURA = 0.60     # fração do grupo dentro do split que decide a costura
 QUEIXO_FECHADO = 0.60     # queixo abaixo dessa fração da altura: não sobra peito para a legenda padrão
 SOBREPOSICAO_RELOGIO = 0.05   # janela da footage só vale se encostar mais que isso numa do overlay
-
-# Legado: antes de o look ser MEDIDO, a regra era escrita à mão por nome de look. Só vale quando a
-# medição do rosto falha. Sai quando os looks do aluno vierem do looks.json (W5.A).
-NOMES_DE_LOOK_FECHADO = ("oficial_13", "_of13")
+PLANO_FECHADO = "fechado"     # o `plano` de um look no looks.json do aluno (contratos/looks.schema.json)
 
 
 def classe_do_grupo(g):
@@ -162,16 +159,20 @@ def look_fechado(avatar, medir=None):
                   f"{'FECHADO, legenda no rodape' if _fechado else 'aberto, legenda padrao'}",
                   flush=True)
     except Exception as _e:
-        print(f"   [look] nao consegui medir o avatar ({_e}); caindo no nome do look",
+        print(f"   [look] nao consegui medir o avatar ({_e}); caindo no plano declarado do look",
               flush=True)
     return _fechado
 
 
-def baixar_no_look_fechado(groups, avatar, medir=None):
+def baixar_no_look_fechado(groups, avatar, medir=None, plano_do_look=None):
     """Look fechado baixa a legenda do anúncio INTEIRO: no rodapé ela cai sobre a camiseta e nunca
-    disputa com o rosto. A costura e o que já está embaixo ficam como estão."""
+    disputa com o rosto. A costura e o que já está embaixo ficam como estão.
+
+    Fechado é o MEDIDO (queixo abaixo de QUEIXO_FECHADO) ou o DECLARADO pelo aluno: `plano_do_look` é o campo
+    `plano` do look no looks.json dele (o overlay recebe em `look_plano` no config). Antes havia aqui nomes de
+    look do dono escritos no código (W3.X L10): nome de arquivo não é critério e nome do dono não vai para o repo."""
     fechado = look_fechado(avatar, medir)
-    if fechado or any(nome in str(avatar) for nome in NOMES_DE_LOOK_FECHADO):
+    if fechado or plano_do_look == PLANO_FECHADO:
         n = 0
         for g in groups:
             if not g.get("costura") and not g.get("baixa"):
