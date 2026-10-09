@@ -602,7 +602,15 @@ def produzir(ad, look=None, fmt="9x16"):
     if os.environ.get("FIDELIDADE") != "0":
         mapa_p = V2L / "_doc_map.json"
         mapa = json.loads(mapa_p.read_text()) if mapa_p.exists() else {}
-        if ad not in mapa:
+        if not mapa:
+            # Mapa VAZIO = este usuario nao trabalha com doc comentado (o fluxo de
+            # fidelidade depende de Google Doc + integracao Google). Nao e pulo
+            # silencioso: o aviso sai em tela a cada build. Com UM ad no mapa, o
+            # fluxo passa a valer pra todos e ad sem fonte volta a ser recusado.
+            print(f"AVISO AD{ad}: fidelidade ao doc DESLIGADA (_doc_map.json vazio). "
+                  "Quem trabalha com doc comentado declara o ad em _local/_doc_map.json.",
+                  flush=True)
+        elif ad not in mapa:
             # SEM FONTE DECLARADA O BUILD NAO ANDA. Antes o gate so rodava pra ad
             # presente no mapa e PULAVA em silencio pros outros, que e exatamente a
             # etapa pulada que o Julio proibiu (17/08/2026): jh14..jh21 tem roteiro
@@ -613,15 +621,16 @@ def produzir(ad, look=None, fmt="9x16"):
             gravar_status(chave, "SEM FONTE NO DOC", motivo)
             print(f"\n>>> AD{ad} {fmt}: {motivo}", flush=True)
             return False
-        vf = subprocess.run([sys.executable, str(CODIGO / "verificar_fidelidade.py"), ad],
-                            capture_output=True, text=True)
-        print(vf.stdout, flush=True)
-        if vf.returncode != 0:
-            motivos = [l.strip(" -") for l in vf.stdout.split("\n")
-                       if l.strip().startswith("- ")]
-            gravar_status(chave, "INFIEL AO DOC", "; ".join(motivos))
-            print(f"\n>>> AD{ad} {fmt}: INFIEL AO DOC, build nem comecou", flush=True)
-            return False
+        if mapa:
+            vf = subprocess.run([sys.executable, str(CODIGO / "verificar_fidelidade.py"), ad],
+                                capture_output=True, text=True)
+            print(vf.stdout, flush=True)
+            if vf.returncode != 0:
+                motivos = [l.strip(" -") for l in vf.stdout.split("\n")
+                           if l.strip().startswith("- ")]
+                gravar_status(chave, "INFIEL AO DOC", "; ".join(motivos))
+                print(f"\n>>> AD{ad} {fmt}: INFIEL AO DOC, build nem comecou", flush=True)
+                return False
     if not revisar_copy(ad):
         gravar_status(chave, "COPY COM ERRO",
                       "erro de transcricao no roteiro; rode revisor-copy-ad.py --corrigir")

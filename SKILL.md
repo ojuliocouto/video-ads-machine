@@ -87,6 +87,11 @@ Só entra na biblioteca preset que foi **renderizado e auditado frame a frame**.
 
 **Primeira vez, ou quando aparecer a mensagem "_local/... não existe":** rode `python3 scripts/init_local.py`. Ele cria a estrutura com exemplos (não sobrescreve nada) e diz os próximos passos. O formato mínimo de roteiro e brief está em `demo/`. A falta desse material é do anúncio do usuário: oriente a criar, não trate como bug do motor.
 
+**Portões do build (`produzir_ad.py`), pra não tratar como erro:**
+- **Fases da leva** (`scripts/fase_gate.py`): o build só anda com a leva registrada. Ordem: `fase_gate.py iniciar <leva> --ads 25,26`, `marcar <leva> fase0 ...`, `marcar <leva> fase1 ...`, `aprovar-plano <leva> --plano <md>` (só depois do ok do usuário no chat), e aí `produzir_ad.py <ad> <look>`. "FASES PENDENTES" quer dizer que falta um desses passos.
+- **Fidelidade ao doc**: só vale pra quem trabalha com Google Doc comentado. Com `_local/_doc_map.json` vazio (padrão do init), o build avisa "fidelidade ao doc DESLIGADA" e segue. Com qualquer anúncio declarado lá, todo anúncio passa a precisar de fonte no mapa.
+- **Efeitos sonoros** (whoosh, tick, riser): gerados por `python3 scripts/som_cortes.py` (o `setup.sh` já roda).
+
 ## Estrutura do projeto
 - `references/` style.md (números), blocks.md, presets.md, workflow.md, hyperframes-gotchas.md
 - `blocks/` partials HTML/CSS/GSAP · `presets/` variantes por dimensão · `templates/` reel-editorial, reel-editorial-1x1, ad-hook

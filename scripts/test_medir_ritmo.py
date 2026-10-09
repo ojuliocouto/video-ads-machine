@@ -20,6 +20,8 @@ import medir_ritmo as MR
 
 from caminhos import DADOS as _D
 REFS = _D / "refs"
+_SEM_REFS = not (REFS / "vaibhav" / "ref1.mp4").exists()
+_MOTIVO_REFS = "refs de calibragem (reels de terceiros) nao vem no repo; ponha os seus em _local/dados/refs/"
 from caminhos import OUTPUT as OUT
 
 # Ads que o Julio e a Jheni acharam LENTOS, usados pra calibrar o gate: se algum deles
@@ -42,6 +44,7 @@ class TesteMedidor(unittest.TestCase):
     # 19,5. Trocar a regua obriga a reescrever o que "concordar com a referencia" quer
     # dizer, senao o teste passa a reprovar a propria referencia. O que NAO muda e o outro
     # lado da pinca: a ref de HOOK do Sobral continua tendo que pontuar abaixo de 6.
+    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
     def test_referencias_pontuam_na_faixa_dinamica(self):
         for i in (1, 2, 3):
             p = REFS / "vaibhav" / f"ref{i}.mp4"
@@ -53,6 +56,7 @@ class TesteMedidor(unittest.TestCase):
                 self.assertLessEqual(m["cortes_min"], 32.0,
                                      f"{p.name} deu {m['cortes_min']:.1f}/min")
 
+    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
     def test_gate_APROVA_as_referencias(self):
         """O teste que faltava, e que custou uma rodada.
 
@@ -72,6 +76,7 @@ class TesteMedidor(unittest.TestCase):
                 self.assertTrue(ok, f"o gate REPROVOU a referencia {p.name}: {motivos}. "
                                     f"Criterio mais duro que a referencia esta errado.")
 
+    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
     def test_ref_de_hook_nao_e_ref_de_ritmo(self):
         p = REFS / "sobral" / "ref_hook.mp4"
         self.assertTrue(p.exists(), f"fixture ausente: {p}")

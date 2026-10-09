@@ -56,21 +56,17 @@ CODIGO = Path(__file__).resolve().parent
 RAIZ = CODIGO.parent                       # ~/video-ads-machine-2
 
 # --- estado e renders (ignorado pelo git) ------------------------------------
-# Compat: instalacao antiga do dono do motor (~/video-ads-machine-2/_local).
-_ESTADO_LEGADO = Path.home() / "video-ads-machine-2" / "_local"
+# Sempre dentro do repo. Pra usar outro lugar, VAM_ESTADO.
 _ESTADO_PADRAO = RAIZ / "_local"
-if not _ESTADO_PADRAO.exists() and _ESTADO_LEGADO.exists():
-    _ESTADO_PADRAO = _ESTADO_LEGADO
 ESTADO = _env("VAM_ESTADO", _ESTADO_PADRAO)
 CONFIGS = ESTADO / "configs"
 ROTEIROS = _env("VAM_ROTEIROS", ESTADO / "roteiros")
 
 # --- midia pesada: roteiros, avatares, saidas --------------------------------
 # VAM_V1_HOME e o nome antigo, aceito pra nao quebrar quem ja usava.
-# Sem nada configurado, a midia mora DENTRO do _local do repo (gitignorado). O caminho
-# antigo ~/video-ads-machine so vale se ele existir (instalacao antiga).
-_DADOS_LEGADO = Path.home() / "video-ads-machine"
-_DADOS_PADRAO = _DADOS_LEGADO if _DADOS_LEGADO.exists() else ESTADO / "dados"
+# Sem nada configurado, a midia mora DENTRO do _local do repo (gitignorado).
+# Pra usar outro lugar, VAM_DADOS.
+_DADOS_PADRAO = ESTADO / "dados"
 DADOS = _env("VAM_DADOS", _env("VAM_V1_HOME", _DADOS_PADRAO))
 INPUTS = _env("VAM_INPUTS", DADOS / "inputs")
 OUTPUT = _env("VAM_OUTPUT", DADOS / "output")

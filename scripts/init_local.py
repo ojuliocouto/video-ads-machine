@@ -33,7 +33,7 @@ aqui mora o que é do anúncio de cada pessoa.
 
 | O que | Onde | Para que serve |
 |---|---|---|
-| Configs | `configs/<ad>_<look>.json` | hook, letterings, palavras-chave, CTA, caminho do avatar. Veja `configs/exemplo_ad99_espuma.json` |
+| Configs | `configs/<ad>_<look>.json` | hook, letterings, palavras-chave, CTA, caminho do avatar. Veja `configs/ad99v2_espuma.json` |
 | Roteiros | `roteiros/<ad>.txt` | roteiro anotado (a fonte que o gate de marcadores confere) |
 | Roteiro do build | `dados/inputs/<ad>_leva.txt` | uma linha por bloco: `[instrução visual] fala` |
 | Mapa de inserções | `dados/inputs/<ad>_inserts.json` | liga a instrução do bloco ao arquivo de vídeo/imagem do insert |
@@ -100,7 +100,7 @@ def criar():
             _json({"demo": {"file": str(INPUTS / "assets" / "ad99_demo.mp4"),
                             "start": 0, "dur_max": 4}}),
             criados, existentes)
-    _gravar(ESTADO / "configs" / "exemplo_ad99_espuma.json",
+    _gravar(ESTADO / "configs" / "ad99v2_espuma.json",
             _json({
                 "ad": AD_EXEMPLO,
                 "look": "espuma_roxa",

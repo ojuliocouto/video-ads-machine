@@ -70,4 +70,20 @@ else
     echo "[setup] skills OK."
 fi
 
+# --- 5. dependencias Python dos gates (numpy, opencv, pillow) ---
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+echo "[setup] instalando as dependencias Python dos gates..."
+python3 -m pip install --quiet -r "$REPO_DIR/scripts/gates/requirements.txt"
+if [ $? -ne 0 ]; then
+    echo "[setup] AVISO: pip falhou. Rode: python3 -m pip install -r scripts/gates/requirements.txt"
+else
+    echo "[setup] gates OK."
+fi
+
+# --- 6. pasta _local/ (o material do SEU anuncio; nunca vai pro git) ---
+python3 "$REPO_DIR/scripts/init_local.py"
+
+# --- 7. efeitos sonoros (whoosh, tick, riser): gerados por codigo, reproduziveis ---
+python3 "$REPO_DIR/scripts/som_cortes.py"
+
 echo "[setup] bootstrap concluído."

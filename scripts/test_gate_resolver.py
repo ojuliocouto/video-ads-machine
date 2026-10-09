@@ -99,10 +99,15 @@ class TestResolvedorDeGates(unittest.TestCase):
         self.assertEqual(Path(dados), self.home / "_local" / "dados")
         self.assertEqual(Path(inputs), self.home / "_local" / "dados" / "inputs")
 
-    def test_dados_legado_continua_valendo_se_existir(self):
+    def test_pasta_antiga_na_home_e_ignorada(self):
+        """Repo de aluno nunca escreve na home: ~/video-ads-machine existir nao muda nada."""
         (self.home / "video-ads-machine").mkdir()
-        r = rodar_py("import caminhos; print(caminhos.DADOS)", self.home)
-        self.assertEqual(Path(r.stdout.strip()), self.home / "video-ads-machine")
+        (self.home / "video-ads-machine-2" / "_local").mkdir(parents=True)
+        r = rodar_py("import caminhos; print(caminhos.DADOS); print(caminhos.ESTADO)", self.home)
+        dados, estado = r.stdout.split()
+        self.assertNotIn(str(self.home), dados)
+        self.assertNotIn(str(self.home), estado)
+        self.assertTrue(estado.endswith("_local"))
 
     def test_nenhum_script_do_repo_chama_claude_scripts_sem_fallback(self):
         """Toda referencia a ~/.claude/scripts de gate passa pelo resolvedor."""
@@ -236,7 +241,7 @@ class TestInitLocal(unittest.TestCase):
         for j in ("gate-excecoes.json", "_doc_map.json",
                   "dados/inputs/ad99v2_inserts.json", "render-reel-editorial/meta.json"):
             json.loads((self.estado / j).read_text())
-        cfg = json.loads((self.estado / "configs" / "exemplo_ad99_espuma.json").read_text())
+        cfg = json.loads((self.estado / "configs" / "ad99v2_espuma.json").read_text())
         self.assertEqual(cfg["ad"], "ad99v2")
         self.assertIn("kw_phrases", cfg)
 
