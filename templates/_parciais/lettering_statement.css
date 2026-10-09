@@ -1,0 +1,6 @@
+      /* ===== lettering_statement.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Afirmação grande sobre vinheta (alfa máximo .70: não conta como tinta), LEAD em serif itálico.
+         As linhas sobem 30 px em 0,14 s com alfa cheio. */
+      .lett.lett-statement { padding:0 150px 300px 150px; background:radial-gradient(ellipse 80% 70% at 50% 62%, rgba(5,7,10,.30) 0%, rgba(5,7,10,.62) 70%, rgba(5,7,10,.70) 100%); }
+      .lett.lett-statement .lead { font-family:"Playfair Display", serif; font-style:italic; font-weight:600; font-size:40px; letter-spacing:.02em; text-transform:none; color:#E8E2D6; margin-bottom:18px; }
+      .lett.lett-statement .key { font-family:"Montserrat", sans-serif; font-weight:800; font-style:normal; font-size:96px; line-height:1.04; letter-spacing:-.01em; text-transform:uppercase; text-align:center; text-wrap:balance; color:#fff; text-shadow:0 6px 40px rgba(0,0,0,.7); }

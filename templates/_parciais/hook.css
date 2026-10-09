@@ -1,0 +1,19 @@
+      /* ===== hook.css: o gancho de abertura (editorial), SOBRE a pessoa, com um scrim para leitura =====
+         text-align:center é conserto (12/08): o bloco centrava como CAIXA e o texto saía à esquerda, e a
+         KEY de duas linhas ficava torta. O scrim é .66 no miolo: .92 esmagava a imagem e o quadro 0, que
+         vira o pôster no feed, era o mais escuro do anúncio. O recuo lateral (coluna de curtir e comentar a
+         partir de x 940) e o corpo do destaque são do formato: moram no index.html.
+         O `.l1` abaixo começa com o texto exato que `overlay.hook.aplicar_html` procura: não reescrever. */
+      #hook { position:absolute; inset:0; z-index:44;
+        background:radial-gradient(120% 42% at 50% 60%, rgba(4,5,10,.66) 0%, rgba(4,5,10,.44) 52%, rgba(4,5,10,0) 88%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        text-align:center; gap:4px; }
+      #hook .eyebrow { font-family:"Inter"; font-weight:500; font-size:30px; letter-spacing:8px;
+        color:rgba(255,255,255,.94); text-transform:uppercase; margin-bottom:34px;
+        text-shadow:0 2px 16px rgba(0,0,0,.9); }
+      #hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;
+        font-size:72px; line-height:1.06; letter-spacing:-.5px;
+        text-shadow:0 3px 22px rgba(0,0,0,.6); }
+      #hook .accent { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:600; font-style:italic;
+        color:#fff; line-height:1.02; letter-spacing:-1px;
+        text-wrap:balance; text-shadow:0 8px 34px rgba(0,0,0,.5); }

@@ -1,0 +1,5 @@
+      /* ===== lettering_lateral.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Coluna à esquerda com degradê lateral, texto alinhado à esquerda; entra deslizando 60 px em 0,14 s. */
+      .lett.lett-lateral { padding:0 470px 300px 70px; align-items:flex-start; background:linear-gradient(90deg, rgba(5,7,10,.70) 0%, rgba(5,7,10,.40) 30%, rgba(5,7,10,0) 55%); }
+      .lett.lett-lateral .lead { font-family:"Playfair Display", serif; font-style:italic; font-weight:600; font-size:36px; letter-spacing:.02em; text-transform:none; text-align:left; color:#E8E2D6; margin-bottom:10px; }
+      .lett.lett-lateral .key { font-family:"Montserrat", sans-serif; font-weight:800; font-style:normal; font-size:72px; line-height:1.04; letter-spacing:-.012em; text-transform:uppercase; text-align:left; text-wrap:balance; color:#fff; max-width:540px; text-shadow:0 6px 34px rgba(0,0,0,.75); }

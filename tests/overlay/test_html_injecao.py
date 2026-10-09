@@ -83,7 +83,7 @@ def test_suavizar_grade_corta_a_grade_quente_pela_metade():
 
 @pytest.mark.parametrize("formato", ["9x16", "1x1"])
 def test_suavizar_grade_acha_as_duas_strings_nos_templates_reais(formato):
-    html = TEMPLATES[formato].read_text(encoding="utf-8")
+    html = H.ler_template(TEMPLATES[formato])   # W4.D: o template inclui parciais
     assert H.suavizar_grade(html) != html
 
 
@@ -97,7 +97,7 @@ def test_remover_beat_pb_troca_o_bloco_inteiro_pelo_comentario():
 
 def test_remover_beat_pb_nos_templates_reais_deixa_so_o_comentario():
     for formato, caminho in TEMPLATES.items():
-        saida = H.remover_beat_pb(caminho.read_text(encoding="utf-8"))
+        saida = H.remover_beat_pb(H.ler_template(caminho))
         assert "// (beat P&B do reelC nao usado)" in saida, formato
         assert "BEAT PRETO E BRANCO" not in saida, formato
 

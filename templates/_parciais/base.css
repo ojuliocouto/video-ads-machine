@@ -1,0 +1,54 @@
+      /* ===== base.css (parcial compartilhado pelos dois formatos) =====
+         Fontes embutidas (offline, sem Google Fonts; woff2 em fonts/), reset, a imagem de fundo, a grade
+         quente, a vinheta e o tratamento do b-roll. Tamanho, posição e recuo de cada elemento moram no
+         index.html de cada formato: aqui só o que é igual nos dois. */
+      @font-face { font-family:"Inter"; font-weight:300; font-style:normal; font-display:block; src:url("fonts/inter-300.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/inter-400.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/inter-600.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:700; font-style:normal; font-display:block; src:url("fonts/inter-700.woff2") format("woff2"); }
+      @font-face { font-family:"Inter"; font-weight:800; font-style:normal; font-display:block; src:url("fonts/inter-800.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:500; font-style:italic; font-display:block; src:url("fonts/playfair-italic-500.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:600; font-style:italic; font-display:block; src:url("fonts/playfair-italic-600.woff2") format("woff2"); }
+      @font-face { font-family:"Playfair Display"; font-weight:700; font-style:italic; font-display:block; src:url("fonts/playfair-italic-700.woff2") format("woff2"); }
+      @font-face { font-family:"Montserrat"; font-weight:500; font-style:normal; font-display:block; src:url("fonts/montserrat-500.woff2") format("woff2"); }
+      @font-face { font-family:"Montserrat"; font-weight:600; font-style:normal; font-display:block; src:url("fonts/montserrat-600.woff2") format("woff2"); }
+      /* fontes OFL dos estilos de lettering (licença em fonts/OFL.txt; o .ttf ao lado serve ao libass) */
+      @font-face { font-family:"Montserrat"; font-weight:800; font-style:normal; font-display:block; src:url("fonts/montserrat-800.woff2") format("woff2"); }
+      @font-face { font-family:"PT Serif"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/pt-serif-400.woff2") format("woff2"); }
+      @font-face { font-family:"PT Serif"; font-weight:700; font-style:normal; font-display:block; src:url("fonts/pt-serif-700.woff2") format("woff2"); }
+      @font-face { font-family:"Anton"; font-weight:400; font-style:normal; font-display:block; src:url("fonts/anton-400.woff2") format("woff2"); }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:"Inter", sans-serif; font-weight:300; }
+
+      #a-roll { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:grayscale(var(--bw,0)); }
+
+      /* ---------- GRADE QUENTE (acima da imagem, abaixo do texto: z menor que 34) ---------- */
+      #grade { position:absolute; inset:0; z-index:20; pointer-events:none;
+        background:
+          radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%),
+          linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%);
+        mix-blend-mode: soft-light; }
+      #vignette { position:absolute; inset:0; z-index:21; pointer-events:none;
+        background: radial-gradient(80% 74% at 50% 42%, transparent 50%, rgba(0,0,0,0.32) 100%); }
+
+      /* ---------- GRID WIPE (desligado no gerador; a maquinaria fica) ----------
+         Célula tingida, não preta: em #05060a o pico do wipe era 0,3 s de tela preta. */
+      #grid-pixelate-overlay { position:absolute; inset:0; z-index:60; pointer-events:none; display:grid; }
+      #grid-pixelate-overlay .grid-cell { background:#191129; transform-origin:center center; }
+
+      /* ---------- B-ROLL: scrim + card ---------- */
+      .broll-scrim { position:absolute; inset:0; z-index:12;
+        background:radial-gradient(120% 80% at 50% 42%, #14151f 0%, #0a0b12 55%, #05060a 100%); }
+      .broll-scrim::after { content:""; position:absolute; inset:0;
+        background:radial-gradient(62% 34% at 50% 40%, rgba(255,255,255,.06), transparent 72%); }
+      .broll-vid { position:absolute; z-index:14;
+        border-radius:24px; object-fit:contain; background:#0b0d14;
+        border:1.5px solid rgba(255,255,255,.16);
+        box-shadow:0 30px 90px rgba(0,0,0,.6); }
+      /* Pílula de rótulo REMOVIDA (28/08/2026): ponto aceso fingindo "ao vivo", moldura de chip de
+         landing page e texto que narrava o que já estava na tela. Rótulo que descreve o visível não
+         acrescenta informação. O `labels` do config ainda nomeia o b-roll no JSON de depuração. */
+      .broll-tag { display:none; }
+      /* Chip flutuante REMOVIDO (29/08/2026), pela mesma linguagem: pílula com borda fina, pontinho
+         colorido sem função e caixa alta repetindo a fala. Enfeite sem informação nova não entra. */
+      .chip, .chip .dot { display:none; }

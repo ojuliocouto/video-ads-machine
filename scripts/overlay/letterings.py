@@ -5,9 +5,17 @@ Calculados ANTES das legendas para deconflitar: o lettering vira o texto princip
 a legenda palavra a palavra é suprimida na janela dele (senão a mesma frase aparece 2x na tela).
 
 Ordem do pipeline (a ordem importa): calcular, fundir a pilha, travar no layout, numerar.
+
+ESTILOS (W4.D, C7). Cada lettering do config pode trazer `estilo` (um dos 8 de `cinema.lettering_estilos`) e, na
+caixa nativa, `cor` (ambar, branco ou preto). Sem estilo, ou com `serif_editorial`, o HTML é exatamente o de antes
+(é o que segura a paridade do overlay). Em tela dividida, em close e na pilha o estilo cai no editorial, o único
+calibrado para essas faixas. No marcador, `*palavra*` vira `<span class="hi">`; nos outros estilos novos o
+asterisco de ênfase sai; na seta de CTA entra a `<div class="seta">` que o GSAP faz quicar.
 """
+import re
 import sys
 
+from cinema import lettering_estilos as LE
 from overlay.html_injecao import sem_emoji
 from overlay.transcricao import norm
 
@@ -44,10 +52,14 @@ def calcular(cfg_letterings, words, spans, blocks, janelas_split):
         if _tem_logo:
             print(f"   [logo] roteiro pede logo no bloco {_bloco_do_lett}: entra junto "
                   f"do lettering em {t0:.2f}s", flush=True)
-        letts.append({"id": f"lett{chr(65+len(letts))}", "lead": L["lead"], "key": L["key"],
-                      "start": round(t0, 2), "dur": dur_l, "split": no_split,
-                      "logo": _tem_logo, "baixo": bool(L.get("baixo")),
-                      "pilha": L.get("pilha")})
+        lett = {"id": f"lett{chr(65+len(letts))}", "lead": L["lead"], "key": L["key"],
+                "start": round(t0, 2), "dur": dur_l, "split": no_split,
+                "logo": _tem_logo, "baixo": bool(L.get("baixo")),
+                "pilha": L.get("pilha")}
+        for campo in ("estilo", "cor"):          # só quando o config pede: o config antigo gera o mesmo dict
+            if L.get(campo):
+                lett[campo] = L[campo]
+        letts.append(lett)
     return letts
 
 
@@ -139,6 +151,40 @@ def montar(cfg_letterings, words, spans, blocks, janelas_split):
     return letts, lett_windows
 
 
+def _estilo_da_tela(l):
+    """(estilo efetivo, cor) do lettering; colorway desconhecido é erro que nomeia o colorway."""
+    e = LE.efetivo(l.get("estilo"), split=bool(l.get("split")), baixo=bool(l.get("baixo")),
+                   pilha=bool(l.get("linhas")))
+    cor = None
+    if e == "caixa_nativa":
+        cor = l.get("cor") or LE.COR_PADRAO
+        if cor not in LE.COLORWAYS:
+            raise ValueError("colorway desconhecido na caixa nativa: %r (use um de: %s)"
+                             % (cor, ", ".join(LE.COLORWAYS)))
+    return e, cor
+
+
+def _key_html(texto, estilo):
+    t = sem_emoji(texto)
+    if estilo == LE.PADRAO:
+        return t
+    if estilo == "marcador":
+        return re.sub(r"\*([^*]+)\*", r'<span class="hi">\1</span>', t).replace("*", "")
+    return t.replace("*", "")
+
+
+def _html_estilizado(i, l, estilo, cor):
+    """O HTML de um lettering de estilo novo (só em avatar cheio: pilha, split e close ficam no editorial)."""
+    classes = "lett clip %s" % LE.classe(estilo) + (" cor-%s" % cor if cor else "")
+    return (f'<div class="{classes}" id="{l["id"]}" data-estilo="{estilo}" '
+            f'data-start="{l["start"]}" data-duration="{l["dur"]}" data-track-index="{32+i}">\n'
+            f'  <div class="lead">{sem_emoji(l["lead"])}</div>\n'
+            f'  <div class="key">{_key_html(l["key"], estilo)}</div>\n'
+            + ('  <div class="seta"></div>\n' if estilo == "seta_cta" else "")
+            + ('  <img class="lett-logo" src="logo.png" alt="">\n' if l.get("logo") else "")
+            + '</div>')
+
+
 def html(letts):
     """O HTML dos letterings, uma faixa de trilha (32 + i) cada.
 
@@ -148,7 +194,16 @@ def html(letts):
     texto cru: o anúncio saiu com emoji na tela por 3,87 s depois de declarado "sem emoji". O
     marcador de negação agora é a barra vermelha do CSS (`.lett-pilha .key::before`), não pictograma.
     """
-    return "\n".join(
+    saida = []
+    for i, l in enumerate(letts):
+        estilo, cor = _estilo_da_tela(l)
+        saida.append(_html_estilizado(i, l, estilo, cor) if estilo != LE.PADRAO else _html_editorial(i, l))
+    return "\n".join(saida)
+
+
+def _html_editorial(i, l):
+    """O HTML do lettering padrão (serif_editorial), byte a byte o de antes da W4.D."""
+    return (
         f'<div class="lett clip{" lett-split" if l.get("split") else ""}'
         f'{" lett-baixo" if l.get("baixo") else ""}'
         f'{" lett-pilha" if l.get("linhas") else ""}" id="{l["id"]}" '
@@ -162,5 +217,4 @@ def html(letts):
             f'  <div class="key{" key-longa" if len(l["key"]) > 18 else ""}">'
             f'{sem_emoji(l["key"])}</div>\n')
         + ('  <img class="lett-logo" src="logo.png" alt="">\n' if l.get("logo") else "")
-        + '</div>'
-        for i, l in enumerate(letts))
+        + '</div>')

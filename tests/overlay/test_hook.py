@@ -140,7 +140,8 @@ def test_scrim_do_punch_e_leve():
 
 @pytest.mark.parametrize("formato,pasta", [("9x16", "reel-editorial"), ("1x1", "reel-editorial-1x1")])
 def test_aplicar_html_nos_templates_reais(formato, pasta):
-    modelo = (RAIZ / "templates" / pasta / "index.html").read_text(encoding="utf-8")
+    from overlay.html_injecao import ler_template   # W4.D: o template inclui parciais (o JS mora em _parciais/timeline.js)
+    modelo = ler_template(RAIZ / "templates" / pasta / "index.html")
     saida = K.aplicar_html(modelo, {"eyebrow": "MEU CLAUDE", "l1": "virou", "accent": "PRO"}, hook_padrao())
     assert 'class="eyebrow">MEU CLAUDE</div>' in saida
     assert 'class="accent">PRO</div>' in saida

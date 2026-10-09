@@ -1,0 +1,6 @@
+      /* ===== lettering_punch.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Carimbo: Anton caixa alta enorme, sombra dura, tela esmaecida. Entra com escala 1,25 em 0,10 s
+         (o alfa é cheio desde o primeiro quadro). */
+      .lett.lett-punch { padding:0 160px 260px 160px; }
+      .lett.lett-punch .lead { font-family:"Inter"; font-weight:800; font-size:34px; letter-spacing:2px; color:#fff; margin-bottom:6px; text-shadow:0 6px 0 rgba(0,0,0,.55), 0 12px 40px rgba(0,0,0,.9); }
+      .lett.lett-punch .key { font-family:"Anton", sans-serif; font-weight:400; font-style:normal; font-size:136px; line-height:1.0; letter-spacing:1px; text-transform:uppercase; text-align:center; text-wrap:balance; color:#fff; text-shadow:0 6px 0 rgba(0,0,0,.55), 0 12px 40px rgba(0,0,0,.9); }

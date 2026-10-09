@@ -1,0 +1,7 @@
+      /* ===== lettering_seta_cta.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Chamada numa caixa escura e uma seta terracota que quica apontando para baixo, para o botão do
+         app (C9: o gate mede o movimento). É o estilo da KEY de CTA. */
+      .lett.lett-seta_cta { padding:0 150px 300px 150px; background:none; }
+      .lett.lett-seta_cta .lead { font-size:30px; margin-bottom:12px; }
+      .lett.lett-seta_cta .key { font-family:"Montserrat", sans-serif; font-weight:800; font-style:normal; font-size:54px; line-height:1.15; letter-spacing:.02em; text-transform:uppercase; text-align:center; text-wrap:balance; color:#fff; max-width:780px; padding:18px 34px; border-radius:16px; background:rgba(12,17,22,.86); box-shadow:0 12px 40px rgba(0,0,0,.45); text-shadow:none; }
+      .lett.lett-seta_cta .seta { width:0; height:0; margin-top:14px; border-left:30px solid transparent; border-right:30px solid transparent; border-top:36px solid #E87D4E; filter:drop-shadow(0 6px 18px rgba(0,0,0,.6)); }

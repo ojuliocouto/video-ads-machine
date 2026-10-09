@@ -1,0 +1,9 @@
+      /* ===== lettering_marcador.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         Montserrat 800 caixa alta; a palavra entre asteriscos no roteiro (`*20 HORAS*`) ganha um
+         marca-texto terracota que se desenha da esquerda para a direita em 0,12 s. Padrão do C9 para KEY
+         de número ou promessa. */
+      .lett.lett-marcador { padding:0 160px 270px 160px; }
+      .lett.lett-marcador .lead { font-size:30px; letter-spacing:5px; margin-bottom:14px; }
+      .lett.lett-marcador .key { font-family:"Montserrat", sans-serif; font-weight:800; font-style:normal; font-size:78px; line-height:1.18; letter-spacing:.01em; text-transform:uppercase; text-align:center; text-wrap:balance; color:#fff; text-shadow:0 6px 30px rgba(0,0,0,.7); }
+      .lett.lett-marcador .key .hi { position:relative; display:inline-block; isolation:isolate; padding:0 18px; color:#0B0B0B; text-shadow:none; white-space:nowrap; }
+      .lett.lett-marcador .key .hi::before { content:""; position:absolute; inset:0; z-index:-1; border-radius:12px; background:#E87D4E; transform:rotate(-1.6deg) scaleX(var(--hx, 1)); transform-origin:left center; box-shadow:0 8px 26px rgba(0,0,0,.35); }
