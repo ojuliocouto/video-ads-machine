@@ -11,13 +11,19 @@ Verificável sem ouvido:
   - a duração do arquivo não muda
 """
 import json
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-SC = Path("/private/tmp/claude-501/-Users-ojuliocouto/"
-          "e497af2e-0966-43f0-8898-d733864737e9/scratchpad/mixtest")
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+from tests.fixtures import sinteticos as SIN  # noqa: E402
 
 
 def _run(cmd):
@@ -39,13 +45,16 @@ class TesteMixarSfx(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        SC.mkdir(parents=True, exist_ok=True)
+        # Tudo em tmp: o vídeo base, o plano, a saída e até a biblioteca de som (o mixador
+        # lê os wav de DADOS/assets/som, então o subprocesso roda com VAM_DADOS apontando
+        # para um DADOS temporário que tem os efeitos gerados pela receita).
+        SC = Path(tempfile.mkdtemp(prefix="vam_mixar_"))
+        cls.addClassCleanup(shutil.rmtree, SC, True)
+        dados = SIN.dados_com_som(SC / "dados")
         cls.video = SC / "base.mp4"
         # 12s de tom baixo constante (simula voz) + video preto
-        _run(["ffmpeg", "-y", "-v", "error",
-              "-f", "lavfi", "-i", "color=black:s=320x240:r=30:d=12",
-              "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=12",
-              "-af", "volume=-30dB", "-c:v", "libx264", "-c:a", "aac", str(cls.video)])
+        SIN.video_com_tom(cls.video, dur=12.0, tamanho="320x240", fps=30, freq=220.0,
+                          volume_db=-30.0)
         plano = {"total": 12.0, "segs": [
             {"bloco": 0, "tipo": "orig", "s": 0.0, "e": 3.0},
             {"bloco": 1, "tipo": "insert", "s": 3.0, "e": 5.0},   # whoosh aqui (3.0)
@@ -56,10 +65,10 @@ class TesteMixarSfx(unittest.TestCase):
         cls.plano = SC / "base_ritmo.json"
         cls.plano.write_text(json.dumps(plano))
         cls.saida = SC / "mixado.mp4"
-        r = subprocess.run([sys.executable,
-                            str(__import__("caminhos").CODIGO / "mixar_sfx.py"),
+        env = dict(os.environ, VAM_DADOS=str(dados))
+        r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "mixar_sfx.py"),
                             str(cls.video), str(cls.plano), "1.0", str(cls.saida)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env=env)
         cls.rc, cls.err = r.returncode, r.stderr
 
     def test_roda_sem_erro(self):

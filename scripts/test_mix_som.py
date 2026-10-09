@@ -5,12 +5,18 @@ As regras vem do banco de referencias, secao Principios: "whoosh na entrada de i
 tick na numeracao, riser antes da virada. Sutil, NUNCA em todo corte." Mais o teto que
 eu mesmo escrevi no plano: no maximo 1 efeito a cada 2,5s, e nunca na volta pro avatar.
 """
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-import som_cortes as S
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+import som_cortes as S  # noqa: E402
+from tests.fixtures import sinteticos as SIN  # noqa: E402
 
 
 def _plano(pares):
@@ -75,9 +81,13 @@ class TesteMixDeSom(unittest.TestCase):
         self.assertEqual(len(risers), 1, "o CTA e a virada: pede riser")
         self.assertLess(risers[0]["t"], 20.0, "o riser sobe ANTES da virada, nao depois")
 
-    def test_arquivos_existem(self):
+    def test_biblioteca_gerada_tem_todos_os_efeitos(self):
+        """Gera a biblioteca em tmp (o clone limpo não tem os wav do setup)."""
+        pasta = Path(tempfile.mkdtemp(prefix="vam_som_"))
+        self.addCleanup(shutil.rmtree, pasta, True)
+        SIN.gerar_som(pasta)
         for nome in S.EFEITOS:
-            self.assertTrue((S.SOM / nome).exists(), f"faltou {nome}")
+            self.assertTrue((pasta / nome).exists(), f"faltou {nome}")
 
 
 if __name__ == "__main__":

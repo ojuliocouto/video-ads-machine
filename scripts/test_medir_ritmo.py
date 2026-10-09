@@ -1,62 +1,88 @@
 #!/usr/bin/env python3
 """Teste do medidor de ritmo. ESCRITO ANTES do medidor, e tem que falhar antes de passar.
 
-O contrato e simples e vem de medicao, nao de gosto:
+O contrato é simples e vem de medição, não de gosto:
 
-  - as tres referencias do Vaibhav (o que o Julio mandou como "dinamico") pontuam
-    entre 18 e 28 cortes/min. Se o medidor nao concordar com elas, o medidor esta errado.
-  - a ref de HOOK do Pedro Sobral pontua BAIXO (2,1 cortes/min). Ela e a armadilha: e
-    referencia da Jheni, mas de hook, nao de ritmo. Um medidor que a aprovasse como
-    "dinamica" estaria medindo outra coisa.
-  - os quatro ads de hoje REPROVAM. Se algum passar, o alvo esta frouxo demais pra
-    mudar qualquer coisa.
+  - uma peça DINÂMICA (o que o dono mandou como referência: 19 a 28 cortes/min, planos de
+    2 a 3 s) pontua dentro da faixa e o gate a aprova. Se o medidor não concordar com
+    ela, o medidor está errado.
+  - uma peça de HOOK (quase sem corte, como a referência de hook que um criador mandou,
+    com 2,1 cortes/min) pontua BAIXO. Ela é a armadilha: é referência de hook, não de
+    ritmo. Um medidor que a aprovasse como "dinâmica" estaria medindo outra coisa.
+  - um anúncio LENTO reprova, mesmo quando o plano PEDE corte rápido: o corte só conta
+    se o plano pediu E a imagem entregou.
+
+COMO OS FIXTURES SAEM (W0.1). Antes, estes testes liam reels de terceiros em
+`_local/dados/refs/` (que não vêm no repo, então 4 testes pulavam no clone limpo) e os
+anúncios renderizados do dono (caminho absoluto de outra máquina). Agora cada teste gera,
+em tmp, um vídeo sintético com os cortes conhecidos (`tests/fixtures/sinteticos.py`:
+`video_por_planos`): padrões estáticos diferentes de um plano para o outro, então a
+duração de cada plano e o instante de cada corte são os que o teste declarou. A
+calibragem contra reels reais fica como prova de campo do dono, não como teste de CI.
 """
+import json
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-import medir_ritmo as MR
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+import medir_ritmo as MR  # noqa: E402
+from tests.fixtures import sinteticos as SIN  # noqa: E402
 
-from caminhos import DADOS as _D
-REFS = _D / "refs"
-_SEM_REFS = not (REFS / "vaibhav" / "ref1.mp4").exists()
-_MOTIVO_REFS = "refs de calibragem (reels de terceiros) nao vem no repo; ponha os seus em _local/dados/refs/"
-from caminhos import OUTPUT as OUT
-
-# Ads que o Julio e a Jheni acharam LENTOS, usados pra calibrar o gate: se algum deles
-# passar, o alvo afrouxou. O jh13 saiu da lista em 27/08/2026 porque e o ad em conserto
-# ativo, e manter a saida ATUAL dele como fixture de "tem que reprovar" e contraditorio:
-# o teste passaria a exigir que o conserto nao funcionasse. O jh16 saiu porque so
-# reprovava pelo caminho de deteccao pura, que o gate nao usa mais; ele precisa ser
-# reavaliado por alguem assistindo antes de voltar a valer como calibragem.
-ADS_HOJE = [
-    OUT / "jh14v2_oficial_13_v2composite_9x16.mp4",
-    OUT / "jh15v2_neon_creme_v2composite_9x16.mp4",
-]
+# Referência dinâmica sintética: um plano longo de 13,2 s (a pior referência real segura
+# 13,2 s e mesmo assim faz 27,8 cortes/min) seguido de 19 planos curtos.
+DUR_REF_DINAMICA = (13.2,) + (1.7,) * 19   # múltiplos de 0,1 s: o fixture roda a 10 fps
+# Peça de hook: dois planos de 10 s (1 corte em 20 s = 3 cortes/min).
+DUR_HOOK = (10.0, 10.0)
+# Peça em ritmo de referência: 9 cortes em 20 s = 27 cortes/min.
+DUR_RITMO_BOM = (2.0,) * 10
+# Anúncio lento: 3 planos de 10 s.
+DUR_LENTO = (10.0, 10.0, 10.0)
+ACCEL = 1.35
 
 
 class TesteMedidor(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="vam_ritmo_"))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, True)
+        cls.ref_dinamica = SIN.video_por_planos(cls.tmp / "ref_dinamica.mp4", DUR_REF_DINAMICA)
+        cls.ref_hook = SIN.video_por_planos(cls.tmp / "ref_hook.mp4", DUR_HOOK)
+        cls.ritmo_bom = SIN.video_por_planos(cls.tmp / "ritmo_bom.mp4", DUR_RITMO_BOM)
+        cls.lento = SIN.video_por_planos(cls.tmp / "lento.mp4", DUR_LENTO)
+
+    def test_medidor_enxerga_exatamente_os_cortes_do_fixture(self):
+        for nome, video, dur in (("ref dinâmica", self.ref_dinamica, DUR_REF_DINAMICA),
+                                 ("ritmo bom", self.ritmo_bom, DUR_RITMO_BOM),
+                                 ("hook", self.ref_hook, DUR_HOOK),
+                                 ("lento", self.lento, DUR_LENTO)):
+            with self.subTest(fixture=nome):
+                m = MR.medir(video)
+                self.assertEqual(m["cortes"], len(dur) - 1, f"{nome}: {m['instantes']}")
+                for esperado, visto in zip(SIN.instantes_de_corte(dur), m["instantes"]):
+                    self.assertAlmostEqual(esperado, visto, delta=0.26)  # amostragem a 8 fps: até 2 amostras
 
     # FAIXA RECALIBRADA (27/08/2026). Era 18 a 28, numeros do detector `scene` do ffmpeg.
     # O medidor passou a normalizar cada quadro (pra nao confundir brilho com conteudo) e
     # as MESMAS tres referencias passaram a dar 20,7 / 27,4 / 30,1 em vez de 18,9 / 27,8 /
     # 19,5. Trocar a regua obriga a reescrever o que "concordar com a referencia" quer
     # dizer, senao o teste passa a reprovar a propria referencia. O que NAO muda e o outro
-    # lado da pinca: a ref de HOOK do Sobral continua tendo que pontuar abaixo de 6.
-    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
+    # lado da pinça: a ref de HOOK continua tendo que pontuar abaixo de 6.
     def test_referencias_pontuam_na_faixa_dinamica(self):
-        for i in (1, 2, 3):
-            p = REFS / "vaibhav" / f"ref{i}.mp4"
-            with self.subTest(ref=p.name):
-                self.assertTrue(p.exists(), f"fixture ausente: {p}")
-                m = MR.medir(p)
+        for nome, video in (("ref dinâmica", self.ref_dinamica), ("ritmo bom", self.ritmo_bom)):
+            with self.subTest(ref=nome):
+                m = MR.medir(video)
                 self.assertGreaterEqual(m["cortes_min"], 19.0,
-                                        f"{p.name} deu {m['cortes_min']:.1f}/min")
+                                        f"{nome} deu {m['cortes_min']:.1f}/min")
                 self.assertLessEqual(m["cortes_min"], 32.0,
-                                     f"{p.name} deu {m['cortes_min']:.1f}/min")
+                                     f"{nome} deu {m['cortes_min']:.1f}/min")
 
-    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
     def test_gate_APROVA_as_referencias(self):
         """O teste que faltava, e que custou uma rodada.
 
@@ -66,28 +92,25 @@ class TesteMedidor(unittest.TestCase):
         mais duro que a referencia reprovaria uma peca indistinguivel dela.
 
         Regra que fica: todo gate se valida contra a REFERENCIA que ele imita, nao so
-        contra o defeito que ele caca.
+        contra o defeito que ele caça. A `ref dinâmica` sintética carrega o plano de 13,2 s.
         """
-        for i in (1, 2, 3):
-            p = REFS / "vaibhav" / f"ref{i}.mp4"
-            with self.subTest(ref=p.name):
-                m = MR.medir(p)
+        for nome, video in (("ref dinâmica", self.ref_dinamica), ("ritmo bom", self.ritmo_bom)):
+            with self.subTest(ref=nome):
+                m = MR.medir(video)
                 ok, motivos = MR.aprova(m)
-                self.assertTrue(ok, f"o gate REPROVOU a referencia {p.name}: {motivos}. "
-                                    f"Criterio mais duro que a referencia esta errado.")
+                self.assertTrue(ok, f"o gate REPROVOU a referência {nome}: {motivos}. "
+                                    f"Critério mais duro que a referência está errado.")
 
-    @unittest.skipIf(_SEM_REFS, _MOTIVO_REFS)
     def test_ref_de_hook_nao_e_ref_de_ritmo(self):
-        p = REFS / "sobral" / "ref_hook.mp4"
-        self.assertTrue(p.exists(), f"fixture ausente: {p}")
-        m = MR.medir(p)
+        m = MR.medir(self.ref_hook)
         self.assertLess(m["cortes_min"], 6.0,
-                        "a ref de hook do Sobral e quase sem corte; se ela pontuar alto, "
-                        "o medidor esta contando movimento e nao corte")
+                        "a ref de hook é quase sem corte; se ela pontuar alto, "
+                        "o medidor está contando movimento e não corte")
+        self.assertFalse(MR.aprova(m)[0], "uma peça de hook não pode passar como ritmo")
 
     # REMOVIDO em 27/08/2026: `test_ads_de_hoje_reprovam` media sem passar o plano,
     # entao caia na deteccao pura, que o gate nao usa mais e que infla o nosso material
-    # (jh14, que o Julio achou lento, pontua 31,0/min por esse caminho por causa do churn
+    # (um ad que o dono achou lento pontuava 31,0/min por esse caminho por causa do churn
     # da legenda karaoke). `test_criterio_do_gate_tambem_reprova_ad_lento` cobre a mesma
     # calibragem pelo caminho que de fato roda.
 
@@ -100,25 +123,33 @@ class TesteMedidor(unittest.TestCase):
         criterio do gate sem trocar o do teste deixaria a calibragem cobrindo um caminho
         morto: o teste passaria verde enquanto o gate real virava carimbo.
 
-        jh14 e jh15 sao os ads que o Julio e a Jheni acharam lentos. Eles tem que
-        reprovar pelo criterio NOVO tambem, senao o afrouxamento passou.
+        O anúncio lento sintético tem 3 planos de 10 s na imagem, mas o PLANO pede um
+        corte a cada 2 s (footage 1x, acelerado em 1,35x). O cruzamento só conta o que a
+        imagem entrega: 2 cortes. Tem que reprovar pelo critério NOVO.
         """
-        lentos = [("jh14v2_oficial_13", 16.0), ("jh15v2_neon_creme", 16.0)]
-        checados = 0
-        for nome, piso in lentos:
-            v = OUT / f"{nome}_v2composite_9x16.mp4"
-            j = OUT / f"{nome}_footage_1x_ritmo.json"
-            if not (v.exists() and j.exists()):
-                continue
-            with self.subTest(ad=nome):
-                m = MR.medir(v, str(j), 1.35)
-                self.assertFalse(
-                    MR.aprova(m)[0],
-                    f"{nome} passou pelo criterio do gate com {m['cortes_min']:.1f}/min: "
-                    f"o cruzamento plano x imagem afrouxou a calibragem")
-                checados += 1
-        if not checados:
-            self.skipTest("nenhum ad lento com plano disponivel pra calibrar")
+        passo_footage = 2.0 * ACCEL
+        segs = [{"bloco": i, "tipo": "orig", "s": round(i * passo_footage, 3),
+                 "e": round((i + 1) * passo_footage, 3)} for i in range(15)]
+        plano = self.tmp / "lento_ritmo.json"
+        plano.write_text(json.dumps({"total": 30.0 * ACCEL, "segs": segs}))
+        m = MR.medir(self.lento, str(plano), ACCEL)
+        self.assertEqual(m["cortes"], 2, f"o plano pediu 14 cortes, a imagem entrega 2: {m}")
+        ok, motivos = MR.aprova(m)
+        self.assertFalse(
+            ok, f"o anúncio lento passou pelo critério do gate com {m['cortes_min']:.1f}/min: "
+                f"o cruzamento plano x imagem afrouxou a calibragem")
+        self.assertTrue(motivos)
+
+    def test_plano_que_a_imagem_entrega_conta_inteiro(self):
+        """Contraprova: quando plano e imagem concordam, todos os cortes contam."""
+        passo = 2.0
+        segs = [{"bloco": i, "tipo": "orig", "s": round(i * passo * ACCEL, 3),
+                 "e": round((i + 1) * passo * ACCEL, 3)} for i in range(10)]
+        plano = self.tmp / "bom_ritmo.json"
+        plano.write_text(json.dumps({"total": 20.0 * ACCEL, "segs": segs}))
+        m = MR.medir(self.ritmo_bom, str(plano), ACCEL)
+        self.assertEqual(m["cortes"], 9, m)
+        self.assertTrue(MR.aprova(m)[0], MR.aprova(m)[1])
 
     def test_veredito_traz_o_motivo(self):
         m = {"cortes_min": 5.0, "plano_medio": 12.0, "maior_plano": 15.0, "cortes": 7,
@@ -136,13 +167,14 @@ class TesteMedidor(unittest.TestCase):
         # comparava o TETO de plano ISOLADO (14,0s) com o plano MEDIO da referencia
         # (3,17s). Sao grandezas diferentes: 14 >= 3,17 e trivialmente verdade e nao
         # restringe nada. O que o teto tem que respeitar e o MAIOR plano que a referencia
-        # segura, senao o gate reprova uma peca indistinguivel dela.
-        maior_das_refs = max(MR.medir(REFS / "vaibhav" / f"ref{i}.mp4")["maior_plano"]
-                             for i in (1, 2, 3))
+        # segura, senao o gate reprova uma peca indistinguivel dela. A referencia
+        # sintética segura 13,2 s, o mesmo da pior referência medida.
+        maior_da_ref = MR.medir(self.ref_dinamica)["maior_plano"]
+        self.assertGreater(maior_da_ref, 13.0, "o fixture perdeu o plano longo da referência")
         self.assertGreaterEqual(
-            MR.MAX_PLANO_S, maior_das_refs,
+            MR.MAX_PLANO_S, maior_da_ref,
             f"o teto de plano ({MR.MAX_PLANO_S}s) esta abaixo do maior plano que a "
-            f"referencia segura ({maior_das_refs}s): o gate reprovaria a propria referencia")
+            f"referencia segura ({maior_da_ref}s): o gate reprovaria a propria referencia")
 
 
 if __name__ == "__main__":
