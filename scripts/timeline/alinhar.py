@@ -23,8 +23,11 @@ autojunk). Casou: herda o tempo da palavra ouvida. A grafia é SEMPRE a do rotei
     (duração - CAUDA_S, duração). Sem isso a interpolação ancorava na última palavra casada e cortava a fala
     real cerca de 1 s antes do fim;
   - no meio, ocupa o vão entre as vizinhas casadas; sem vão, dura SEM_PAR_S depois da anterior;
-  - antes da primeira casada, dura SEM_PAR_S e encosta nela (é assim que nasce o a0 de um anúncio cuja
-    primeira palavra o ASR errou);
+  - antes da primeira casada (W3.X M3): se o ASR OUVIU alguma coisa antes dela (a mesma palavra com outra grafia:
+    "Minha" ouvida como "My" de 0,40 a 0,56 no fixture), essas palavras dividem em partes iguais o trecho do início
+    da 1ª palavra ouvida até a primeira casada. É daí que nasce o a0: interpolar SEM_PAR_S antes da casada punha o
+    a0 em 0,62 e a footage e o áudio entregue começavam no meio da palavra (0,22 s cortados). Só quando o ASR não
+    ouviu nada antes da primeira casada não há início medido, e a palavra dura SEM_PAR_S e encosta nela;
   - nenhuma casada no roteiro inteiro: passo fixo de PASSO_SEM_PAR_S.
 
 ## O arquivo
@@ -72,9 +75,16 @@ def casar(palavras, narr_words, audio_dur):
     sn = [norm(w) for w in narr_words]
     sm = difflib.SequenceMatcher(None, pk_norm, sn, autojunk=False)
     times = [None] * len(narr_words)
-    for a, b, size in sm.get_matching_blocks():
+    blocos = [bl for bl in sm.get_matching_blocks() if bl.size]
+    for a, b, size in blocos:
         for k in range(size):
             times[b + k] = (palavras[a + k][0], palavras[a + k][1])
+    if blocos and blocos[0].b > 0 and blocos[0].a > 0:
+        # a cabeça sem par tem fala ouvida antes da primeira casada: ela começa onde a fala começa
+        ini, fim, n = palavras[0][0], palavras[blocos[0].a][0], blocos[0].b
+        passo = (fim - ini) / n
+        for i in range(n):
+            times[i] = (ini + i * passo, fim if i == n - 1 else ini + (i + 1) * passo)
     if times and times[-1] is None:
         times[-1] = (max(0.0, audio_dur - CAUDA_S), audio_dur)
     # interpola as palavras sem casamento (variações roteiro x voz) entre as vizinhas casadas
