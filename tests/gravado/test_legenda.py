@@ -83,7 +83,7 @@ def test_a_legenda_vem_da_transcricao_corrigida_pelo_glossario_do_projeto(tmp_pa
     ass = p.legenda_ass("A1_normal").read_text(encoding="utf-8")
     texto = " ".join(legendar.sem_tags(l.split(",", 9)[9]) for l in ass.splitlines() if l.startswith("Dialogue"))
     assert "Fluxa" in texto and "Flucha" not in texto
-    assert texto == "Abra a Fluxa para começar hoje."
+    assert texto == "abra a Fluxa para começar hoje"
 
 
 def test_sem_glossario_a_legenda_nao_troca_nada(tmp_path, estado_vazio):

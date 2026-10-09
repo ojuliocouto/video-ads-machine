@@ -17,12 +17,27 @@ Destaque (cor de ênfase): números, preços e as palavras dos termos de MARCA e
 glossário do aluno. Nome de pessoa não ganha cor. `omitir` tira palavras só da legenda (o áudio
 fica); por padrão nada é omitido.
 
+## Relatório fala x roteiro e aprovação (W5.D)
+
+Toda legenda gerada traz `legendas/<peça>.relatorio.json`: o que a peça diz contra o roteiro do
+anúncio (`roteiros/<COD>.md`, ou o `roteiro.md` quando o plano tem um anúncio só), com a mesma régua do
+gate de entrada (mais de 2% das palavras faltando, ou 3 palavras seguidas sumidas, reprova) e só as
+equivalências declaradas no glossário. Sem roteiro o relatório diz `SEM_ROTEIRO`: nunca finge que conferiu.
+
+A legenda só vira filme depois que o DIRETOR a aprova: `aprovar` grava
+`legendas/<peça>.aprovacao.json` com o texto do ok e o sha256 do .ass e do relatório. Este módulo é o
+ÚNICO que escreve esse arquivo (um teste varre os scripts atrás de quem mais escreve): quem é medido não
+assina, então o montador, o gerador e o queimador só LEEM, por `exigir_aprovada`. Mexer 1 byte no .ass
+depois do ok, ou gerar a legenda de novo, vence a aprovação.
+
     python3 scripts/gravado/legendar.py [PECA ...] [--projeto DIR] [--omitir PALAVRA ...]
 """
 import argparse
+import hashlib
 import re
 import sys
 import unicodedata
+from collections import namedtuple
 from pathlib import Path
 
 if __package__ in (None, ""):            # rodado como script: tira scripts/gravado do caminho
@@ -30,9 +45,15 @@ if __package__ in (None, ""):            # rodado como script: tira scripts/grav
     sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != _AQUI]
     sys.path.insert(0, str(_AQUI.parent))
 
+from contratos.validar import normalizar_palavra  # noqa: E402
+from contratos.validar import palavras as palavras_do_texto  # noqa: E402
+from entrada import roteiro_md  # noqa: E402
+from gates import gate_fala_roteiro  # noqa: E402
 from gravado import projeto as gp  # noqa: E402
 from gravado.nucleo.asr import ErroDeASR  # noqa: E402
 from gravado.veredito import InsumoInvalido  # noqa: E402
+from projeto import glossario as _glossario  # noqa: E402
+from projeto import status as _status  # noqa: E402
 
 LARGURA, ALTURA = 1080, 1920
 Y_LEGENDA = 1300               # baseline da legenda, acima da faixa de UI do Reels
@@ -47,6 +68,14 @@ COR_ENFASE = r"&H4E7DE8&"      # terracota (BGR)
 COR_BASE = r"&HFFFFFF&"
 _RE_NUMERO = re.compile(r"r?\$?\d+[\d.,/]*")
 _RE_TAG = re.compile(r"\{[^}]*\}")
+RELATORIO_SUFIXO = ".relatorio.json"
+APROVACAO_SUFIXO = ".aprovacao.json"
+OK_MIN, OK_MAX = 2, 2000
+Situacao = namedtuple("Situacao", "vigente motivo")
+
+
+class LegendaNaoAprovada(InsumoInvalido, RuntimeError):
+    """A legenda não tem o ok do diretor (ou o ok venceu). Queimar e entregar param aqui."""
 
 
 def cabecalho():
@@ -154,12 +183,111 @@ def gerar(palavras, destino, destacar=frozenset(), omitir=()):
     return len(ls), " | ".join(" ".join(p["text"] for p in ln) for ln in ls[:4])
 
 
+def sha256_arquivo(caminho):
+    h = hashlib.sha256()
+    with open(str(caminho), "rb") as f:
+        for bloco in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
+def _codigo(nome):
+    return str(nome).rsplit("_", 1)[0]
+
+
+def caminho_relatorio(proj, nome):
+    return proj.pasta("legendas") / (nome + RELATORIO_SUFIXO)
+
+
+def caminho_aprovacao(proj, nome):
+    return proj.pasta("legendas") / (nome + APROVACAO_SUFIXO)
+
+
+def roteiro_da_peca(proj, nome):
+    """O roteiro do anúncio da peça: `roteiros/<COD>.md` (ou .txt), senão o `roteiro.md` do projeto, que só
+    vale quando o plano tem UM anúncio (com dois, o roteiro único não diz de qual é). None se não há."""
+    cod = _codigo(nome)
+    for ext in (".md", ".txt"):
+        c = proj.base / "roteiros" / (cod + ext)
+        if c.is_file():
+            return c
+    if len(proj.ads) == 1:
+        for ext in (".md", ".txt"):
+            c = proj.base / ("roteiro" + ext)
+            if c.is_file():
+                return c
+    return None
+
+
+def _texto_do_roteiro(caminho):
+    try:
+        lei = roteiro_md.ler_arquivo(caminho)
+    except ValueError as e:
+        raise InsumoInvalido(str(e))
+    if lei.erros:
+        raise InsumoInvalido("o roteiro %s está fora da convenção:\n%s" % (caminho, roteiro_md.formatar_erros(lei.erros)))
+    return lei.fala_completa()
+
+
+def relatorio_fala_roteiro(nome, palavras, roteiro_texto, glossario):
+    """Relatório do que a legenda (as `palavras` da peça) diz contra o `roteiro_texto`. Puro.
+
+    `palavras`: textos ou dicts {text,...}. `roteiro_texto` None = sem roteiro (estado SEM_ROTEIRO).
+    Mesma régua e mesmo alinhamento do `gate_fala_roteiro`: palavra do roteiro que não aparece conta como
+    FALTANDO (mais de 2% reprova, 3 seguidas reprova); palavra a mais é só contada. Troca de palavra: só a
+    equivalência declarada no glossário."""
+    fala_txt = " ".join(str(p["text"]) if isinstance(p, dict) else str(p) for p in palavras)
+    fala = palavras_do_texto(fala_txt)
+    if roteiro_texto is None:
+        return {"versao": 1, "peca": nome, "estado": "SEM_ROTEIRO", "palavras_fala": len(fala)}
+    roteiro = palavras_do_texto(roteiro_texto)
+    originais = [w for w in roteiro_texto.split() if normalizar_palavra(w)]
+    if len(originais) != len(roteiro):          # palavra composta: mostra o texto já normalizado
+        originais = list(roteiro)
+    eqs = [(palavras_do_texto(a), palavras_do_texto(b)) for a, b in _glossario.equivalencias(glossario or {})]
+    cmp = gate_fala_roteiro.comparar(roteiro, fala, eqs)
+    n, perdidas = len(roteiro), len(cmp.faltando_idx)
+    fracao = perdidas / float(n) if n else 0.0
+    reprova = fracao > gate_fala_roteiro.FALTANDO_MAX or cmp.maior_sequencia >= gate_fala_roteiro.SEQUENCIA_MAX
+    return {"versao": 1, "peca": nome, "estado": "REPROVA" if reprova else "PASS", "palavras_roteiro": n,
+            "palavras_fala": len(fala), "faltando": perdidas, "fracao_faltando": round(fracao, 4),
+            "maior_sequencia": cmp.maior_sequencia, "extras": cmp.extras,
+            "trechos_faltando": gate_fala_roteiro._trechos(originais, cmp.faltando_idx)[
+                :gate_fala_roteiro.MAX_TRECHOS_NO_RELATORIO],
+            "limiares": {"faltando_max": gate_fala_roteiro.FALTANDO_MAX,
+                         "sequencia_max": gate_fala_roteiro.SEQUENCIA_MAX}}
+
+
+def resumo_do_relatorio(rel):
+    """Uma linha para o terminal."""
+    if rel["estado"] == "SEM_ROTEIRO":
+        return "SEM_ROTEIRO (não há roteiro do anúncio: a legenda NÃO foi conferida contra o que se pediu)"
+    base = "%s: %d de %d palavras do roteiro faltando (%.1f%%), %d a mais na fala, maior sequência sumida %d" % (
+        rel["estado"], rel["faltando"], rel["palavras_roteiro"], 100 * rel["fracao_faltando"], rel["extras"],
+        rel["maior_sequencia"])
+    return base + ((" | sumiu: " + "; ".join(rel["trechos_faltando"][:3])) if rel["trechos_faltando"] else "")
+
+
+def gerar_relatorio(proj, nome, palavras):
+    """Escreve `legendas/<peça>.relatorio.json` amarrado ao sha do .ass atual. Devolve o relatório."""
+    caminho = roteiro_da_peca(proj, nome)
+    rel = relatorio_fala_roteiro(nome, palavras, None if caminho is None else _texto_do_roteiro(caminho),
+                                 proj.glossario())
+    rel["roteiro"] = None if caminho is None else caminho.relative_to(proj.base).as_posix()
+    if caminho is not None:
+        rel["roteiro_sha256"] = sha256_arquivo(caminho)
+    rel["ass_sha256"] = sha256_arquivo(proj.legenda_ass(nome))
+    _status.escrever_json_atomico(caminho_relatorio(proj, nome), rel)
+    return rel
+
+
 def legendar_pecas(proj, nomes, leitor, omitir=(), relatorio=None):
-    """Gera `legendas/<peça>.ass` de cada peça. Devolve {peça: número de linhas}.
+    """Gera `legendas/<peça>.ass` e o relatório fala x roteiro de cada peça. Devolve {peça: número de linhas}.
 
     O tempo de palavra EXIGE backend de borda real (parakeet ou faster-whisper): o leitor recusa
-    a Groq. A cor de destaque vem do glossário do aluno."""
-    destacar = destaques_do_glossario(proj.glossario())
+    a Groq. O texto vem da transcrição já corrigida pelo glossário do aluno, e a cor de destaque também."""
+    glossario = proj.glossario()
+    destacar = destaques_do_glossario(glossario)
     feitos = {}
     for nome in nomes:
         origem = proj.fonte_da_peca(nome)
@@ -167,10 +295,86 @@ def legendar_pecas(proj, nomes, leitor, omitir=(), relatorio=None):
             raise InsumoInvalido("não achei a peça %s para legendar: %s (monte antes)" % (nome, origem))
         palavras = leitor.palavras(origem, exigir_borda=True)
         n, amostra = gerar(palavras, proj.legenda_ass(nome), destacar, omitir)
+        rel = gerar_relatorio(proj, nome, omitir_palavras(palavras, omitir))
         feitos[nome] = n
         if relatorio:
             relatorio("%s: %d linhas | %s" % (nome, n, amostra))
+            relatorio("   fala x roteiro: %s" % resumo_do_relatorio(rel))
     return feitos
+
+
+# --- aprovação do diretor ------------------------------------------------------------------------
+
+def _ler_json(caminho):
+    try:
+        return _status.ler_json(caminho)
+    except (ValueError, OSError):
+        return None
+
+
+def aprovar(proj, nome, ok, divergencia_aceita=False, agora=None):
+    """Grava o ok do diretor à legenda de `nome`, amarrado por sha256 ao .ass e ao relatório. Devolve o dict.
+
+    Recusa (InsumoInvalido, nada gravado) sem o texto do ok, sem a legenda, sem o relatório, com relatório
+    de outra versão do .ass, ou com relatório REPROVA sem `divergencia_aceita`."""
+    if not isinstance(ok, str) or len(ok.strip()) < OK_MIN:
+        raise InsumoInvalido("sem o ok do diretor não há aprovação: passe o texto do ok, como ele escreveu no "
+                             "chat (pelo menos %d caracteres)" % OK_MIN)
+    ok = ok.strip()
+    if len(ok) > OK_MAX:
+        raise InsumoInvalido("o texto do ok tem %d caracteres; o limite é %d" % (len(ok), OK_MAX))
+    ass = proj.legenda_ass(nome)
+    if not ass.is_file():
+        raise InsumoInvalido("não há legenda de %s em %s: rode `vam gravado %s legendar %s` antes de aprovar"
+                             % (nome, ass, proj.base.name, nome))
+    rel_arq = caminho_relatorio(proj, nome)
+    rel = _ler_json(rel_arq) if rel_arq.is_file() else None
+    if rel is None:
+        raise InsumoInvalido("não há relatório fala x roteiro de %s: gere a legenda de novo (legendar) para ele "
+                             "nascer junto" % nome)
+    sha_ass = sha256_arquivo(ass)
+    if rel.get("ass_sha256") != sha_ass:
+        raise InsumoInvalido("o relatório de %s é de outra versão do .ass (a legenda mudou depois dele): gere a "
+                             "legenda de novo para o relatório e o .ass voltarem a casar" % nome)
+    if rel.get("estado") == "REPROVA" and not divergencia_aceita:
+        raise InsumoInvalido("a legenda de %s diverge do roteiro (relatório REPROVA: %s). Leia %s; se a diferença é "
+                             "improviso que o diretor aceita, aprove com --divergencia-aceita"
+                             % (nome, resumo_do_relatorio(rel), rel_arq))
+    aprovacao = {"versao": 1, "emissor": "gravado.legendar", "peca": nome, "ok": ok,
+                 "aprovado_em": agora if agora is not None else _status.instante(),
+                 "ass": {"arquivo": ass.relative_to(proj.base).as_posix(), "sha256": sha_ass},
+                 "relatorio": {"arquivo": rel_arq.relative_to(proj.base).as_posix(),
+                               "sha256": sha256_arquivo(rel_arq), "estado": rel.get("estado")},
+                 "divergencia_aceita": bool(divergencia_aceita)}
+    _status.escrever_json_atomico(caminho_aprovacao(proj, nome), aprovacao)
+    return aprovacao
+
+
+def situacao(proj, nome):
+    """Situacao(vigente, motivo): a aprovação existe e é do .ass que está no disco agora?"""
+    arq = caminho_aprovacao(proj, nome)
+    como = "aprove com `vam gravado %s aprovar-legenda %s --ok \"<o ok do diretor>\"`" % (proj.base.name, nome)
+    if not arq.is_file():
+        return Situacao(False, "a legenda de %s não tem aprovação: leia %s e o relatório, e %s"
+                               % (nome, proj.legenda_ass(nome), como))
+    ap = _ler_json(arq)
+    if not isinstance(ap, dict) or not isinstance(ap.get("ass"), dict) or not ap["ass"].get("sha256"):
+        return Situacao(False, "a aprovação de %s está ilegível (%s): %s" % (nome, arq, como))
+    ass = proj.legenda_ass(nome)
+    if not ass.is_file():
+        return Situacao(False, "a legenda aprovada de %s sumiu (%s): gere de novo e %s" % (nome, ass, como))
+    if sha256_arquivo(ass) != ap["ass"]["sha256"]:
+        return Situacao(False, "a legenda de %s mudou depois da aprovação (o sha256 do .ass não é o aprovado): "
+                               "leia a versão atual e %s" % (nome, como))
+    return Situacao(True, "legenda de %s aprovada: %s" % (nome, ap.get("ok", "")))
+
+
+def exigir_aprovada(proj, nome):
+    """A aprovação vigente (dict), ou LegendaNaoAprovada com o que fazer."""
+    s = situacao(proj, nome)
+    if not s.vigente:
+        raise LegendaNaoAprovada(s.motivo)
+    return _ler_json(caminho_aprovacao(proj, nome))
 
 
 def main(argv=None):

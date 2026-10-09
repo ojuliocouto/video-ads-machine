@@ -2,7 +2,7 @@
 """Caixa de lettering estilo NATIVO do Instagram: bloco sólido de canto reto com
 o texto dentro.
 
-Ordem do Júlio (26/08/2026), depois do one-shot do Thales pra OCC:
+Ordem do diretor (26/08/2026), depois do primeiro one-shot de evento:
 
     "essa caixa com o texto dentro funciona muito, muito, muito bem, porque ela
     parece muito com o formato nativo do Instagram. deixa isso salvo dentro da
@@ -50,12 +50,13 @@ COLORWAYS = {
     "preto":  {"fundo": (0, 0, 0, 255), "texto": (255, 255, 255, 255)},
 }
 
-# Serif com peso de texto de revista. Confirmado contra o mockup da Jheni por
-# zoom 4x, letra a letra: era PT Serif, não Montserrat (que eu tinha chutado).
+# Serif com peso de texto de revista. Confirmado contra o mockup por zoom 4x, letra a letra: era PT Serif,
+# não Montserrat (que eu tinha chutado). A fonte é a do REPO (fonts/, licença OFL em fonts/OFL.txt): nunca
+# a do sistema macOS, que não existe no Linux nem no clone de quem instala. O caminho é lido na hora
+# (`caminhos.FONTS` respeita VAM_FONTS).
 FONTES = [
-    "/System/Library/Fonts/Supplemental/PTSerif.ttc",
-    str(__import__("caminhos").FONTS_V1 / "PlayfairDisplay.ttf"),
-    "/System/Library/Fonts/Supplemental/Georgia.ttf",
+    str(__import__("caminhos").FONTS / "pt-serif-400.ttf"),
+    str(__import__("caminhos").FONTS / "pt-serif-700.ttf"),
 ]
 
 # Medidas do one-shot aprovado, em fração do frame. Mexer aqui muda todo ad.
@@ -108,7 +109,8 @@ def achar_fonte(caminho=None):
     for f in ([caminho] if caminho else []) + FONTES:
         if f and os.path.exists(f):
             return f
-    raise SystemExit("nenhuma fonte serif encontrada; passe --fonte")
+    raise SystemExit("a fonte PT Serif não está em %s: rode `git checkout -- fonts/` para recuperar "
+                     "os .ttf do repo, ou passe outra com --fonte" % __import__("caminhos").FONTS)
 
 
 def quebrar_linhas(texto, fonte, largura_max):
@@ -219,7 +221,7 @@ def badge_logo(logo_path=None, largura_px=380, pad_h=22, pad_v=18, colorway="pre
     """Badge sólido JUSTO em volta da logo, canto reto, mesma família da caixa.
 
     O erro que gerou isto: caixa de tamanho fixo com a logo pequena no meio
-    sobrava preto vazio em cima e embaixo. O Júlio: "a logo tá escrota, jogada de
+    sobrava preto vazio em cima e embaixo. O diretor: "a logo tá escrota, jogada de
     qualquer jeito". A caixa tem que sair DA logo, não a logo caber na caixa.
     """
     cor = COLORWAYS[colorway]["fundo"]

@@ -324,9 +324,10 @@ def test_gerar_png_usa_a_fonte_do_repo_e_nunca_a_do_sistema():
     assert Path(caixa_lettering.achar_fonte()).parent.name == "fonts"
 
 
-def test_cli_caixinha_escreve_o_png_e_compoe_a_peca(estado_vazio, tmp_path, capsys):
+def test_cli_caixinha_escreve_o_png_e_compoe_a_peca(estado_vazio, tmp_path, monkeypatch, capsys):
     p = _criar(estado_vazio, tmp_path)
     _montada(p)
+    monkeypatch.setattr(compor_caixinha.area_ad_inteiro, "varrer", lambda video, passo=1.0: (557, 11.5))
     assert _cli(estado_vazio, "leva", "caixinha", "A1", "--texto", "Pergunta de teste para a caixa?",
                 "--colorway", "branco", "--topo", "200") == 0
     png = p.base / "caixinhas" / "A1_normal.png"

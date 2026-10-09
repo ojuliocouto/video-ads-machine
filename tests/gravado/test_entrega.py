@@ -29,6 +29,14 @@ def w(texto, ini, fim):
     return {"text": texto, "start": ini, "end": fim}
 
 
+def _nada_entregue(proj):
+    """Nenhuma peça nem manifesto em ENTREGA/. (No macOS `ENTREGA` e o `entrega/` do layout do projeto são a
+    mesma pasta, e o `novo` já cria `entrega/folhas`: por isso a conferência é por peça e manifesto, não por
+    pasta vazia.)"""
+    pasta = proj.pasta("ENTREGA")
+    return not list(pasta.glob("*.mp4")) and not (pasta / "entrega.json").exists()
+
+
 def _gate(estado, motivo="m"):
     def rodar():
         if estado == "insumo":
@@ -70,7 +78,7 @@ def test_entregar_com_um_gate_com_saida_1_nao_copia_nada_e_o_resumo_diz_o_motivo
     r = entregar.entregar(p, gates=[("gate_ar_morto", _gate(False, "pausa de 0.9s em 12.0s")),
                                     ("gate_legenda", _gate(True))])
     assert (r.entregue, r.codigo) == (False, 1)
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert _nada_entregue(p)
     assert "pausa de 0.9s" in r.resumo() and "NADA FOI COPIADO" in r.resumo()
 
 
@@ -78,7 +86,7 @@ def test_entregar_com_gate_que_nao_mediu_sai_2_e_nao_copia(tmp_path, estado_vazi
     p = _projeto(tmp_path, estado_vazio)
     r = entregar.entregar(p, gates=[("gate_fala", _gate("insumo", "ASR falhou"))])
     assert (r.entregue, r.codigo) == (False, 2)
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert _nada_entregue(p)
 
 
 def test_entregue_deixa_o_manifesto_com_o_hash_de_cada_peca_e_o_veredito_de_cada_gate(tmp_path, estado_vazio):
@@ -164,7 +172,7 @@ def test_entregar_padrao_sem_legenda_aprovada_nao_copia_nada(tmp_path, estado_va
     r = entregar.entregar(p, leitor=sx.LeitorFalso(textos="x"))
     assert (r.entregue, r.codigo) == (False, 1)
     assert [(n, e) for n, e, _ in r.gates][-1] == ("legenda_aprovada", "defeito")
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert _nada_entregue(p)
     _legenda_aprovada_e_queimada(p)
     r2 = entregar.entregar(p, leitor=sx.LeitorFalso(textos="x"))
     assert (r2.entregue, r2.codigo) == (True, 0)
@@ -192,13 +200,13 @@ def test_cli_entregar_com_gate_reprovado_sai_1_e_nao_copia(tmp_path, estado_vazi
     assert _cli(estado_vazio, "leva", "entregar") == 1
     saida = capsys.readouterr().out
     assert "NADA FOI COPIADO" in saida and "pausa de 0.9s" in saida
-    assert not list(pr.pasta("ENTREGA").glob("*"))
+    assert _nada_entregue(pr)
 
 
 def test_cli_entregar_com_gate_sem_medir_sai_2(tmp_path, estado_vazio, monkeypatch):
     pr = _preparar_cli(tmp_path, estado_vazio, monkeypatch, [("gate_fala", _gate("insumo", "ASR falhou"))])
     assert _cli(estado_vazio, "leva", "entregar") == 2
-    assert not list(pr.pasta("ENTREGA").glob("*"))
+    assert _nada_entregue(pr)
 
 
 def test_cli_entregar_tudo_verde_sai_0_copia_e_confere(tmp_path, estado_vazio, monkeypatch, capsys):

@@ -38,7 +38,8 @@ ROSTO = (100, 40, 60, 60)                                     # centro em x = 13
 
 def _take(destino, tamanho="320x180"):
     """Take sintético horizontal: vídeo cinza e o áudio por blocos (fala, pausa, fala)."""
-    wav = sx.audio_por_blocos(Path(destino).with_suffix(".wav"), BLOCOS)
+    destino = Path(destino)
+    wav = sx.audio_por_blocos(destino.with_name(destino.stem + "-fonte.wav"), BLOCOS)
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
                         "color=c=0x808080:s=%s:r=25:d=4.5" % tamanho, "-i", str(wav), "-c:v", "libx264",
                         "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-shortest",
@@ -156,7 +157,7 @@ def _plano_pronto(luz_=None, janela=None, segmentos=((0.0, 1.2), (2.8, 4.5)), gr
 
 def test_filtro_complexo_faz_corte_enquadre_luz_velocidade_e_grade_numa_passada():
     fc = montar.filtro_complexo(_plano_pronto())
-    assert fc.count("trim=") == 2 and fc.count("atrim=") == 2
+    assert fc.count("[0:v]trim=") == 2 and fc.count("[0:a]atrim=") == 2
     assert "crop=608:1080:" in fc and "scale=1080:1920" in fc
     assert "eq=brightness=0.161:contrast=1.096" in fc
     assert "setpts=PTS/1.2" in fc and "atempo=1.2" in fc
@@ -265,32 +266,61 @@ def test_a_cadeia_hdr_decodifica_em_bt2020_e_codifica_em_bt709_antes_da_grade():
     assert cadeia.rstrip().endswith("setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv")
 
 
+# (R', G', B') em HLG: três cinzas e três cores bem saturadas. Cada uma vira uma faixa vertical do quadro.
+_FAIXAS_HLG = [(0.25, 0.25, 0.25), (0.5, 0.5, 0.5), (0.75, 0.75, 0.75),
+               (0.70, 0.30, 0.25), (0.30, 0.65, 0.30), (0.25, 0.30, 0.70)]
+
+
+def _ycbcr_2020_10bits(rgb):
+    r, g, b = rgb
+    y = 0.2627 * r + 0.6780 * g + 0.0593 * b
+    return round(64 + 876 * y), round(512 + 896 * (b - y) / 1.8814), round(512 + 896 * (r - y) / 1.4746)
+
+
+def _ycbcr_709_8bits(rgb):
+    r, g, b = [float(v) for v in rgb]
+    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return 16 + 219 * y, 128 + 224 * (b - y) / 1.8556, 128 + 224 * (r - y) / 1.5748
+
+
+def _plano(video, plano):
+    r = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-i", str(video), "-frames:v", "1", "-vf",
+                        "extractplanes=%s" % plano, "-f", "rawvideo", "-"], capture_output=True)
+    assert r.returncode == 0, r.stderr
+    return np.frombuffer(r.stdout, dtype=np.uint8)
+
+
 @pytest.mark.lento
 def test_o_ffmpeg_converte_hlg_para_sdr_como_a_conta_em_numpy(tmp_path):
-    """Faixas de cinza em HLG 10 bits (tags bt2020/HLG): a saída em Y de 8 bits bate com a conta, e as tags saem bt709."""
-    niveis = [0.25, 0.5, 0.75, 0.9]
-    exprs = "+".join("%d*between(X,%d,%d)" % (round(64 + n * 876), i * 40, i * 40 + 39) for i, n in enumerate(niveis))
+    """Faixas em HLG 10 bits (tags bt2020/HLG): o ffmpeg (decodifica bt2020, LUT, codifica bt709) bate com a conta em
+    numpy no Y, no Cb e no Cr de cada faixa, e a saída sai com as tags bt709. Cobre a matriz, a faixa de valores e a
+    ordem dos canais da LUT (as cores saturadas denunciam canal trocado; os cinzas, curva errada)."""
+    n = len(_FAIXAS_HLG)
+    codigos = [_ycbcr_2020_10bits(c) for c in _FAIXAS_HLG]
+    def expr(k):
+        return "+".join("%d*eq(floor(X*%d/W),%d)" % (c[k], n, i) for i, c in enumerate(codigos))
     src = tmp_path / "hlg.mp4"
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
-                        "nullsrc=s=160x64:r=25:d=1,format=yuv420p10le,geq=lum='%s':cb=512:cr=512" % exprs,
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p10le", "-crf", "5", "-colorspace", "bt2020nc",
-                        "-color_primaries", "bt2020", "-color_trc", "arib-std-b67", "-color_range", "tv", str(src)],
+                        "nullsrc=s=192x64:r=25:d=1,format=yuv420p10le,geq=lum='%s':cb='%s':cr='%s',"
+                        "setparams=colorspace=bt2020nc:color_primaries=bt2020:color_trc=arib-std-b67:range=tv"
+                        % (expr(0), expr(1), expr(2)),
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p10le", "-crf", "3", str(src)],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     lut = luz.gerar_lut(tmp_path / "hlg.cube")
     saida = tmp_path / "sdr.mp4"
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-i", str(src), "-vf",
-                        luz.cadeia_hdr_para_sdr(lut) + ",format=yuv420p", "-c:v", "libx264", "-crf", "5",
-                        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
-                        "-color_range", "tv", str(saida)], capture_output=True, text=True)
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-i", str(src), "-vf", luz.cadeia_hdr_para_sdr(lut),
+                        "-c:v", "libx264", "-crf", "3", "-colorspace", "bt709", "-color_primaries", "bt709",
+                        "-color_trc", "bt709", "-color_range", "tv", str(saida)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
-    y = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-i", str(saida), "-frames:v", "1", "-vf", "extract_plane=y",
-                        "-f", "rawvideo", "-"], capture_output=True).stdout
-    y = np.frombuffer(y, dtype=np.uint8).reshape(64, 160)
-    esperado = luz.hlg_para_sdr(np.array([[n] * 3 for n in niveis]))[:, 0]
-    for i, e in enumerate(esperado):
-        medido = float(y[32, i * 40 + 20])
-        assert medido == pytest.approx(16 + 219 * e, abs=3.5), (niveis[i], medido, 16 + 219 * e)
+    y = _plano(saida, "y").reshape(64, 192)
+    u = _plano(saida, "u").reshape(32, 96)
+    v = _plano(saida, "v").reshape(32, 96)
+    esperado = luz.hlg_para_sdr(np.array(_FAIXAS_HLG))
+    for i, rgb in enumerate(esperado):
+        ey, eu, ev = _ycbcr_709_8bits(rgb)
+        medido = (float(y[32, i * 32 + 16]), float(u[16, i * 16 + 8]), float(v[16, i * 16 + 8]))
+        assert medido == pytest.approx((ey, eu, ev), abs=2.0), (_FAIXAS_HLG[i], medido, (ey, eu, ev))
     tags = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                                       "stream=color_space,color_transfer,color_primaries", "-of", "json",
                                       str(saida)], capture_output=True, text=True).stdout)["streams"][0]

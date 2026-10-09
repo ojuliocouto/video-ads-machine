@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PIL import Image
+from scipy import ndimage
 
 from cinema import grade
 from gravado import montar
@@ -133,9 +134,13 @@ def _confere_orientacao_e_forma(saida, fonte):
     visto = _quadro(fonte, 0.2, 180, 320)                  # autorotate: a verdade do que o aluno vê
     nosso = _quadro(saida, 0.1, 180, 320)
     corr = float(np.corrcoef(visto.ravel(), nosso.ravel())[0, 1])
-    central = nosso[60:260, :]                               # fora da cunha do canto
-    disco = np.argwhere(central > 200)
-    razao = (disco[:, 1].ptp() + 1) / float(disco[:, 0].ptp() + 1) if len(disco) else 0.0
+    claro = nosso > 100                                      # meio entre o disco (a vinheta o escurece) e o fundo
+    rotulos, n = ndimage.label(claro)                        # o disco é a maior mancha clara (a cunha do canto é menor)
+    if n == 0:
+        return corr, 0.0
+    areas = ndimage.sum(claro, rotulos, range(1, n + 1))
+    ys, xs = np.where(rotulos == int(np.argmax(areas)) + 1)
+    razao = (np.ptp(xs) + 1) / float(np.ptp(ys) + 1)
     return corr, razao
 
 
