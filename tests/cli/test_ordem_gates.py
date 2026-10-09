@@ -5,9 +5,10 @@ O montador (`produzir_ad.montar`) roda, nesta ordem:
   antes    gate_aprovacao, gate_fidelidade_roteiro, [gate_fidelidade_doc], gate_fala_roteiro, gate_entrada, gate_look
   motor    preparar (os arquivos do motor e a timeline.json, o relógio único)
   plano    gate_geometria, gate_safezone, gate_lettering, gate_congelamento     (sobre a timeline, sem render)
+  motor    footage (a 1x, pela timeline: o overlay mede o fundo claro NELA, no mesmo relógio)
   motor    overlay (HTML)
   durante  gate_tela_vazia, gate_congelamento_build
-  motor    render do overlay, footage
+  motor    render do overlay
   durante  gate_relogio
   motor    composição, aceleração, loudness e mix -> entrega/final_9x16.mp4
   durante  gate_template (o template não mudou do começo ao fim do build)
@@ -36,8 +37,9 @@ PLANO = ["gate_geometria", "gate_safezone", "gate_lettering", "gate_congelamento
 DEPOIS = ["gate-ad", "medir_ritmo", "gate-colisao-texto", "gate-contraste-legenda", "auditar_ad", "gate_hook_visual",
           "gate_camera", "gate_cor", "gate_mix", "gate_sfx", "gate_insert", "gate_lettering_depois",
           "gate_safezone_depois", "gate_geometria_depois", "gate_texto_atras"]
-ESPERADO = (ANTES + ["motor:preparar"] + PLANO + ["motor:overlay", "gate_tela_vazia", "gate_congelamento_build",
-            "motor:render_overlay", "motor:footage", "gate_relogio", "motor:compor", "gate_template", "previa"])
+ESPERADO = (ANTES + ["motor:preparar"] + PLANO + ["motor:footage", "motor:overlay", "gate_tela_vazia",
+            "gate_congelamento_build", "motor:render_overlay", "gate_relogio", "motor:compor", "gate_template",
+            "previa"])
 
 
 class Registro(object):

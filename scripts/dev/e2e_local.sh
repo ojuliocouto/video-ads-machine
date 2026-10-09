@@ -58,12 +58,17 @@ passo() {
 }
 
 # --- insumos do aluno -------------------------------------------------------------------------------------
+# A direção alterna insert e apresentador (o gate de ritmo pede 16 cortes/min ou mais, e só conta corte que a imagem
+# entrega); a KEY do meio tem bloco que a comporta (a que não cabe antes da troca é adiada e deixa a tela sem texto).
+# A KEY do CTA é o texto do botão (contratos/roteiro-convencao.md).
 cat > "$TMP/roteiro.md" <<'ROTEIRO'
-[insert: demo-a | hook: MEU CLAUDE | virou um web designer | PROFISSIONAL] Minha skill de criação de páginas transformou meu Claude em um web designer profissional.
-[apresentador] Agora eu construo minhas páginas em minutos, sem precisar pagar nada mais por isso.
-[apresentador | LEAD: sabe qual é | KEY: O MELHOR] Sabe qual é o melhor?
-[insert: demo-b | split] Se eu usar um conector que é disponibilizado gratuitamente dentro do Claude,
-[cta | LEAD: eu consigo não só | KEY: PRODUZIR AS PÁGINAS | logo] eu consigo não só produzir as páginas
+[insert: demo-a | hook: MEU CLAUDE | virou um web designer | PROFISSIONAL] Minha skill de criação de páginas transformou meu Claude
+[apresentador] em um web designer profissional.
+[apresentador] Agora eu construo minhas páginas em minutos,
+[insert: demo-b] sem precisar pagar nada mais por isso.
+[apresentador | LEAD: sabe qual é | KEY: O MELHOR] Sabe qual é o melhor? Se eu usar um conector
+[insert: demo-a | split] que é disponibilizado gratuitamente dentro do Claude,
+[cta | LEAD: toque em | KEY: SAIBA MAIS | logo] eu consigo não só produzir as páginas
 ROTEIRO
 ffmpeg -y -v error -i "$MIDIA/avatar_18s.mp4" -vn -ac 1 -ar 48000 "$TMP/bruto.wav" || falhar "extrair a voz do avatar"
 ffmpeg -y -v error -f lavfi -i "aevalsrc=0.20*sin(2*PI*220*t)*(0.6+0.4*sin(2*PI*0.5*t))+0.14*sin(2*PI*277.18*t)+0.11*sin(2*PI*329.63*t):s=48000:d=40" \
@@ -78,8 +83,8 @@ cp "$MIDIA/logo.png" "$VAM_ESTADO/marca/logo.png" || falhar "copiar o logo"
 PROJ="$VAM_ESTADO/projetos/$SLUG"
 cp "$MIDIA/broll01.mp4" "$PROJ/inserts/demo-a.mp4" && cp "$MIDIA/broll02.mp4" "$PROJ/inserts/demo-b.mp4" \
     || falhar "copiar os inserts"
-# O que o ALUNO declara (é dele): a grafia da marca que o ASR erra, e as exceções de lettering com motivo (um anúncio
-# de 18 s não comporta 2 KEYs no meio a 8 s uma da outra).
+# O que o ALUNO declara (é dele): a grafia da marca que o ASR erra, e as exceções com motivo: um anúncio de 18 s não
+# comporta 2 KEYs no meio a 8 s uma da outra, e o plano da KEY (com o dim do lettering) fica abaixo do piso de luz.
 "$PY" - "$VAM_ESTADO" "$PROJ" <<'PYEOF' || falhar "declarar glossário e exceções"
 import json, sys
 from pathlib import Path
@@ -88,8 +93,13 @@ estado, proj = Path(sys.argv[1]), Path(sys.argv[2])
     {"grafia": "Claude", "variantes": ["Cloud", "Clode", "Claud", "Cláudio"]}]}, ensure_ascii=False, indent=2) + "\n")
 p = json.loads((proj / "projeto.json").read_text())
 p["excecoes"] = [
-    {"regra": "lettering.contagem", "motivo": "anúncio de teste de 18 s: cabe uma KEY no meio e a do CTA"},
-    {"regra": "lettering.intervalo", "motivo": "anúncio de teste de 18 s: a KEY e o CTA ficam a menos de 8 s"}]
+    {"regra": "lettering.contagem",
+     "motivo": "anúncio de teste de 18 s: cabe uma KEY no meio, além da KEY do CTA"},
+    {"regra": "lettering.intervalo",
+     "motivo": "anúncio de teste de 18 s: a KEY do meio e a do CTA ficam a menos de 8 s"},
+    {"regra": "gate_cor",
+     "motivo": "o plano da KEY do meio é escurecido de propósito pelo dim do lettering (a tela esmaecida do pico) "
+               "sobre um avatar já escuro"}]
 (proj / "projeto.json").write_text(json.dumps(p, ensure_ascii=False, indent=2) + "\n")
 PYEOF
 

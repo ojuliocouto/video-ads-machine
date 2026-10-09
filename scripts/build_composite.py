@@ -140,8 +140,11 @@ class Motor(object):
         self.config = r / "config_overlay.json"
         self.overlay_dir = r / "overlay"
         self.overlay_render_dir = r / "overlay_render"
-        self.footage = self.output / "footage_1x.mp4"
-        self.ritmo = self.output / "footage_1x_ritmo.json"
+        # o nome que o overlay procura para medir o fundo claro NA footage (overlay.fundo_claro): outro nome e ele cai
+        # no arquivo-fonte do insert, que não é o que a tela mostra (contraste 1,1:1 no primeiro e2e)
+        nome = "%s_%s_footage_1x" % (self.slug, self.projeto.get("look") or "sem-look")
+        self.footage = self.output / (nome + ".mp4")
+        self.ritmo = self.output / (nome + "_ritmo.json")
         self.timing = self.output / "timing.json"
         self.composite = r / "composite_1x.mp4"
         self.acelerado = r / "acelerado.mp4"
@@ -202,6 +205,9 @@ class Motor(object):
                                           "plano e vam aprovar de novo")
         cfg = dict(motor.config)
         cfg.update({"out_dir": str(self.overlay_dir), "speed": 1.0, "timeline": str(self.pj.timeline)})
+        leitura = roteiro_md.ler_arquivo(self.pj.roteiro)
+        cfg = self._cta_como_botao(cfg, leitura)
+        cfg["letterings"] = self._com_estilo(cfg.get("letterings", []), leitura)
         plano = self.look_plano()
         if plano:
             cfg["look_plano"] = plano
@@ -209,6 +215,35 @@ class Motor(object):
         roteiro_md.escrever_atomico(self.inserts, inserts)
         roteiro_md.escrever_atomico(self.config, json.dumps(cfg, ensure_ascii=False, indent=2) + "\n")
         return cfg
+
+    @staticmethod
+    def _cta_como_botao(cfg, leitura):
+        """A KEY do bloco cta é o texto do BOTÃO (contratos/roteiro-convencao.md) e o LEAD é o lead dele.
+
+        Achado do e2e (W5.A): o motor desenhava a KEY do cta como um lettering na faixa do peito, EM CIMA da pílula e
+        do logo do CTA, que sobem no mesmo instante: o logo carimbado sobre a KEY, "toque em" e "toca em" juntos, e o
+        dim do lettering somado ao scrim do CTA virando tinta opaca (a seta sumia da medida, a tinta ia a x 972). Agora
+        o lettering do cta sai da lista e o texto dele vai para o botão; o logo é o do CTA."""
+        ultimo = leitura.blocos[-1] if leitura.blocos else {}
+        if ultimo.get("tipo") != "cta" or not ultimo.get("key") or not cfg.get("letterings"):
+            return cfg
+        cfg = dict(cfg)
+        cta = cfg["letterings"][-1]
+        cfg["letterings"] = cfg["letterings"][:-1]
+        cfg["cta_label"] = cta["key"]
+        if cta.get("lead"):
+            cfg["cta_lead"] = cta["lead"]
+        return cfg
+
+    def _com_estilo(self, letterings, leitura):
+        """`estilo.lettering` do projeto.json nas KEYs do meio (antes ele nascia inerte: ninguém o passava ao overlay)."""
+        estilo = (self.projeto.get("estilo") or {}).get("lettering")
+        if not estilo:
+            return letterings
+        saida = [dict(l) for l in letterings]          # a KEY do cta já saiu da lista (é o botão)
+        for l in saida:
+            l["estilo"] = estilo
+        return saida
 
     def construir_timeline(self):
         """UMA transcrição, UM alinhamento e a timeline.json (com o plano de SFX), que footage e overlay leem."""

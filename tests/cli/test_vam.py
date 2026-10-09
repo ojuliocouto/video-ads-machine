@@ -272,6 +272,42 @@ def test_o_look_fechado_do_looks_json_chega_ao_overlay(estado_vazio, tmp_path):
     assert json.loads(m.config.read_text(encoding="utf-8"))["look_plano"] == "fechado"
 
 
+def test_a_footage_tem_o_nome_que_o_fundo_claro_procura(estado_vazio, tmp_path):
+    """O overlay decide a tinta invertida medindo a FOOTAGE (`<ad>_<look>_footage_1x.mp4` no output do motor). Com outro
+    nome ele caía no arquivo-fonte do insert e invertia a legenda do rodapé sobre o fundo escuro (contraste 1,1:1 no
+    primeiro e2e)."""
+    import build_composite as BC
+    pj = _projeto_com_roteiro(estado_vazio, tmp_path)
+    m = BC.Motor(pj)
+    assert m.footage == m.output / "build_estudio_footage_1x.mp4"
+    assert m.ritmo == m.output / "build_estudio_footage_1x_ritmo.json"
+    assert m.env_footage()["VAM_OUT"] == m.footage.name
+
+
+def test_o_estilo_de_lettering_do_projeto_chega_ao_overlay_menos_no_cta(estado_vazio, tmp_path):
+    """`estilo.lettering` do projeto.json nascia inerte: ninguém o passava ao config do overlay."""
+    import build_composite as BC
+    pj = _projeto_com_roteiro(estado_vazio, tmp_path)
+    proj = json.loads(pj.projeto_json.read_text(encoding="utf-8"))
+    proj["estilo"] = {"lettering": "punch"}
+    pj.projeto_json.write_text(json.dumps(proj), encoding="utf-8")
+    m = BC.Motor(pj)
+    cfg = m.escrever_arquivos_do_motor()
+    estilos = [l.get("estilo") for l in cfg["letterings"]]
+    assert estilos == ["punch"]                    # O MELHOR no estilo do projeto (a KEY do CTA é o botão)
+
+
+def test_a_key_do_cta_e_o_texto_do_botao_e_nao_um_lettering_em_cima_dele(estado_vazio, tmp_path):
+    """Achado do e2e (W5.A): a KEY do cta virava um lettering na faixa do peito, EM CIMA da pílula e do logo do CTA (o
+    logo carimbado sobre a KEY, "toque em" e "toca em" juntos, o dim do lettering somado ao scrim virando tinta). O
+    contrato diz que a KEY do cta é o texto do botão: ela vai para a pílula e o LEAD para o lead dela."""
+    import build_composite as BC
+    pj = _projeto_com_roteiro(estado_vazio, tmp_path)
+    cfg = BC.Motor(pj).escrever_arquivos_do_motor()
+    assert [l["key"] for l in cfg["letterings"]] == ["O MELHOR"]
+    assert cfg["cta_label"] == "PRODUZIR AS PÁGINAS" and cfg["cta_lead"] == "eu consigo não só"
+
+
 def test_a_impressao_do_template_ve_os_parciais():
     import build_composite as BC
     from overlay import html_injecao

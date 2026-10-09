@@ -19,9 +19,10 @@ build direto, sem auditar nenhum, e a auditoria depois deu média 5,2: a leva in
   motor    preparar: os arquivos do motor e a timeline.json (relógio único, com o plano de SFX)
   plano    gate_geometria (supressão de legenda aplicada e conferida de novo, quando ele pede), gate_safezone,
            gate_lettering, gate_congelamento (densidade, congelamento e moldura, pelo plano e pela timeline)
+  motor    footage (a 1x, pela timeline: o overlay mede o fundo claro nela)
   motor    overlay HTML
   durante  gate_tela_vazia, gate_congelamento_build
-  motor    render do overlay, footage
+  motor    render do overlay
   durante  gate_relogio
   motor    composição, aceleração, loudness e mix -> entrega/final_9x16.mp4
   durante  gate_template (o template e os parciais não mudaram do começo ao fim)
@@ -556,13 +557,15 @@ def montar(pj, *, motor=None, gates=None, previa=None, medir=None, folhas=None, 
                 g = rodar(nome)
             if falhou(g):
                 return parar(g)
+        # a footage ANTES do overlay: o overlay decide a tinta invertida medindo o fundo NA footage, no relógio da
+        # timeline (sem ela, ele cai no arquivo-fonte do insert e inverte a legenda onde a tela é escura)
+        passo("footage", motor.montar_footage)
         passo("overlay", motor.gerar_overlay)
         for nome in ("gate_tela_vazia", "gate_congelamento_build"):
             g = rodar(nome)
             if falhou(g):
                 return parar(g)
         passo("render_overlay", motor.renderizar_overlay)
-        passo("footage", motor.montar_footage)
         g = rodar("gate_relogio")
         if falhou(g):
             return parar(g)
