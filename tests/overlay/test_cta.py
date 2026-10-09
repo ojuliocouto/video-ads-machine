@@ -162,7 +162,9 @@ TEMPLATES = ["reel-editorial", "reel-editorial-1x1"]
 
 
 def _template(pasta):
-    return (Path(__file__).resolve().parents[2] / "templates" / pasta / "index.html").read_text(encoding="utf-8")
+    # Template RESOLVIDO (parciais incluídos): é o HTML que o overlay realmente monta.
+    from overlay import html_injecao as HI
+    return HI.ler_template(Path(__file__).resolve().parents[2] / "templates" / pasta / "index.html")
 
 
 def _texto_do_botao(html):
@@ -177,8 +179,11 @@ def test_m5_rotulo_do_cta_entra_nos_dois_templates_reais(pasta):
 
 
 def test_m5_rotulo_no_9x16_mantem_a_seta_do_botao():
+    # Desde a W4.D a seta (<i class="arw">) é criada pelo timeline.js dentro da pílula em tempo de
+    # execução; o HTML leva só o rótulo. O rótulo trocado não pode levar a seta junto.
     html = C.aplicar_html(_template("reel-editorial"), {"cta_label": "ver agora"}, 12.3, 11.4, 20.7, [])
-    assert 'id="cta-pill">ver agora<i class="arw"></i></div>' in html
+    assert 'id="cta-pill">ver agora</div>' in html
+    assert 'arw' in html, "o script que cria a seta da pílula sumiu do template resolvido"
 
 
 @pytest.mark.parametrize("pasta", TEMPLATES)
