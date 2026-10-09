@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:#0c1116}
+.cal{width:min(1500px,94%);background:#12181f;border:1px solid #212b35;border-radius:14px;padding:34px 40px;box-shadow:0 40px 120px rgba(0,0,0,.65)}
+h1{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:26px;margin:0 0 22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g{display:grid;gap:8px}
+.h{color:#8696a0;font-size:14px;text-align:center;padding:6px 0}
+.hr{color:#566573;font-size:14px;text-align:right;padding-right:8px;line-height:84px}
+.slot{height:84px;border-radius:8px;background:#161e27;border:1px solid #1d2733;position:relative;overflow:hidden}
+.oc{position:absolute;left:0;top:0;right:0;bottom:0;background:#3a2b2b;border-left:3px solid #e5484d;color:#d8b4b6;font-size:15px;padding:10px 12px;overflow:hidden}
+.li{position:absolute;left:0;top:0;right:0;bottom:0;background:#12291f;border-left:3px solid #31c48d;color:#9adbbd;font-size:15px;padding:10px 12px;font-family:"Archivo","Inter",sans-serif;font-weight:800;opacity:0;overflow:hidden}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="cal">
+ <h1>{{titulo}}</h1>
+ <div class="g" style="grid-template-columns:70px repeat({{ncol}},1fr)">
+  <div></div>{{#cada dias}}<div class="h">{{.}}</div>{{/cada}}
+  {{#cada linhas}}<div class="hr">{{hora}}</div>{{#cada celulas}}<div class="slot"><div class="oc">{{ocupado}}</div><div class="li" data-ord="{{ord}}">{{livre_rotulo}}</div></div>{{/cada}}
+  {{/cada}}
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var li=document.querySelectorAll(".li"), n=li.length;
+  window.vamQuadro=function(t,DUR){
+    var ini=0.4, passo=(DUR*0.75-ini)/Math.max(1,n-1), i;
+    for(i=0;i<n;i++){
+      var ord=parseInt(li[i].getAttribute("data-ord"),10);
+      li[i].style.opacity=VAM.clamp((t-(ini+ord*passo))/0.18).toFixed(3);
+    }
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:radial-gradient(ellipse at 50% 42%,#1a2330 0%,#0c1116 70%)}
+.wrap{text-align:center;width:100%}
+.num{font-family:"Archivo","Inter",sans-serif;font-weight:800;line-height:1;color:#fff;letter-spacing:-.02em;white-space:nowrap}
+.mais{color:{{destaque}}}
+.sub{font:italic 600 52px "Playfair Display",serif;color:#e8e2d6;margin-top:18px;padding:0 6%}
+.tra{width:0;height:6px;background:{{destaque}};margin:30px auto 0;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="wrap">
+ <div class="num" style="font-size:{{tam}}px">{{#se prefixo}}<span class="mais">{{prefixo}}</span>{{/se}}<span id="n" data-v="{{v}}" data-c="{{c}}" data-final="{{valor_fmt}}">{{valor_fmt}}</span></div>
+ <div class="sub">{{legenda}}</div>
+ <div class="tra" id="tr"></div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var n=document.getElementById("n"), tr=document.getElementById("tr");
+  var v=parseFloat(n.getAttribute("data-v")), c=parseInt(n.getAttribute("data-c"),10), fim=n.getAttribute("data-final");
+  window.vamQuadro=function(t,DUR){
+    var x=Math.min(1,t/Math.min(2.4,DUR*0.6)), p=1-Math.pow(1-Math.max(0,x),4);
+    n.textContent=(x>=1)?fim:VAM.fmt(v*p,c);
+    tr.style.width=(p*420).toFixed(1)+"px";
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

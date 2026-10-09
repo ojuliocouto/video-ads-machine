@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:#0c1116}
+.app{width:min(1600px,94%);height:min(880px,88%);background:#12181f;border-radius:14px;border:1px solid #212b35;padding:36px 40px;box-shadow:0 40px 120px rgba(0,0,0,.65);display:flex;flex-direction:column}
+h1{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:28px;margin:0 0 26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cols{position:relative;display:flex;gap:18px;flex:1;min-height:0}
+.col{position:relative;flex:1;min-width:0;background:#161e27;border:1px solid #222d38;border-radius:12px;padding:16px}
+.ct{color:#8696a0;font-size:15px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;justify-content:space-between;gap:8px}
+.ct span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n{color:#e9edef}
+.card{position:relative;background:#1c2632;border:1px solid #2a3642;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.card.mov{z-index:5}
+.cn{color:#e9edef;font-size:16px}
+.cv{color:#31c48d;font-family:"Archivo","Inter",sans-serif;font-weight:800;font-size:15px;margin-top:6px}
+.tag{display:inline-block;font-size:12px;color:#8696a0;background:#243040;border-radius:6px;padding:3px 8px;margin-top:8px}
+.card.mov.vai{border-color:{{destaque}}}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="app">
+ <h1>{{titulo}}</h1>
+ <div class="cols" id="cols" data-mov="{{mov_ativo}}" data-de="{{mov_de}}" data-para="{{mov_para}}" data-final="{{mov_etiqueta_final}}" data-destaque="{{destaque}}">
+  {{#cada colunas}}<div class="col"><div class="ct"><span>{{nome}}</span><span class="n">{{qtd}}</span></div>
+   {{#cada cartoes}}<div class="card{{#se move}} mov{{/se}}"><div class="cn">{{nome}}</div>{{#se valor}}<div class="cv">{{valor}}</div>{{/se}}{{#se tag_visivel}}<div class="tag">{{etiqueta}}</div>{{/se}}</div>
+   {{/cada}}</div>
+  {{/cada}}
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var cont=document.getElementById("cols"), cols=document.querySelectorAll(".col"), mov=document.querySelector(".card.mov");
+  var ativo=cont.getAttribute("data-mov")==="1"&&mov;
+  var de=parseInt(cont.getAttribute("data-de"),10), para=parseInt(cont.getAttribute("data-para"),10);
+  var final=cont.getAttribute("data-final"), cor=cont.getAttribute("data-destaque");
+  var tag=mov?mov.querySelector(".tag"):null, original=tag?tag.textContent:"";
+  var qtd=[],i;
+  for(i=0;i<cols.length;i++) qtd.push(parseInt(cols[i].querySelector(".n").textContent,10));
+  window.vamQuadro=function(t,DUR){
+    if(!ativo) return;
+    var ini=DUR*0.3, dur=Math.min(1.2,DUR*0.4);
+    var p=VAM.ease((t-ini)/dur), q=Math.min(1,Math.max(0,(t-ini)/dur));
+    var dst=cols[para], src=cols[de], cartoes=dst.querySelectorAll(".card"), ult=cartoes[cartoes.length-1];
+    var dx=dst.offsetLeft-src.offsetLeft, dy=(ult.offsetTop+ult.offsetHeight+12)-mov.offsetTop;
+    mov.style.transform="translate("+(p*dx).toFixed(2)+"px,"+(p*dy).toFixed(2)+"px) rotate("+(p*(1-p)*4).toFixed(3)+"deg)";
+    mov.style.boxShadow=(q>0&&q<1)?"0 18px 40px rgba(0,0,0,.5)":"none";
+    mov.className=(q>0)?"card mov vai":"card mov";
+    var feito=q>=1;
+    cols[de].querySelector(".n").textContent=feito?qtd[de]-1:qtd[de];
+    cols[para].querySelector(".n").textContent=feito?qtd[para]+1:qtd[para];
+    if(tag&&final){tag.textContent=feito?final:original;tag.style.color=feito?cor:"";}
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

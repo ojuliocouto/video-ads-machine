@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face{font-family:"Inter";font-weight:400;font-style:normal;font-display:block;src:url("fonts/inter-400.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:600;font-style:normal;font-display:block;src:url("fonts/inter-600.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:700;font-style:normal;font-display:block;src:url("fonts/inter-700.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:500;font-style:normal;font-display:block;src:url("fonts/montserrat-500.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:600;font-style:normal;font-display:block;src:url("fonts/montserrat-600.woff2") format("woff2")}
+@font-face{font-family:"Archivo";font-weight:800;font-style:normal;font-display:block;src:url("fonts/archivo-800.woff2") format("woff2")}
+@font-face{font-family:"Playfair Display";font-weight:600;font-style:italic;font-display:block;src:url("fonts/playfair-italic-600.woff2") format("woff2")}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116;font-family:"Montserrat","Inter",sans-serif;font-weight:600}
+#root{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transform:scale(1.000000)}
+#zoom{position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+</style>
+<style>
+#root{background:#0c1116}
+.app{width:min(1560px,94%);height:min(880px,88%);background:#12181f;border-radius:14px;border:1px solid #212b35;box-shadow:0 40px 120px rgba(0,0,0,.65);padding:36px 44px;display:flex;flex-direction:column}
+h1{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:28px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.per{color:#8696a0;font-size:15px;margin-top:4px;min-height:18px}
+.kpis{display:flex;gap:16px;margin:26px 0}
+.kpi{flex:1;min-width:0;background:#1a222c;border:1px solid #26323e;border-radius:12px;padding:18px 22px}
+.kl{color:#8696a0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#fff;font-size:34px;margin-top:6px;white-space:nowrap}
+.kd{font-size:13.5px;margin-top:6px;color:#31c48d;min-height:17px}
+.graf{flex:1;min-height:180px;display:flex;flex-direction:column;background:#1a222c;border:1px solid #26323e;border-radius:12px;padding:22px}
+.gl{color:#8696a0;font-size:14px;margin-bottom:8px}
+svg{flex:1;width:100%;min-height:0;overflow:visible}
+.linha{fill:none;stroke:#4c8dff;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.area{fill:url(#gr);opacity:.35}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.0000" data-width="1920" data-height="1080">
+<div id="stage"><div id="zoom">
+<div class="app">
+ <h1>Anúncios: resultados</h1><div class="per">últimos 7 dias, atualizado agora pelo agente</div>
+ <div class="kpis">
+  <div class="kpi"><div class="kl">Investido</div><div class="kv" data-pre="R$ " data-suf="" data-v="4380.0" data-c="0" data-final="R$ 4.380">R$ 4.380</div><div class="kd">dentro do orçamento</div></div>
+  <div class="kpi"><div class="kl">Leads</div><div class="kv" data-pre="" data-suf="" data-v="212.0" data-c="0" data-final="212">212</div><div class="kd">custo caindo</div></div>
+  <div class="kpi"><div class="kl">Custo por lead</div><div class="kv" data-pre="R$ " data-suf="" data-v="14.9" data-c="2" data-final="R$ 14,90">R$ 14,90</div><div class="kd">-18% na semana</div></div>
+  <div class="kpi"><div class="kl">Retorno</div><div class="kv" data-pre="" data-suf="x" data-v="4.7" data-c="1" data-final="4,7x">4,7x</div><div class="kd">subindo</div></div>
+  
+ </div>
+ <div class="graf"><div class="gl">Leads por dia</div>
+  <svg id="sv" viewBox="0 0 1000 240" preserveAspectRatio="none" data-pontos="0.0706,0.1765,0.1294,0.2824,0.3765,0.3412,0.5294,0.6118,0.5647,0.7529,0.8824,0.8353,1.0000">
+   <defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4c8dff"/><stop offset="1" stop-color="#4c8dff" stop-opacity="0"/></linearGradient></defs>
+   <path class="area" id="ar"></path><path class="linha" id="ln"></path>
+  </svg>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var kv=document.querySelectorAll(".kv"), sv=document.getElementById("sv");
+  var pts=sv.getAttribute("data-pontos").split(",").map(parseFloat);
+  var ln=document.getElementById("ln"), ar=document.getElementById("ar");
+  window.vamQuadro=function(t,DUR){
+    var x=Math.min(1,t/Math.min(2.2,DUR*0.6)), p=VAM.ease(x), i;
+    for(i=0;i<kv.length;i++){
+      var e=kv[i];
+      e.textContent=(x>=1)?e.getAttribute("data-final"):e.getAttribute("data-pre")+VAM.fmt(parseFloat(e.getAttribute("data-v"))*p,parseInt(e.getAttribute("data-c"),10))+e.getAttribute("data-suf");
+    }
+    var d="", da="M 0 236", n=pts.length;
+    for(i=0;i<n;i++){
+      var px=i*1000/(n-1), py=236-pts[i]*200*p;
+      d+=(i?" L ":"M ")+px.toFixed(1)+" "+py.toFixed(1);
+      da+=" L "+px.toFixed(1)+" "+py.toFixed(1);
+    }
+    da+=" L 1000 236 Z";
+    ln.setAttribute("d",d); ar.setAttribute("d",da);
+  };
+})();
+</script>
+<script>
+(function(){
+  var raiz=document.getElementById("root");
+  var DUR=parseFloat(raiz.getAttribute("data-duration"));
+  function clamp(x){return x<0?0:(x>1?1:x)}
+  window.VAM={
+    clamp:clamp,
+    ease:function(x){x=clamp(x);return 1-Math.pow(1-x,3)},
+    passo:function(n,ini,fracao,maximo){return Math.min(maximo,(DUR*fracao-ini)/Math.max(1,n))},
+    fmt:function(v,c){
+      var s=Math.abs(v).toFixed(c).split("."),i=s[0],r="";
+      while(i.length>3){r="."+i.slice(-3)+r;i=i.slice(0,-3)}
+      r=i+r+(s.length>1?","+s[1]:"");
+      return (v<0&&/[1-9]/.test(r))?"-"+r:r;
+    }
+  };
+  function aplicar(t){
+    if(!(t>0))t=0; if(t>DUR)t=DUR;
+    var z=document.getElementById("zoom");
+    if(z)z.style.transform="scale("+(1+0.03*(t/DUR)).toFixed(5)+")";
+    if(window.vamQuadro)window.vamQuadro(t,DUR);
+  }
+  window.__vamSeek=aplicar;
+  var tl={_t:0,
+    seek:function(t){this._t=t;aplicar(t);return this},
+    time:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    totalTime:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    duration:function(){return DUR},
+    totalDuration:function(){return DUR},
+    progress:function(){return this._t/DUR},
+    pause:function(){return this},
+    play:function(){return this},
+    paused:function(){return true},
+    isActive:function(){return false},
+    getChildren:function(){return []},
+    eventCallback:function(){return this}
+  };
+  window.__timelines=window.__timelines||{};
+  window.__timelines["main"]=tl;
+  var q=new URLSearchParams(location.search);
+  aplicar(q.has("t")?parseFloat(q.get("t")):0);
+})();
+</script>
+</body>
+</html>

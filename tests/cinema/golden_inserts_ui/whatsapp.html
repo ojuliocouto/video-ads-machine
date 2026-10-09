@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face{font-family:"Inter";font-weight:400;font-style:normal;font-display:block;src:url("fonts/inter-400.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:600;font-style:normal;font-display:block;src:url("fonts/inter-600.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:700;font-style:normal;font-display:block;src:url("fonts/inter-700.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:500;font-style:normal;font-display:block;src:url("fonts/montserrat-500.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:600;font-style:normal;font-display:block;src:url("fonts/montserrat-600.woff2") format("woff2")}
+@font-face{font-family:"Archivo";font-weight:800;font-style:normal;font-display:block;src:url("fonts/archivo-800.woff2") format("woff2")}
+@font-face{font-family:"Playfair Display";font-weight:600;font-style:italic;font-display:block;src:url("fonts/playfair-italic-600.woff2") format("woff2")}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116;font-family:"Montserrat","Inter",sans-serif;font-weight:600}
+#root{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transform:scale(1.000000)}
+#zoom{position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+</style>
+<style>
+#root{background:linear-gradient(135deg,#0a0f14,#10161d)}
+.app{width:min(1500px,94%);height:min(860px,88%);background:#111b21;border-radius:14px;overflow:hidden;display:flex;box-shadow:0 40px 120px rgba(0,0,0,.65)}
+.lista{width:26%;min-width:290px;flex:none;background:#111b21;border-right:1px solid #222d34;overflow:hidden}
+.busca{margin:16px;background:#202c33;border-radius:10px;height:38px;display:flex;align-items:center;padding:0 14px;color:#8696a0;font-size:15px;white-space:nowrap;overflow:hidden}
+.chat{padding:12px 16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #1b242b}
+.chat.ativo{background:#2a3942}
+.av{width:48px;height:48px;flex:none;border-radius:50%;background:#2a3942;display:grid;place-items:center;color:#8696a0;font-size:20px}
+.ativo .av{background:#3b4a54}
+.info{min-width:0}
+.cn{color:#e9edef;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm{color:#8696a0;font-size:14px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{margin-left:auto;flex:none;background:#00a884;color:#111b21;border-radius:11px;min-width:22px;height:22px;padding:0 6px;display:grid;place-items:center;font-size:13px}
+.conv{flex:1;min-width:0;background:#0b141a;display:flex;flex-direction:column}
+.head{height:64px;flex:none;background:#202c33;display:flex;align-items:center;padding:0 20px;gap:14px}
+.head .av{width:40px;height:40px;font-size:17px}
+.msgs{flex:1;padding:26px 6%;display:flex;flex-direction:column;gap:14px;justify-content:flex-end;overflow:hidden}
+.b{max-width:66%;padding:12px 16px;border-radius:10px;font-size:17px;line-height:1.45;opacity:0;overflow-wrap:anywhere}
+.in{background:#202c33;color:#e9edef;align-self:flex-start;border-top-left-radius:2px}
+.out{background:#005c4b;color:#e9edef;align-self:flex-end;border-top-right-radius:2px}
+.hora{font-size:12px;color:rgba(134,150,160,.8);text-align:right;margin-top:5px}
+.hora:empty{display:none}
+.check{color:#53bdeb}
+.dig{align-self:flex-start;color:#8696a0;font-size:14px;opacity:0;font-style:italic}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.0000" data-width="1920" data-height="1080">
+<div id="stage"><div id="zoom">
+<div class="app">
+ <div class="lista">
+  <div class="busca">Pesquisar conversa</div>
+  <div class="chat ativo"><div class="av">C</div><div class="info"><div class="cn">Cliente</div><div class="cm">digitando…</div></div><div class="badge">2</div></div>
+  <div class="chat"><div class="av">L</div><div class="info"><div class="cn">Lead novo</div><div class="cm">Pode me mandar os valores?</div></div></div>
+  <div class="chat"><div class="av">A</div><div class="info"><div class="cn">Aluno</div><div class="cm">Consegui! Muito obrigado</div></div></div>
+  <div class="chat"><div class="av">P</div><div class="info"><div class="cn">Parceiro</div><div class="cm">Perfeito, fechado então</div></div></div>
+  
+ </div>
+ <div class="conv">
+  <div class="head"><div class="av">C</div><div class="cn">Cliente</div></div>
+  <div class="msgs">
+   <div class="b in">Boa noite! Comprei hoje e ainda não recebi o acesso, podem verificar?<div class="hora">22:47</div></div>
+   <div class="dig">respondendo…</div><div class="b out">Oi! Verifiquei aqui: seu acesso foi reenviado agora para o seu e-mail. Confere a caixa de entrada.<div class="hora">22:47<span class="check"> ✓✓</span></div></div>
+   <div class="b in">Chegou! Rapidinho, obrigado!<div class="hora">22:48</div></div>
+   
+  </div>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var msgs=document.querySelectorAll(".b"), digs=document.querySelectorAll(".dig");
+  window.vamQuadro=function(t,DUR){
+    var n=msgs.length, ini=0.3, passo=VAM.passo(n,ini,0.8,1.1), i;
+    for(i=0;i<n;i++){
+      var p=VAM.ease((t-(ini+i*passo))/0.28);
+      msgs[i].style.opacity=p.toFixed(3);
+      msgs[i].style.transform="translateY("+((1-p)*14).toFixed(2)+"px)";
+    }
+    for(i=0;i<digs.length;i++){
+      var k=Array.prototype.indexOf.call(msgs,digs[i].nextElementSibling), chega=ini+k*passo;
+      digs[i].style.opacity=(t>=chega-passo*0.9&&t<chega)?1:0;
+    }
+  };
+})();
+</script>
+<script>
+(function(){
+  var raiz=document.getElementById("root");
+  var DUR=parseFloat(raiz.getAttribute("data-duration"));
+  function clamp(x){return x<0?0:(x>1?1:x)}
+  window.VAM={
+    clamp:clamp,
+    ease:function(x){x=clamp(x);return 1-Math.pow(1-x,3)},
+    passo:function(n,ini,fracao,maximo){return Math.min(maximo,(DUR*fracao-ini)/Math.max(1,n))},
+    fmt:function(v,c){
+      var s=Math.abs(v).toFixed(c).split("."),i=s[0],r="";
+      while(i.length>3){r="."+i.slice(-3)+r;i=i.slice(0,-3)}
+      r=i+r+(s.length>1?","+s[1]:"");
+      return (v<0&&/[1-9]/.test(r))?"-"+r:r;
+    }
+  };
+  function aplicar(t){
+    if(!(t>0))t=0; if(t>DUR)t=DUR;
+    var z=document.getElementById("zoom");
+    if(z)z.style.transform="scale("+(1+0.03*(t/DUR)).toFixed(5)+")";
+    if(window.vamQuadro)window.vamQuadro(t,DUR);
+  }
+  window.__vamSeek=aplicar;
+  var tl={_t:0,
+    seek:function(t){this._t=t;aplicar(t);return this},
+    time:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    totalTime:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    duration:function(){return DUR},
+    totalDuration:function(){return DUR},
+    progress:function(){return this._t/DUR},
+    pause:function(){return this},
+    play:function(){return this},
+    paused:function(){return true},
+    isActive:function(){return false},
+    getChildren:function(){return []},
+    eventCallback:function(){return this}
+  };
+  window.__timelines=window.__timelines||{};
+  window.__timelines["main"]=tl;
+  var q=new URLSearchParams(location.search);
+  aplicar(q.has("t")?parseFloat(q.get("t")):0);
+})();
+</script>
+</body>
+</html>

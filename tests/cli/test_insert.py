@@ -192,7 +192,7 @@ def test_projeto_que_nao_existe_sai_2_e_nao_o_cria(estado_vazio, tmp_path, motor
     assert not (estado_vazio / "projetos" / "nao-existe").exists()
 
 
-@pytest.mark.parametrize("chave", ["Pergunta", "com espaço", "a/b", "../x", "-comeca"])
+@pytest.mark.parametrize("chave", ["Pergunta", "com espaço", "a/b", "../x", "_comeca"])
 def test_chave_invalida_sai_2(chave, projeto, estado_vazio, tmp_path, motor, capsys):
     assert _rodar(estado_vazio, "meu-ad", chave, "--template", "contador",
                   "--dados", str(_dados(tmp_path, "contador"))) == 2

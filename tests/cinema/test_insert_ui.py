@@ -253,9 +253,12 @@ def test_zero_nome_real_ou_marca_nos_templates_nos_modulos_e_no_html_gerado():
 
 @pytest.mark.parametrize("nome", NOMES)
 def test_o_nome_do_app_de_terceiro_nao_aparece_no_template_nem_no_html(nome):
-    marca = "whats" + "app"           # o NOME do template é whatsapp; o app e a marca não aparecem na tela
+    # O NOME do template é whatsapp e o código cita o navegador pelo nome: por isso estas marcas não entram
+    # na lista de hashes (que varre o código) e são checadas só no que vai para a tela.
+    marcas = ("whats" + "app", "goo" + "gle")
     for texto in ((TEMPLATES_DIR / (nome + ".html")).read_text(encoding="utf-8"), _gerar(nome)):
-        assert marca not in texto.lower(), nome
+        for marca in marcas:
+            assert marca not in texto.lower(), (nome, marca)
 
 
 @pytest.mark.parametrize("nome", NOMES)
@@ -599,21 +602,13 @@ def _hyperframes_falso(raiz):
     return hf
 
 
-def test_motor_padrao_prefere_o_hyperframes_do_repo(tmp_path, monkeypatch):
-    monkeypatch.delenv("VAM_HYPERFRAMES", raising=False)
+def test_motor_padrao_prefere_o_hyperframes_do_repo(tmp_path):
     hf = _hyperframes_falso(tmp_path)
     motor = insert_ui.motor_padrao(tmp_path)
     assert motor.nome == "hyperframes" and Path(motor.binario) == hf
 
 
-def test_motor_padrao_aceita_o_binario_indicado_por_variavel(tmp_path, monkeypatch):
-    hf = _hyperframes_falso(tmp_path / "outro")
-    monkeypatch.setenv("VAM_HYPERFRAMES", str(hf))
-    assert Path(insert_ui.motor_padrao(tmp_path / "vazio").binario) == hf
-
-
 def test_sem_hyperframes_usa_o_chrome_do_sistema_com_playwright(tmp_path, monkeypatch):
-    monkeypatch.delenv("VAM_HYPERFRAMES", raising=False)
     monkeypatch.setattr(insert_ui, "_achar_navegador", lambda: Path("/falso/chrome"))
     monkeypatch.setattr(insert_ui, "_playwright_disponivel", lambda: True)
     motor = insert_ui.motor_padrao(tmp_path)
@@ -621,7 +616,6 @@ def test_sem_hyperframes_usa_o_chrome_do_sistema_com_playwright(tmp_path, monkey
 
 
 def test_chrome_sem_playwright_nao_serve(tmp_path, monkeypatch):
-    monkeypatch.delenv("VAM_HYPERFRAMES", raising=False)
     monkeypatch.setattr(insert_ui, "_achar_navegador", lambda: Path("/falso/chrome"))
     monkeypatch.setattr(insert_ui, "_playwright_disponivel", lambda: False)
     with pytest.raises(insert_ui.SemMotorDeRender):
@@ -629,7 +623,6 @@ def test_chrome_sem_playwright_nao_serve(tmp_path, monkeypatch):
 
 
 def test_sem_motor_sai_uma_linha_com_o_comando_que_resolve(tmp_path, monkeypatch):
-    monkeypatch.delenv("VAM_HYPERFRAMES", raising=False)
     monkeypatch.setattr(insert_ui, "_achar_navegador", lambda: None)
     monkeypatch.setattr(insert_ui, "_playwright_disponivel", lambda: False)
     with pytest.raises(insert_ui.SemMotorDeRender) as e:

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:linear-gradient(135deg,#0a0f14,#10161d)}
+.app{width:min(1500px,94%);height:min(860px,88%);background:#111b21;border-radius:14px;overflow:hidden;display:flex;box-shadow:0 40px 120px rgba(0,0,0,.65)}
+.lista{width:26%;min-width:290px;flex:none;background:#111b21;border-right:1px solid #222d34;overflow:hidden}
+.busca{margin:16px;background:#202c33;border-radius:10px;height:38px;display:flex;align-items:center;padding:0 14px;color:#8696a0;font-size:15px;white-space:nowrap;overflow:hidden}
+.chat{padding:12px 16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #1b242b}
+.chat.ativo{background:#2a3942}
+.av{width:48px;height:48px;flex:none;border-radius:50%;background:#2a3942;display:grid;place-items:center;color:#8696a0;font-size:20px}
+.ativo .av{background:#3b4a54}
+.info{min-width:0}
+.cn{color:#e9edef;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm{color:#8696a0;font-size:14px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{margin-left:auto;flex:none;background:#00a884;color:#111b21;border-radius:11px;min-width:22px;height:22px;padding:0 6px;display:grid;place-items:center;font-size:13px}
+.conv{flex:1;min-width:0;background:#0b141a;display:flex;flex-direction:column}
+.head{height:64px;flex:none;background:#202c33;display:flex;align-items:center;padding:0 20px;gap:14px}
+.head .av{width:40px;height:40px;font-size:17px}
+.msgs{flex:1;padding:26px 6%;display:flex;flex-direction:column;gap:14px;justify-content:flex-end;overflow:hidden}
+.b{max-width:66%;padding:12px 16px;border-radius:10px;font-size:17px;line-height:1.45;opacity:0;overflow-wrap:anywhere}
+.in{background:#202c33;color:#e9edef;align-self:flex-start;border-top-left-radius:2px}
+.out{background:#005c4b;color:#e9edef;align-self:flex-end;border-top-right-radius:2px}
+.hora{font-size:12px;color:rgba(134,150,160,.8);text-align:right;margin-top:5px}
+.hora:empty{display:none}
+.check{color:#53bdeb}
+.dig{align-self:flex-start;color:#8696a0;font-size:14px;opacity:0;font-style:italic}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="app">
+ <div class="lista">
+  <div class="busca">{{busca}}</div>
+  {{#cada contatos}}<div class="chat{{#se ativo}} ativo{{/se}}"><div class="av">{{inicial}}</div><div class="info"><div class="cn">{{nome}}</div><div class="cm">{{previa}}</div></div>{{#se nao_lidas}}<div class="badge">{{nao_lidas}}</div>{{/se}}</div>
+  {{/cada}}
+ </div>
+ <div class="conv">
+  <div class="head"><div class="av">{{conversa_inicial}}</div><div class="cn">{{conversa_nome}}</div></div>
+  <div class="msgs">
+   {{#cada mensagens}}{{#se digita_antes}}<div class="dig">{{digitando}}</div>{{/se}}<div class="b {{classe}}">{{texto}}<div class="hora">{{hora}}{{#se enviada}}<span class="check"> ✓✓</span>{{/se}}</div></div>
+   {{/cada}}
+  </div>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var msgs=document.querySelectorAll(".b"), digs=document.querySelectorAll(".dig");
+  window.vamQuadro=function(t,DUR){
+    var n=msgs.length, ini=0.3, passo=VAM.passo(n,ini,0.8,1.1), i;
+    for(i=0;i<n;i++){
+      var p=VAM.ease((t-(ini+i*passo))/0.28);
+      msgs[i].style.opacity=p.toFixed(3);
+      msgs[i].style.transform="translateY("+((1-p)*14).toFixed(2)+"px)";
+    }
+    for(i=0;i<digs.length;i++){
+      var k=Array.prototype.indexOf.call(msgs,digs[i].nextElementSibling), chega=ini+k*passo;
+      digs[i].style.opacity=(t>=chega-passo*0.9&&t<chega)?1:0;
+    }
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>
