@@ -640,3 +640,31 @@ def test_fixture_uma_transcricao_e_overlay_e_footage_no_mesmo_relogio():
     print(f"\n[relogio] footage {dur_footage:.3f}s | overlay antes {antes:.3f}s (deriva {antes - dur_footage:+.3f}s)"
           f" | overlay depois {depois:.3f}s (deriva {depois - dur_footage:+.3f}s)")
     assert abs(depois - dur_footage) <= QUADRO + 1e-6
+
+
+@pytest.mark.midia_real
+@pytest.mark.lento
+def test_fixture_gate_relogio_passa_nos_arquivos_reais_e_pega_a_janela_deslocada(tmp_path):
+    """O gate sobre o que a footage e o overlay gravaram de verdade no fixture; e a timeline mutada reprova."""
+    from gates import gate_relogio as G
+    from tests.paridade import capturar as C
+
+    cap = C.capturar_memo(RAIZ, C.exigir_midia()).arquivos
+    out, ovl = tmp_path / "output", tmp_path / "ovl"
+    out.mkdir()
+    ovl.mkdir()
+    tl_txt = cap["timeline/timeline.json"]
+    tl = json.loads(tl_txt)
+    (tmp_path / tl["fontes"]["alinhamento"]).write_text(cap["timeline/alinhamento.json"], encoding="utf-8")
+    (out / "f_timeline.json").write_text(tl_txt, encoding="utf-8")
+    (out / "f_ritmo.json").write_text(cap["timeline/footage/ritmo.json"], encoding="utf-8")
+    (out / "timing.json").write_text(cap["timeline/footage/timing.json"], encoding="utf-8")
+    (ovl / "prancha.json").write_text(cap["overlay/prancha.json"], encoding="utf-8")
+    (ovl / "janelas_split.json").write_text(cap["overlay/janelas_split.json"], encoding="utf-8")
+    argv = ["--timeline", str(out / "f_timeline.json"), "--footage-ritmo", str(out / "f_ritmo.json"),
+            "--footage-timing", str(out / "timing.json"), "--overlay-dir", str(ovl)]
+    assert G.main(argv) == 0
+    tl["janelas_split"][0]["s"] = round(tl["janelas_split"][0]["s"] + 2 * QUADRO, 4)
+    tl["janelas_split"][0]["e"] = round(tl["janelas_split"][0]["e"] + 2 * QUADRO, 4)
+    (out / "f_timeline.json").write_text(json.dumps(tl), encoding="utf-8")
+    assert G.main(argv) == 1
