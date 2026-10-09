@@ -163,3 +163,8 @@ def test_o_golden_vem_de_vam_paridade_golden_quando_definida(tmp_path, monkeypat
     assert C.pasta_golden(tmp_path) == tmp_path / "golden"
     monkeypatch.setenv("VAM_PARIDADE_GOLDEN", str(tmp_path / "golden-w3a"))
     assert C.pasta_golden(tmp_path) == tmp_path / "golden-w3a"
+
+
+def test_timeline_e_alinhamento_da_fixture(atual, golden):
+    """W3.A: a timeline.json e o alinhamento único do fixture, e o argv da fase (uma transcrição só)."""
+    _confere(atual, golden, ("timeline/timeline.json", "timeline/alinhamento.json", "argv/timeline.jsonl"))

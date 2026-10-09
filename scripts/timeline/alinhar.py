@@ -140,7 +140,7 @@ def alinhar(avatar, narr_words, *, cache_dir, raiz=None, glossario=None, duracao
         transcricao = _T.transcrever(avatar, cache_dir=Path(cache_dir), glossario=glossario)
     except _T.SemTranscritor as e:
         raise ErroAlinhamento(str(e))
-    dur = round(float(duracao(avatar)), 3)
+    dur = float(duracao(avatar))      # sem arredondar: a cauda sem par ancora neste número, como na footage
     casadas = casar(palavras_do_asr(transcricao), list(narr_words), dur)
     return {
         "versao": VERSAO,
