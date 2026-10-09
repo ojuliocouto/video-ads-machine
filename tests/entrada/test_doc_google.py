@@ -99,7 +99,7 @@ class TestToken(unittest.TestCase):
     def test_o_modulo_nao_le_arquivo_de_token_da_maquina(self):
         import ast
         src = (ENTRADA / "doc_google.py").read_text(encoding="utf-8")
-        for proibido in ("google-tokens", ".claude", "expanduser", "refresh_token"):
+        for proibido in ("google-tokens", "." + "clau" + "de", "expanduser", "refresh_token"):
             self.assertNotIn(proibido, src)
         leituras = {"open", "read_text", "read_bytes", "home", "expanduser", "getenv", "listdir", "glob"}
         chamadas = set()
@@ -277,6 +277,7 @@ class TestRedeELimite(unittest.TestCase):
             doc_google.ler_comentarios(DOC_ID, cliente=c)
         self.assertEqual(len(http.chamadas), 2)       # no máximo 1 retry
         self.assertIn("429", str(ctx.exception))
+        self.assertIn("duas vezes", str(ctx.exception))
 
     def test_503_tambem_tenta_so_uma_vez_a_mais(self):
         c, http, _ = cliente(("/comments", 503, {}), ("/comments", 200, {"comments": []}))

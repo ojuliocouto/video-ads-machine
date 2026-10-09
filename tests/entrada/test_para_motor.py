@@ -698,7 +698,9 @@ class TestIsolamento(Base):
 
     def test_fonte_nao_cita_planilha_nem_token_de_maquina(self):
         src = (ENTRADA / "para_motor.py").read_text(encoding="utf-8").lower()
-        for proibido in ("sheets.googleapis", "spreadsheets", "google-tokens", "~/.claude", "urllib"):
+        # montados por pedaços: o teste não pode ser o primeiro a carregar o que proíbe
+        casa = "~/." + "clau" + "de"
+        for proibido in ("sheets.googleapis", "spreadsheets", "google-tokens", casa, "urllib"):
             self.assertNotIn(proibido, src)
 
     def test_grep_de_planilha_na_pasta_inteira_da_entrada_e_vazio(self):
