@@ -193,7 +193,7 @@ def test_env_real_nunca_entra_no_git():
 
 def test_env_example_sem_travessao():
     texto = ENV_EXAMPLE.read_text(encoding="utf-8")
-    assert "—" not in texto and "–" not in texto
+    assert "\u2014" not in texto and "\u2013" not in texto
 
 
 @pytest.mark.parametrize("nome", ["HEYGEN_API_KEY", "GROQ_API_KEY"])

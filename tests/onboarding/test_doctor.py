@@ -611,4 +611,4 @@ def test_arquivo_parseia_como_python_3_9(arquivo):
 @pytest.mark.parametrize("arquivo", ARQUIVOS)
 def test_sem_travessao_nos_arquivos(arquivo):
     texto = (RAIZ_REAL / arquivo).read_text(encoding="utf-8")
-    assert "—" not in texto and "–" not in texto
+    assert "\u2014" not in texto and "\u2013" not in texto

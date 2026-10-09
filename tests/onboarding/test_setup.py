@@ -35,8 +35,9 @@ case "$1" in
       pip)
         echo "error: externally-managed-environment" >&2; exit 1 ;;
     esac ;;
-  *init_local.py) if falha init; then exit 1; fi; exit 0 ;;
-  *som_cortes.py) if falha sons; then exit 1; fi; exit 0 ;;
+  *init_local.py) if falha init; then exit 1; fi; mkdir -p _local; exit 0 ;;
+  *som_cortes.py) if falha sons; then exit 1; fi
+                  mkdir -p _local/dados/assets/som; touch _local/dados/assets/som/whoosh.wav; exit 0 ;;
 esac
 exit 0
 '''
@@ -46,8 +47,9 @@ echo "venv-python $*" >> "$STUB_LOG"
 falha() { case ",$STUB_FAIL," in *,"$1",*) return 0;; esac; return 1; }
 case "$1" in
   -m) case "$2" in pip) if falha pip; then echo "pip falhou" >&2; exit 1; fi; exit 0 ;; esac ;;
-  *init_local.py) if falha init; then exit 1; fi; exit 0 ;;
-  *som_cortes.py) if falha sons; then exit 1; fi; exit 0 ;;
+  *init_local.py) if falha init; then exit 1; fi; mkdir -p _local; exit 0 ;;
+  *som_cortes.py) if falha sons; then exit 1; fi
+                  mkdir -p _local/dados/assets/som; touch _local/dados/assets/som/whoosh.wav; exit 0 ;;
 esac
 exit 0
 '''
@@ -80,7 +82,7 @@ echo "curl $*" >> "$STUB_LOG"
 case ",$STUB_FAIL," in *,curl,*) exit 6;; esac
 saida=""; prev=""
 for a in "$@"; do if [ "$prev" = "-o" ]; then saida="$a"; fi; prev="$a"; done
-[ -n "$saida" ] && echo "/* gsap stub */" > "$saida"
+[ -n "$saida" ] && { echo "/* gsap stub */"; head -c 1500 /dev/zero | tr '\0' 'x'; } > "$saida"
 exit 0
 '''
 
@@ -172,10 +174,17 @@ def test_o_npm_instala_so_o_que_o_package_json_pina_sem_pacote_global(mundo):
 def test_o_gsap_baixa_para_um_arquivo_temporario_e_so_entao_vira_o_arquivo_final(mundo):
     mundo.rodar()
     curl = mundo.chamadas("curl")[0]
-    destino = curl.split("-o", 1)[1].split()[0]
+    destino = re.search(r" -o (.+) https://", curl).group(1)
     assert not destino.endswith("templates/_vendor/gsap.min.js"), \
         "download parcial não pode virar o arquivo final"
     assert not list((mundo.repo / "templates" / "_vendor").glob("*.tmp*"))
+
+
+def test_o_que_o_setup_gera_fica_invisivel_para_o_git(mundo):
+    """O .gitignore da raiz não cobre .venv nem templates/_vendor: o setup esconde os dois."""
+    mundo.rodar()
+    for pasta in (mundo.repo / ".venv", mundo.repo / "templates" / "_vendor"):
+        assert (pasta / ".gitignore").read_text().strip() == "*", pasta
 
 
 def test_env_do_aluno_nunca_e_sobrescrito(mundo):
@@ -364,7 +373,7 @@ def test_setup_sh_compativel_com_o_bash_3_2_do_macos():
 
 def test_setup_sh_sem_travessao_nem_nome_de_cliente():
     codigo = SETUP_REAL.read_text(encoding="utf-8")
-    assert "—" not in codigo and "–" not in codigo
+    assert "\u2014" not in codigo and "\u2013" not in codigo
 
 
 def test_setup_sh_nao_instala_pacote_global_nem_escreve_na_home():
