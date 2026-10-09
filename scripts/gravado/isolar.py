@@ -48,7 +48,8 @@ MIN_BYTES = 1000
 def chave_do_ambiente(env=None):
     """A chave da ElevenLabs. Insumo inválido se falta ou não parece uma (`sk_...`)."""
     env = os.environ if env is None else env
-    chave = (env.get(VAR_CHAVE) or "").strip()
+    # Nome literal de propósito: o gate do .env.example varre por AST e só vê literal.
+    chave = (env.get("ELEVENLABS_API_KEY") or "").strip()
     if not chave.startswith("sk_"):
         raise InsumoInvalido("falta a chave da ElevenLabs: exporte %s (ela começa com sk_), "
                              "crie em elevenlabs.io, Developers, API Keys" % VAR_CHAVE)
