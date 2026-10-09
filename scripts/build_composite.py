@@ -79,39 +79,35 @@ def vdur(f):
     return float(o) if o else 0.0
 
 
-LUFS_ALVO, TP_ALVO, LRA_ALVO = -14.0, -1.5, 11.0
+# ===== BLOCO DE ÁUDIO (W4.B): voz normalizada -> efeitos -> música -> limiter 0,97 =====
+# Este bloco não tem mais conta própria: loudness, pausa, ducking, plano de SFX e mix moram nos módulos
+# abaixo (testados sem render), e o que ficou aqui é a COLA com o motor antigo.
+#   audio/loudness.py     -14 LUFS (mais ou menos 1,2), true peak até -1,5 dBTP, 48 kHz        (C12)
+#   audio/pausas_reais.py a pausa sai do envelope da VOZ, nunca da transcrição
+#   cinema/musica.py      trilha a -20 dBFS, cama 0,055 sob a fala e 0,42 nas pausas, rampa 150 ms (C10)
+#   cinema/sfx_plano.py   riser 1,0 s antes do CTA, tick por linha de pilha, boom na KEY gigante-atrás;
+#                         WHOOSH DESLIGADO (C11)
+#   audio/mix_final.py    um grafo, um AAC, limiter 0,97
+from audio import loudness as LD  # noqa: E402
+from audio import mix_final as MX  # noqa: E402
+from cinema import musica as MU  # noqa: E402
+from cinema import sfx_plano as SP  # noqa: E402
+
+LUFS_ALVO, TP_ALVO, LRA_ALVO = LD.LUFS_ALVO, LD.TP_ALVO, LD.LRA_ALVO     # fonte única: audio/loudness.py
 
 
 def normalizar_loudness(video: Path) -> Path:
-    """Normaliza o audio pra -14 LUFS (alvo das plataformas) sem reencodar o video.
+    """Normaliza o áudio pra -14 LUFS (alvo das plataformas) sem reencodar o vídeo.
 
-    Dois passes: o 1o MEDE (loudnorm print_format=json), o 2o APLICA os valores
-    medidos. Single-pass so estima e erra o alvo em varios LU; somar ganho puro
-    estouraria o pico. O video vai com -c:v copy, entao nao ha perda de qualidade
-    nem custo de re-encode.
+    Dois passes (audio.loudness.normalizar): o 1º MEDE, o 2º APLICA os valores medidos em modo linear.
+    Single-pass só estima e erra o alvo em vários LU; somar ganho puro estouraria o pico. O vídeo vai com
+    -c:v copy. Se não há como medir, o build para: entregar a -31 LUFS soa quase mudo no feed.
     """
-    import re as _re
-    p1 = subprocess.run(
-        ["ffmpeg", "-i", str(video), "-af",
-         f"loudnorm=I={LUFS_ALVO}:TP={TP_ALVO}:LRA={LRA_ALVO}:print_format=json",
-         "-f", "null", "-"],
-        capture_output=True, text=True)
-    m = _re.search(r"\{[^{}]*\"input_i\"[\s\S]*?\}", p1.stderr)
-    if not m:
-        print("   [loudness] AVISO: nao consegui medir, mantendo audio original")
-        return video
-    d = json.loads(m.group(0))
-    medido = float(d["input_i"])
-    out = video.with_name(video.stem + "_norm.mp4")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(video), "-af",
-         f"loudnorm=I={LUFS_ALVO}:TP={TP_ALVO}:LRA={LRA_ALVO}:"
-         f"measured_I={d['input_i']}:measured_TP={d['input_tp']}:"
-         f"measured_LRA={d['input_lra']}:measured_thresh={d['input_thresh']}:"
-         f"offset={d['target_offset']}:linear=true",
-         "-c:v", "copy", "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
-         "-movflags", "+faststart", str(out)])
-    out.replace(video)
-    print(f"   [loudness] {medido:.1f} LUFS -> {LUFS_ALVO} LUFS")
+    destino = video.with_name(video.stem + "_norm.mp4")
+    antes = LD.medir(video)
+    LD.normalizar(video, destino)
+    destino.replace(video)
+    print(f"   [loudness] {antes.integrado_lufs:.1f} LUFS -> {LUFS_ALVO} LUFS")
     return video
 
 
@@ -137,41 +133,23 @@ def strip_overlay(idx_html: Path) -> Path:
 
 
 
-# MUSICA DE FUNDO (31/08/2026, pedido do Julio: "falta uma musiquinha de fundo").
-# Faixa em V1/assets/som/musica_fundo.* (ou VAM_MUSICA). Entra DEPOIS do loudnorm da voz
-# e da mixagem de efeitos, no nivel MUSICA_LUFS, com fade de entrada e de saida; se a
-# faixa for mais curta que o video, repete. Sem faixa, segue sem musica e avisa.
-MUSICA_LUFS = -31.0      # ~17 LU abaixo da voz (-14): presente, nunca disputando a fala
-def mixar_musica(video):
+def _faixa_de_musica():
+    """A trilha do motor antigo: VAM_MUSICA, ou V1/assets/som/musica_fundo.* (31/08/2026, "falta uma
+    musiquinha de fundo"). None se não há. O produto novo lê a trilha do projeto.json (cinema/musica)."""
     import glob as _g
     faixa = os.environ.get("VAM_MUSICA") or next(iter(sorted(
         _g.glob(str(V1 / "assets" / "som" / "musica_fundo.*")))), None)
-    if not faixa or not Path(faixa).exists():
-        print("   [musica] nenhuma faixa em assets/som/musica_fundo.*; seguindo sem musica",
-              flush=True)
-        return video
-    dur = vdur(video)
-    saida = video.with_name(video.stem + "_mus.mp4")
-    fc = (f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{dur:.3f},"
-          f"loudnorm=I={MUSICA_LUFS}:TP=-6:LRA=7,"
-          f"afade=t=in:st=0:d=1.2,afade=t=out:st={max(dur-2.5,0):.3f}:d=2.5[m];"
-          f"[0:a][m]amix=inputs=2:duration=first:normalize=0[a]")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(video), "-stream_loop", "-1", "-i", faixa,
-         "-filter_complex", fc, "-map", "0:v", "-map", "[a]", "-shortest",
-         "-c:v", "copy", "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
-         "-movflags", "+faststart", str(saida)])
-    saida.replace(video)
-    print(f"   [musica] {Path(faixa).name} a {MUSICA_LUFS} LUFS", flush=True)
-    return video
+    return Path(faixa) if faixa and Path(faixa).exists() else None
 
-def mixar_som(video, ad, workdir):
-    """Whoosh na entrada de insert e riser antes do CTA, no arquivo ja acelerado.
 
-    Sem efeito nenhum se o plano vier vazio: e melhor ficar mudo do que inventar som.
+def _sfx_do_anuncio(ad, workdir):
+    """(eventos de SFX no formato do timeline, relógio) a partir da prancha e do plano de ritmo.
+
+    O motor antigo ainda não escreve timeline.json: a prancha traz letterings e CTA, o plano de ritmo
+    traz os cortes. Sem efeito nenhum se o plano não puder ser calculado: é melhor ficar mudo do que
+    inventar som.
     """
     try:
-        # (migracao 26/08/2026) codigo agora vizinho; import direto resolve
-        import som_cortes as SC
         import ritmo as RT
         pr = json.loads((workdir / "prancha.json").read_text())
         ins = json.loads((V1 / "inputs" / f"{ad}_inserts.json").read_text())
@@ -187,34 +165,43 @@ def mixar_som(video, ad, workdir):
                            "crop": cfg.get("crop"), "dur_max": cfg.get("dur_max"),
                            "texto": b.get("texto", "")})
         segs = RT.plano_de_ritmo(blocos)
-        eventos = SC.plano_de_som(segs, ACCEL, cta=pr.get("cta", {}).get("inicio"))
+        tl = SP.timeline_de_prancha(pr, segs, ACCEL)
+        return SP.plano_de_sfx(tl), tl["relogio"]
     except Exception as ex:
-        print(f"   [som] plano nao calculado ({ex}); seguindo sem efeito", flush=True)
-        return video
-    eventos = [e for e in eventos if (SC.SOM / e["efeito"]).exists()]
-    if not eventos:
-        print("   [som] nenhum efeito a aplicar", flush=True)
-        return video
+        print(f"   [som] plano não calculado ({ex}); seguindo sem efeito", flush=True)
+        return [], {"aceleracao": ACCEL, "a0": 0.0}
 
-    entradas, filtros, rotulos = [], [], []
-    for k, e in enumerate(eventos):
-        entradas += ["-i", str(SC.SOM / e["efeito"])]
-        ms = int(round(e["t"] * 1000))
-        filtros.append(f"[{k+1}:a]adelay={ms}|{ms}[e{k}]")
-        rotulos.append(f"[e{k}]")
-    # normalize=0: o padrao do amix divide o ganho pelo numero de entradas e a VOZ
-    # afundaria a cada efeito. duration=first: o comprimento e o do video, nao do efeito.
-    filtros.append(f"[0:a]{''.join(rotulos)}amix=inputs={len(eventos)+1}:"
-                   f"duration=first:normalize=0[a]")
-    saida = video.with_name(video.stem + "_som.mp4")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(video), *entradas,
-         "-filter_complex", "; ".join(filtros), "-map", "0:v", "-map", "[a]",
-         "-c:v", "copy", "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
-         "-movflags", "+faststart", str(saida)])
+
+def mixar_audio(video, ad, workdir):
+    """Efeitos, música e limiter no arquivo já acelerado e com a voz já normalizada, num grafo e num AAC.
+
+    A pausa que sobe a cama sai da VOZ deste arquivo (audio.pausas_reais); a voz pré-mix fica em
+    workdir/voz_pre_mix.wav para o gate_mix comparar, e o relatório (ducking, sfx, loudness) em
+    workdir/mix_final.json. O true peak é conferido no arquivo final (mix_final corrige se passar do teto).
+    """
+    video, workdir = Path(video), Path(workdir)
+    sfx, relogio = _sfx_do_anuncio(ad, workdir)
+    eventos = SP.eventos_para_mix(sfx, relogio, SP.biblioteca())
+    faixa = _faixa_de_musica()
+    if faixa is None:
+        print("   [música] nenhuma faixa em assets/som/musica_fundo.* nem em VAM_MUSICA; seguindo sem música",
+              flush=True)
+    saida = video.with_name(video.stem + "_mix.mp4")
+    rel = MX.mixar(video, saida, efeitos=eventos, trilha=faixa,
+                   motivo_sem_trilha="nenhuma faixa em assets/som/musica_fundo.* nem em VAM_MUSICA",
+                   voz_ref=workdir / "voz_pre_mix.wav")
     saida.replace(video)
-    quais = ", ".join(f"{e['efeito'].split('.')[0]}@{e['t']:.1f}s" for e in eventos[:6])
-    print(f"   [som] {len(eventos)} efeito(s): {quais}"
-          f"{' ...' if len(eventos) > 6 else ''}", flush=True)
+    relatorio = {"ducking": rel["ducking"], "sfx": sfx, "trilha": rel["trilha"], "loudness": rel["loudness"],
+                 "voz_ref": rel["voz_ref"], "aceleracao": relogio["aceleracao"]}
+    (workdir / "mix_final.json").write_text(json.dumps(relatorio, ensure_ascii=False, indent=2))
+    quais = ", ".join(f"{e['efeito']}@{e['t']:.1f}s" for e in sfx[:6])
+    print(f"   [som] {len(sfx)} efeito(s): {quais}{' ...' if len(sfx) > 6 else ''}", flush=True)
+    if faixa is not None:
+        d = rel["ducking"]
+        print(f"   [música] {faixa.name} a {MU.NIVEL_TRILHA_DBFS:.0f} dBFS, cama {d['cama_fala']} -> "
+              f"{d['cama_pausa']} em {len(d['pausas'])} pausa(s) real(is)", flush=True)
+    print(f"   [mix] {rel['loudness']['lufs']:.1f} LUFS, true peak {rel['loudness']['true_peak_dbtp']:.1f} dBTP "
+          f"(ajuste {rel['loudness']['ajuste_db']:+.2f} dB)", flush=True)
     return video
 
 
@@ -405,10 +392,9 @@ def build(ad, look, fmt):
     # ouve.
     # Normalizando a VOZ primeiro e mixando depois, o efeito entra no nivel em que foi
     # calibrado e chega assim na entrega. O impacto no loudness final e desprezivel
-    # (os efeitos estao ~20 dB abaixo da voz e sao curtos), e o gate de loudness confere.
+    # (os efeitos estao ~20 dB abaixo da voz e sao curtos), e o gate_mix confere o arquivo final.
     final = normalizar_loudness(final)
-    final = mixar_som(final, ad, workdir)
-    final = mixar_musica(final)
+    final = mixar_audio(final, ad, workdir)      # efeitos -> música -> limiter 0,97, um AAC só
     # TIMESTAMP LIMPO NO FIM (31/08/2026, prints do Julio). Os tres remuxes em serie
     # com copia de video (loudness -> som -> musica) deixaram o PRIMEIRO quadro em
     # pts -0,067s e o DTS fora de ordem. ffprobe e QuickTime toleram; o player do

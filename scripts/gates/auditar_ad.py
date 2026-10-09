@@ -15,8 +15,25 @@ O que este script NÃO faz: julgar se a imagem combina com a fala. Isso é olho.
 gera as folhas de contato pra esse olho ser possível em minutos, e falha sozinho em
 tudo que é medível.
 
-Uso: python3 auditar_ad.py <video.mp4> [--sheets]
+Duas leituras mudaram na W4.B (generalização do produto):
+
+  - A ACELERAÇÃO não é mais um número cravado no código (era 1,30 aqui contra 1,35 no build, e o
+    take real roda a 1,2). Ela é a do projeto (`--projeto`, lida do projeto.json com o padrão do modo),
+    ou passada à mão (`--aceleracao`). Sem nenhuma das duas o script recusa (exit 2): chutar a
+    aceleração desloca todos os cortes conferidos.
+  - O SILÊNCIO é medido na faixa de VOZ (`--voz`, a voz pré-mix que o mixer grava), não no arquivo
+    final: a música sobe nas pausas (cama de 0,42) e mascara o silêncio. O limiar sai do passo que
+    ele fiscaliza: PAUSA_MAX_TELA do higienizador (0,60 s, na tela, depois da aceleração) mais 0,10 s
+    de tolerância. Silêncio na ponta (antes da primeira palavra ou depois da última) não é pausa
+    entre falas e não conta.
+
+Uso:
+  python3 auditar_ad.py <video.mp4> --projeto <slug> [--estado _local] [--voz voz_pre_mix.wav]
+                        [--timing timing.json] [--sheets]
+  python3 auditar_ad.py <video.mp4> --aceleracao 1.35 [--voz ...] [--timing ...] [--sheets]
+  saída 0 passa · 1 reprova no automático · 2 insumo inválido
 """
+import argparse
 import json
 import os
 import re
@@ -27,8 +44,16 @@ from pathlib import Path
 # Raiz de scripts/ no sys.path: caminhos.py e a fonte unica dos caminhos do repo.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from caminhos import OUTPUT  # noqa: E402
+import higienizar_audio  # noqa: E402
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))
+
+# O silêncio que reprova é o do passo que o produz: o higienizador deixa no máximo PAUSA_MAX_TELA (0,60 s
+# no tempo da TELA, depois da aceleração) de pausa entre falas. 0,10 s de tolerância para a medição.
+TOLERANCIA_SILENCIO_S = 0.10
+LIMIAR_SILENCIO_S = higienizar_audio.PAUSA_MAX_TELA + TOLERANCIA_SILENCIO_S
+SILENCIO_DB = -40.0
+PONTA_S = 0.05     # silêncio que encosta no começo ou no fim do arquivo é ponta, não pausa
 
 
 def sh(cmd):
@@ -86,7 +111,27 @@ def flashes(vals, fps, queda_min=25.0):
     return ev
 
 
-def cortes_do_timing(timing, accel=1.30):
+def aceleracao_do_projeto(slug, estado=None):
+    """A aceleração do projeto.json (padrão do modo: 1,35 no avatar, 1,2 no take real e no one-shot).
+    FileNotFoundError se o projeto não existe: nada de aceleração chutada."""
+    from projeto import modelo, pastas
+    return float(modelo.carregar(pastas.projeto(slug, estado).projeto_json)["aceleracao"])
+
+
+def cortes_da_timeline(timeline):
+    """Os cortes no vídeo FINAL, em segundos, a partir do timeline.json do projeto: o começo e o fim de
+    cada trecho de insert, no relógio da footage convertido com (t - a0) / aceleração do próprio timeline."""
+    accel = float(timeline["relogio"]["aceleracao"])
+    a0 = float(timeline["relogio"].get("a0", 0.0))
+    marcas = set()
+    for seg in timeline.get("segmentos", []):
+        if seg.get("tipo") == "insert":
+            marcas.add(round((seg["s"] - a0) / accel, 2))
+            marcas.add(round((seg["e"] - a0) / accel, 2))
+    return sorted(m for m in marcas if m > 0)
+
+
+def cortes_do_timing(timing, accel):
     """Onde estão os cortes no vídeo FINAL, em segundos.
 
     Sem isso o auditor confunde duas coisas diferentes: o vale de luz causado pela
@@ -137,13 +182,36 @@ def congelados(video, dur_min=0.5):
             if "freeze_start" in l]
 
 
-def silencios(video, dur_min=0.45):
-    # 0,45 e nao 0,30: pausa entre frases em locucao natural fica em 0,30-0,40s, e o
-    # proprio gate do motor usa 0,55 como respiro grande. Com 0,30 eu reprovava a
-    # respiracao retorica do apresentador (AD19: 0,33s entre "pronto pra comprar" e "e joga
-    # esse lead"), que e o oposto do anti-IA: fala sem pausa soa robotica.
-    return [l for l in detecta(video, f"silencedetect=n=-40dB:d={dur_min}", "silence")
-            if "silence_start" in l]
+def _duracao(arquivo):
+    o = sh(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1",
+            str(arquivo)]).stdout.strip()
+    return float(o) if o else 0.0
+
+
+def silencios_da_voz(voz, dur_min=None):
+    """[(início, duração)] das pausas entre falas acima de `dur_min` (padrão LIMIAR_SILENCIO_S) na faixa de VOZ.
+
+    Medido na voz sozinha: no arquivo final a cama de música sobe nas pausas e o silêncio some. O
+    silêncio na ponta (antes da primeira palavra, depois da última) é ignorado: o rabo do arquivo
+    carrega a cauda congelada e a respiração final, que não são pausa de fala.
+    """
+    dur_min = LIMIAR_SILENCIO_S if dur_min is None else dur_min
+    p = sh(["ffmpeg", "-v", "info", "-nostdin", "-i", str(voz), "-vn", "-af",
+            f"silencedetect=n={SILENCIO_DB:g}dB:d={dur_min:.3f}", "-f", "null", "-"])
+    total = _duracao(voz)
+    achados, ini = [], None
+    for l in p.stderr.splitlines():
+        m = re.search(r"silence_start:\s*(-?[\d.]+)", l)
+        if m:
+            ini = max(float(m.group(1)), 0.0)
+            continue
+        m = re.search(r"silence_end:\s*(-?[\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)", l)
+        if m and ini is not None:
+            fim = float(m.group(1))
+            if ini > PONTA_S and fim < total - PONTA_S:
+                achados.append((ini, float(m.group(2))))
+            ini = None
+    return achados
 
 
 def loudness(video):
@@ -169,24 +237,61 @@ def folhas(video, dur, passo=0.5, por_folha=48):
     return saidas
 
 
-def main():
-    if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        return
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
-    video = sys.argv[1]
+def _aceleracao(args):
+    """(aceleração, de onde veio, projeto ou None). Levanta SystemExit(2) sem nenhuma fonte."""
+    if args.aceleracao is not None:
+        return args.aceleracao, "explícita", None
+    if args.projeto:
+        from projeto import pastas
+        try:
+            pj = pastas.projeto(args.projeto, args.estado)
+            return aceleracao_do_projeto(args.projeto, args.estado), "projeto %s" % args.projeto, pj
+        except FileNotFoundError:
+            print(f"ERRO de insumo: o projeto {args.projeto} não tem projeto.json", file=sys.stderr)
+        except ValueError as e:
+            print(f"ERRO de insumo: {e}", file=sys.stderr)
+        raise SystemExit(2)
+    print("ERRO de insumo: sem a aceleração não há como localizar os cortes. Passe --projeto <slug> "
+          "(lê do projeto.json) ou --aceleracao <fator>. O 1,30 que ficava cravado aqui estava errado.",
+          file=sys.stderr)
+    raise SystemExit(2)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Auditoria automática de um vídeo ad, antes de entregar.")
+    ap.add_argument("video")
+    ap.add_argument("--projeto", help="slug do projeto: a aceleração vem do projeto.json")
+    ap.add_argument("--estado", help="pasta _local (padrão: a do repo)")
+    ap.add_argument("--aceleracao", type=float, help="fator de aceleração da entrega, à mão")
+    ap.add_argument("--voz", help="voz pré-mix, onde o silêncio é medido (padrão: a do projeto; "
+                                  "sem ela, o áudio do próprio vídeo)")
+    ap.add_argument("--timing", help="timing.json do motor antigo (padrão: o timeline.json do projeto, "
+                                     "ou DADOS/output/timing.json)")
+    ap.add_argument("--sheets", action="store_true", help="gera as folhas de contato para leitura com o olho")
+    args = ap.parse_args(argv)
+    video = args.video
     if not os.path.exists(video):
-        sys.exit(f"nao existe: {video}")
+        print(f"ERRO de insumo: não existe: {video}", file=sys.stderr)
+        return 2
+    try:
+        accel, origem, pj = _aceleracao(args)
+    except SystemExit as e:
+        return e.code
 
     info = probe(video)
     print(f"\n{'='*74}\nAUDITORIA  {os.path.basename(video)}\n{'='*74}")
-    print(f"{info['w']}x{info['h']}  {info['fps']:.2f}fps  {info['dur']:.2f}s  {info['frames']} frames\n")
+    print(f"{info['w']}x{info['h']}  {info['fps']:.2f}fps  {info['dur']:.2f}s  {info['frames']} frames")
+    print(f"aceleração {accel:g} ({origem})\n")
 
     vals = yavg(video)
     reprovas = []
 
-    cortes = cortes_do_timing(str(OUTPUT / "timing.json"))
+    if args.timing:
+        cortes = cortes_do_timing(args.timing, accel)
+    elif pj is not None and pj.timeline.is_file():
+        cortes = cortes_da_timeline(json.load(open(pj.timeline, encoding="utf-8")))
+    else:
+        cortes = cortes_do_timing(str(OUTPUT / "timing.json"), accel)
     ev = flashes(vals, info["fps"])
     em_corte = [e for e in ev if perto_de_corte(e[0][0], cortes)]
     no_conteudo = [e for e in ev if e not in em_corte]
@@ -218,16 +323,28 @@ def main():
     else:
         print("  [ok] nenhum congelamento acima de 0,5s")
 
-    si = silencios(video)
+    voz = args.voz
+    if voz is None and pj is not None:
+        from audio import mix_final
+        if mix_final.caminho_voz_ref(pj).is_file():
+            voz = str(mix_final.caminho_voz_ref(pj))
+    if voz is None:
+        print("  [i]  sem faixa de voz separada (--voz): silêncio medido no áudio do próprio vídeo, "
+              "onde a música pode mascarar a pausa")
+    fonte_silencio = voz or video
+    si = silencios_da_voz(fonte_silencio)
+    limiar = f"{LIMIAR_SILENCIO_S:.2f}s".replace(".", ",")
     if si:
-        for l in si: print(f"  [X] SILENCIO   {l[-40:]}")
-        reprovas.append(f"{len(si)} silencio(s) acima de 0,30s")
+        for ini, dur in si:
+            print(f"  [X] SILENCIO   em {ini:6.2f}s por {dur:.2f}s (limiar {limiar} = PAUSA_MAX_TELA "
+                  f"{higienizar_audio.PAUSA_MAX_TELA:.2f} + {TOLERANCIA_SILENCIO_S:.2f})")
+        reprovas.append(f"{len(si)} silencio(s) acima de {limiar} na faixa de voz")
     else:
-        print("  [ok] nenhum silencio acima de 0,30s")
+        print(f"  [ok] nenhum silêncio acima de {limiar} entre as falas")
 
     print(f"  [i]  {loudness(video)}")
 
-    if "--sheets" in sys.argv:
+    if args.sheets:
         print("\n  folhas de contato (ler TODAS com o olho, é o passo que não automatiza):")
         for out, a, b in folhas(video, info["dur"]):
             print(f"     {out}   {a:.1f}s a {b:.1f}s")
