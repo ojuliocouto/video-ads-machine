@@ -1104,7 +1104,7 @@ def falsos(monkeypatch):
         chamadas.append(("orig", idx, round(s, 3), round(e, 3), base))
         Path(out).write_bytes(b"o")
 
-    def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados):
+    def r_insert(cfg, s, e, out, avatar, dir_molduras, dir_gerados, split=None):
         chamadas.append(("insert", cfg.get("_layout"), round(s, 3), round(e, 3)))
         Path(out).write_bytes(b"i")
 

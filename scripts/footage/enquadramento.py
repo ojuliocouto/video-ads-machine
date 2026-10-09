@@ -31,6 +31,8 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from typing import Optional
 
 import caminhos
 
@@ -106,6 +108,38 @@ def validar_pessoa(dados, avatar, dica=""):
             "(luz ou cenário que muda do meio para as laterais); o recorte sairia de um número que não mediu nada. "
             f"Rode `python3 scripts/medir_enquadramento.py avatar {avatar}` para ver a medição. {dica}".strip())
     return dados
+
+
+# ------------------------------------------------------------------ geometria do split (W3.X L6)
+
+SPLIT_TOP_H_PADRAO = 1150   # os padrões do filtros_avatar (painel de cima de 1150 e degradê de 90 na emenda)
+SPLIT_GRAD_PADRAO = 90
+ALTURA_QUADRO = 1920
+
+
+@dataclass(frozen=True)
+class GeometriaSplit(object):
+    """Altura do painel de cima, altura do degradê da emenda e o bias digitado (None = medir), lidos do ambiente
+    que a montagem RECEBEU. Antes, VAM_SPLIT_TOP_H e VAM_SPLIT_GRAD eram lidos no import do `filtros_avatar` e o
+    VAM_SPLIT_BIAS do `os.environ`: `montar.main(env=...)` montava com a geometria do processo, não com a pedida."""
+    top_h: int = SPLIT_TOP_H_PADRAO
+    grad: int = SPLIT_GRAD_PADRAO
+    bias: Optional[str] = None
+
+    @property
+    def bot_h(self):
+        return ALTURA_QUADRO - self.top_h
+
+    @classmethod
+    def do_ambiente(cls, env=None):
+        env = os.environ if env is None else env
+        return cls(top_h=int(env.get("VAM_SPLIT_TOP_H") or SPLIT_TOP_H_PADRAO),
+                   grad=int(env.get("VAM_SPLIT_GRAD") or SPLIT_GRAD_PADRAO),
+                   bias=env.get("VAM_SPLIT_BIAS") or None)
+
+    def env_do_bias(self):
+        """O ambiente que `medir_bias_split` lê: só o bias digitado, ou nada (mede)."""
+        return {"VAM_SPLIT_BIAS": self.bias} if self.bias else {}
 
 
 # ------------------------------------------------------------------ avatar

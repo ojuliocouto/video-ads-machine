@@ -18,7 +18,8 @@ Este é o antigo MAIN do `produzir_roteiro.py`, que executava tudo no import. Ag
 ## O que o ambiente aceita
 
 VAM_AVATAR e VAM_ROTEIRO são obrigatórias: os padrões antigos apontavam para os arquivos de um
-anúncio específico. VAM_INSERTS_JSON, VAM_OUT, VAM_XF, VAM_XF_SECO, VAM_XF_TIPO, VAM_SPLIT_TOP_H,
+anúncio específico. A geometria do split (VAM_SPLIT_TOP_H, VAM_SPLIT_GRAD, VAM_SPLIT_BIAS) sai do ambiente PASSADO
+a `main(env=...)` e vai ao render pelo `Contexto` (W3.X L6; antes, duas vinham do import e uma do os.environ). VAM_INSERTS_JSON, VAM_OUT, VAM_XF, VAM_XF_SECO, VAM_XF_TIPO, VAM_SPLIT_TOP_H,
 VAM_SPLIT_GRAD, VAM_SPLIT_BIAS, VAM_CACHE_SEG e VAM_PARALELO seguem como eram. VAM_TIMELINE (W3.A) é o
 caminho da timeline.json: o relógio é o dela, construído com as funções desta footage (spans, contiguidade, plano
 de ritmo) sobre uma transcrição feita do MESMO jeito que o caminho antigo faz (perfil "alinhamento": wav 16 kHz,
@@ -44,7 +45,7 @@ from . import cadeia as CA
 from . import grade_final as GF
 from . import render_segmentos as RS
 from . import timing_export as TE
-from .enquadramento import ErroEnquadramento
+from .enquadramento import ErroEnquadramento, GeometriaSplit
 
 SAIDA_PADRAO = "footage.mp4"
 
@@ -64,6 +65,7 @@ class Config(object):
     cache: bool
     paralelo: int
     timeline: Optional[str] = None      # VAM_TIMELINE: o relógio único (W3.A)
+    split: GeometriaSplit = GeometriaSplit()    # VAM_SPLIT_TOP_H, VAM_SPLIT_GRAD e VAM_SPLIT_BIAS deste ambiente (L6)
 
 
 def ler_config(env=None, dados=None):
@@ -98,7 +100,8 @@ def ler_config(env=None, dados=None):
         tr=tr,
         cache=env.get("VAM_CACHE_SEG", "1") != "0",
         paralelo=int(env.get("VAM_PARALELO", "4")),
-        timeline=os.path.expanduser(env["VAM_TIMELINE"]) if env.get("VAM_TIMELINE") else None)
+        timeline=os.path.expanduser(env["VAM_TIMELINE"]) if env.get("VAM_TIMELINE") else None,
+        split=GeometriaSplit.do_ambiente(env))
 
 
 AVISO_SEM_TIMELINE = ("  [relogio] AVISO: footage sem VAM_TIMELINE: alinhando a fala por conta propria (caminho "
@@ -148,7 +151,7 @@ def montar(cfg):
     ctx = RS.Contexto(avatar=cfg.avatar, tmp=cfg.tmp, tr=cfg.tr, inserts=inserts,
                       dir_molduras=str(caminhos.ESTADO / "molduras"),
                       dir_gerados=str(caminhos.ESTADO / "gerados"),
-                      logo=str(logo) if logo else None, cache=cfg.cache, paralelo=cfg.paralelo)
+                      logo=str(logo) if logo else None, cache=cfg.cache, paralelo=cfg.paralelo, split=cfg.split)
     segs = RS.renderizar_todos(blocks, spans, ctx)
 
     durs = CA.medir_duracoes(segs)
