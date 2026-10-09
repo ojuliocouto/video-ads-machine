@@ -140,6 +140,6 @@ def test_footage_pela_timeline_roda_os_mesmos_comandos_menos_o_alinhamento(atual
     legado = arquivos["argv/footage.jsonl"].splitlines()
     alinhamento, resto = legado[:ALINHAMENTO_DA_FOOTAGE], legado[ALINHAMENTO_DA_FOOTAGE:]
     assert [json.loads(l)["argv"][0] for l in alinhamento] == ["ffmpeg", "<PARAKEET>", "ffprobe"]
-    pela_timeline = atual["argv/footage_timeline.jsonl"].replace(C.SUFIXO_FOOTAGE_TIMELINE, "").splitlines()
+    pela_timeline = atual["argv/timeline_footage.jsonl"].replace(C.SUFIXO_FOOTAGE_TIMELINE, "").splitlines()
     assert pela_timeline == resto
-    assert "<PARAKEET>" not in atual["argv/footage_timeline.jsonl"]
+    assert "<PARAKEET>" not in atual["argv/timeline_footage.jsonl"]

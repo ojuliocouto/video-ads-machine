@@ -87,9 +87,10 @@ AD = "ad99v2"
 LOOK = "espuma_roxa"
 LK = "espuma"          # nome do look nos arquivos de config (ads_v2_configs.LOOKS)
 VERSAO_GOLDEN = 1
-ETAPAS_TODAS = ("timeline", "overlay", "overlay_1x1", "footage", "footage_timeline", "overlay_convergido")
-ETAPAS_DA_TIMELINE = ("overlay", "overlay_1x1", "footage_timeline")   # leem a timeline quando o motor tem
+ETAPAS_TODAS = ("timeline", "overlay", "overlay_1x1", "footage", "timeline_footage", "overlay_convergido")
+ETAPAS_DA_TIMELINE = ("overlay", "overlay_1x1", "timeline_footage")   # leem a timeline quando o motor tem
 SUFIXO_FOOTAGE_TIMELINE = "_pelatimeline"     # nome da saída da footage que roda pela timeline
+# A fase dela é `timeline_footage` e nunca `footage_...`: comparar por prefixo `argv/footage` pegaria as duas.
 
 # stubs: devolvem a transcrição REAL gravada em fixture/asr/
 _STUB_PARAKEET = """#!/bin/sh
@@ -455,7 +456,7 @@ def rodar_overlay(sb, fase, *, formato="9x16", rotulo="", timeline=None):
 
 def rodar_footage(sb, timeline=None):
     """produzir_roteiro com o mesmo ambiente que o build_composite monta (e, com `timeline`, lendo ela)."""
-    _marcar_fase(sb, "footage_timeline" if timeline else "footage")
+    _marcar_fase(sb, "timeline_footage" if timeline else "footage")
     inputs = sb.dados / "inputs"
     saida = f"{AD}_{LOOK}_footage_1x{SUFIXO_FOOTAGE_TIMELINE if timeline else ''}.mp4"
     extra = {
@@ -578,7 +579,7 @@ def _executar_etapas(sb, etapas):
         _coletar_overlay(cap, "overlay_1x1", rodar_overlay(sb, "overlay_1x1", formato="1x1", timeline=tl), tokens)
     if "footage" in etapas:
         _coletar_footage(cap, "footage", sb, rodar_footage(sb), tokens)
-    if "footage_timeline" in etapas and tl is not None:
+    if "timeline_footage" in etapas and tl is not None:
         _coletar_footage(cap, "timeline/footage", sb, rodar_footage(sb, timeline=tl), tokens)
     if "overlay_convergido" in etapas:
         _coletar_overlay(cap, "overlay_convergido",
