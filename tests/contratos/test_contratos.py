@@ -152,6 +152,13 @@ class TestNucleoDoValidador(unittest.TestCase):
         self.assertIn("motivo", self.campos(s, {"trilha": {"desligada": True}}))
         self.assertEqual(self.erros(s, {"trilha": {"arquivo": "x.mp3"}}), [])
 
+    def test_anyof_prefere_a_alternativa_que_aceita_o_tipo(self):
+        s = {"type": "object", "properties": {"lead": {"anyOf": [
+            {"type": "string", "minLength": 1}, {"type": "null"}]}}}
+        e = self.erros(s, {"lead": ""})
+        self.assertEqual({x.campo for x in e}, {"lead"})
+        self.assertTrue(any("mínimo" in x.mensagem for x in e), [str(x) for x in e])
+
     def test_oneof_que_casa_com_duas_reprova(self):
         s = {"oneOf": [{"type": "number"}, {"type": "integer"}]}
         self.assertTrue(self.erros(s, 3))

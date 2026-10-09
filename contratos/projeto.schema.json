@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "projeto.json",
+  "description": "Configuração de um anúncio do aluno, em _local/projetos/<slug>/projeto.json. Substitui configs por anúncio, LOOK_POR_AD, o prefixo de leva e as pastas cravadas. Caminhos de arquivo do projeto são relativos à pasta do projeto; a trilha é só o nome do arquivo em _local/trilhas/. Padrões preenchidos por projeto/modelo quando o campo falta: formato 9x16; aceleracao 1.35 no modo avatar e 1.2 em gravado e oneshot; cta.label 'saiba mais'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "slug", "modo", "trilha"],
+  "properties": {
+    "versao": {"const": 1, "description": "Versão do contrato. Mudança incompatível sobe este número."},
+    "slug": {"$ref": "#/$defs/slug", "description": "Nome da pasta do projeto em _local/projetos/."},
+    "modo": {"enum": ["avatar", "gravado", "oneshot"], "description": "avatar: voz do aluno + look HeyGen. gravado: takes de câmera montados por trechos. oneshot: um take bruto só."},
+    "formato": {"enum": ["9x16", "1x1"], "description": "9x16 é o produto; 1x1 é beta e não tem gate cinematográfico."},
+    "look": {"$ref": "#/$defs/slug", "description": "Nome de um look em _local/looks.json. Obrigatório no modo avatar."},
+    "aceleracao": {"type": "number", "minimum": 1.0, "maximum": 1.6, "description": "Fator de aceleração da entrega. Padrão 1.35 com avatar e 1.2 com take real."},
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {"$ref": "#/$defs/texto_curto", "description": "Texto da pílula do CTA; deve imitar o botão do anúncio (por exemplo 'saiba mais')."},
+        "sem_lead": {"type": "boolean", "description": "true tira o LEAD do lettering do CTA quando ele pousaria no queixo."}
+      }
+    },
+    "trilha": {
+      "description": "Trilha de fundo. Ou um arquivo do aluno em _local/trilhas/, ou desligada com motivo escrito. O repo não embarca música.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arquivo"],
+          "properties": {
+            "arquivo": {"type": "string", "pattern": "^[^/\\\\]+\\.(mp3|m4a|wav|aac|flac|ogg)$", "description": "Nome do arquivo dentro de _local/trilhas/ (sem pasta)."}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["desligada", "motivo"],
+          "properties": {
+            "desligada": {"const": true},
+            "motivo": {"$ref": "#/$defs/motivo"}
+          }
+        }
+      ]
+    },
+    "estilo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grade": {"$ref": "#/$defs/slug", "description": "Preset de grade de cor (cinema/grade valida o nome). Padrão quente-suave."},
+        "hook": {"enum": ["editorial", "punch"], "description": "editorial: serif elegante. punch: sans pesado em caixa alta."},
+        "lettering": {"enum": ["caixa_nativa", "serif_editorial", "punch", "marcador", "statement", "lateral", "gigante_atras"], "description": "Estilo padrão das KEYs do meio. O CTA usa seta_cta."},
+        "texto_atras": {"type": "boolean", "description": "Liga a capacidade opcional de texto atrás da pessoa (exige bash setup.sh --cinema-plus)."}
+      }
+    },
+    "inserts": {
+      "type": "object",
+      "description": "Ajuste fino por chave de insert do roteiro. O arquivo é sempre inserts/<chave>.* e o layout (split, cheio, pip) mora só no roteiro.md.",
+      "propertyNames": {"$ref": "#/$defs/chave"},
+      "additionalProperties": {"$ref": "#/$defs/ajuste_insert"}
+    },
+    "excecoes": {
+      "type": "array",
+      "description": "Exceção a uma regra medida, sempre com motivo escrito. O gate da regra lê daqui; exceção sem motivo não existe.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["regra", "motivo"],
+        "properties": {
+          "regra": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$", "description": "Nome da regra ou do gate (densidade, gate_cor, ...)."},
+          "motivo": {"$ref": "#/$defs/motivo"}
+        }
+      }
+    },
+    "origem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo"],
+      "properties": {
+        "tipo": {"enum": ["chat", "arquivo", "doc_google"], "description": "De onde veio o roteiro. doc_google liga o gate de fidelidade ao doc."},
+        "doc_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{20,128}$"}
+      },
+      "if": {"properties": {"tipo": {"const": "doc_google"}}, "required": ["tipo"]},
+      "then": {"required": ["doc_id"]}
+    },
+    "criado_em": {"$ref": "#/$defs/instante"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"modo": {"const": "avatar"}}, "required": ["modo"]},
+      "then": {"required": ["look"]}
+    }
+  ],
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "chave": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "texto_curto": {"type": "string", "minLength": 1, "maxLength": 60, "pattern": "^\\S([\\s\\S]*\\S)?$"},
+    "motivo": {"type": "string", "minLength": 5, "maxLength": 500, "pattern": "^\\S([\\s\\S]*\\S)?$"},
+    "instante": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "ajuste_insert": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inicio": {"type": "number", "minimum": 0, "description": "Segundo da fonte onde o insert começa."},
+        "velocidade": {"type": "number", "exclusiveMinimum": 0, "maximum": 4},
+        "zoom": {"type": "number", "minimum": 1, "maximum": 3, "description": "Amplia e recorta no conteúdo medido (bom para tela de código)."},
+        "recorte": {"type": "string", "pattern": "^[0-9]+:[0-9]+:[0-9]+:[0-9]+$", "description": "Recorte da fonte em W:H:X:Y."},
+        "exposicao": {"type": "number", "minimum": 0, "maximum": 0.45, "description": "Mínimo de clareamento; o motor mede e pode subir até o piso."},
+        "dur_max": {"type": "number", "exclusiveMinimum": 0, "description": "Teto de tempo do insert dentro do bloco, em segundos de footage."},
+        "texto_proprio": {"type": "boolean", "description": "O asset já traz texto impresso: a legenda desce para o rodapé."},
+        "rotulo": {"$ref": "#/$defs/texto_curto", "description": "Nome curto do insert na prancha e no plano."}
+      }
+    }
+  }
+}

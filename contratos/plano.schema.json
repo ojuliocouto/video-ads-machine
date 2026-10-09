@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "plano.json",
+  "description": "Plano de edição MEDIDO, em plano/plano.json, escrito por plano/medir. É o que o aluno aprova (via plano_edicao.md gerado daqui) e o que os gates de plano leem antes do render. Tempos em segundos no relógio da footage a 1x (antes da aceleração). As 6 seções obrigatórias: mapa_inserts, hook, letterings, densidade, referencias, efeitos; mais ritmo e a checklist de 8 itens + ritmo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "projeto", "modo", "gerado_em", "fonte", "blocos", "mapa_inserts", "hook", "letterings", "densidade", "referencias", "efeitos", "ritmo", "checklist"],
+  "properties": {
+    "versao": {"const": 1},
+    "projeto": {"$ref": "#/$defs/slug"},
+    "modo": {"enum": ["avatar", "gravado", "oneshot"]},
+    "gerado_em": {"$ref": "#/$defs/instante"},
+    "fonte": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roteiro_sha256", "projeto_sha256"],
+      "description": "De quais arquivos este plano foi medido.",
+      "properties": {
+        "roteiro_sha256": {"$ref": "#/$defs/sha256"},
+        "projeto_sha256": {"$ref": "#/$defs/sha256"},
+        "alinhamento_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "duracao_s": {"type": "number", "exclusiveMinimum": 0, "description": "Duração da fala/footage a 1x."},
+    "blocos": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Os blocos do roteiro com o tempo medido (spans). Contíguos, em ordem, i = posição.",
+      "items": {"$ref": "#/$defs/bloco"}
+    },
+    "mapa_inserts": {
+      "type": "array",
+      "description": "Seção 'mapa de inserts': cada chave usada, o arquivo, as medidas e o congelamento previsto.",
+      "items": {"$ref": "#/$defs/insert"}
+    },
+    "hook": {"$ref": "#/$defs/hook"},
+    "letterings": {
+      "type": "array",
+      "description": "Seção 'lettering': KEYs do meio, itens de pilha e a KEY do CTA, já ancorados e com tempo.",
+      "items": {"$ref": "#/$defs/lettering"}
+    },
+    "densidade": {"$ref": "#/$defs/densidade"},
+    "referencias": {
+      "type": "array",
+      "description": "Seção 'referências': técnicas escolhidas e de qual referência saíram.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["nome", "tecnicas"],
+        "properties": {
+          "nome": {"$ref": "#/$defs/texto"},
+          "tecnicas": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/texto"}}
+        }
+      }
+    },
+    "efeitos": {"$ref": "#/$defs/efeitos"},
+    "ritmo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cortes_min", "frac_acima_6s", "maior_plano_s"],
+      "description": "Ritmo previsto pelo plano de ritmo (a régua final é medir_ritmo no arquivo entregue).",
+      "properties": {
+        "cortes_min": {"type": "number", "minimum": 0},
+        "frac_acima_6s": {"type": "number", "minimum": 0, "maximum": 1},
+        "maior_plano_s": {"type": "number", "minimum": 0},
+        "plano_medio_s": {"type": "number", "minimum": 0}
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Os 8 itens do padrão de edição + ritmo. Pendente sem motivo reprova.",
+      "required": ["efeito_por_insert", "elemento_atras", "atencao", "split_dominante", "degrade_emenda", "lettering_legenda", "variacao_contexto", "edicao_por_insert", "ritmo"],
+      "properties": {
+        "efeito_por_insert": {"$ref": "#/$defs/item_checklist"},
+        "elemento_atras": {"$ref": "#/$defs/item_checklist"},
+        "atencao": {"$ref": "#/$defs/item_checklist"},
+        "split_dominante": {"$ref": "#/$defs/item_checklist"},
+        "degrade_emenda": {"$ref": "#/$defs/item_checklist"},
+        "lettering_legenda": {"$ref": "#/$defs/item_checklist"},
+        "variacao_contexto": {"$ref": "#/$defs/item_checklist"},
+        "edicao_por_insert": {"$ref": "#/$defs/item_checklist"},
+        "ritmo": {"$ref": "#/$defs/item_checklist"}
+      }
+    },
+    "trechos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["corpo", "cta"],
+      "description": "Só no modo gravado: os trechos de take montados, uma frase por trecho, medidos no áudio limpo.",
+      "properties": {
+        "corpo": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/trecho"}},
+        "cta": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/trecho"}}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"modo": {"const": "gravado"}}, "required": ["modo"]},
+      "then": {"required": ["trechos"]}
+    }
+  ],
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "chave": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "instante": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "caminho": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$"},
+    "texto": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^\\S([\\s\\S]*\\S)?$"},
+    "motivo": {"type": "string", "minLength": 5, "maxLength": 500, "pattern": "^\\S([\\s\\S]*\\S)?$"},
+    "tempo": {"type": "number", "minimum": 0},
+    "ancora": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["palavra", "n"],
+      "description": "Palavra da fala do bloco onde o lettering pousa; n conta as ocorrências dentro do bloco, a partir de 1.",
+      "properties": {
+        "palavra": {"type": "string", "minLength": 1, "maxLength": 60, "pattern": "^\\S+$"},
+        "n": {"type": "integer", "minimum": 1}
+      }
+    },
+    "bloco": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["i", "tipo", "fala", "s", "e"],
+      "properties": {
+        "i": {"type": "integer", "minimum": 0},
+        "tipo": {"enum": ["apresentador", "insert", "lista", "cta"]},
+        "insert": {"anyOf": [{"$ref": "#/$defs/chave"}, {"type": "null"}]},
+        "layout": {"enum": ["split", "cheio", "pip", null]},
+        "fala": {"type": "string", "minLength": 1},
+        "s": {"$ref": "#/$defs/tempo"},
+        "e": {"$ref": "#/$defs/tempo"},
+        "proposto": {"type": "boolean", "description": "true quando a direção do bloco foi proposta pelo plano (roteiro livre ou lacuna de densidade) e ainda depende do ok."}
+      },
+      "if": {"properties": {"tipo": {"const": "insert"}}, "required": ["tipo"]},
+      "then": {"required": ["insert"], "properties": {"insert": {"$ref": "#/$defs/chave"}}}
+    },
+    "insert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chave", "arquivo", "blocos", "largura", "altura", "duracao_s", "congela_s"],
+      "properties": {
+        "chave": {"$ref": "#/$defs/chave"},
+        "arquivo": {"$ref": "#/$defs/caminho"},
+        "blocos": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+        "largura": {"type": "integer", "minimum": 1},
+        "altura": {"type": "integer", "minimum": 1},
+        "duracao_s": {"type": "number", "minimum": 0, "description": "0 para imagem estática."},
+        "orientacao": {"enum": ["vertical", "horizontal", "quadrado"]},
+        "tratamento": {"$ref": "#/$defs/chave", "description": "Como o insert entra (moldura, split, cheio, pip, imagem, ...)."},
+        "visitas": {"type": "integer", "minimum": 1, "maximum": 2},
+        "congela_s": {"type": "number", "minimum": 0, "description": "Segundos de último quadro clonado previstos. O gate reprova acima de 0,20."}
+      }
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eyebrow", "linha", "destaque", "estilo", "fim_s"],
+      "properties": {
+        "eyebrow": {"$ref": "#/$defs/texto"},
+        "linha": {"$ref": "#/$defs/texto"},
+        "destaque": {"$ref": "#/$defs/texto"},
+        "estilo": {"enum": ["editorial", "punch"]},
+        "fim_s": {"type": "number", "exclusiveMinimum": 0},
+        "evento_visual": {"enum": ["insert", "punch", "corte"], "description": "O evento visual que acontece nos 3 primeiros segundos entregues."}
+      }
+    },
+    "lettering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bloco", "key", "ancora", "s", "d", "estilo", "cta"],
+      "properties": {
+        "bloco": {"type": "integer", "minimum": 0},
+        "lead": {"anyOf": [{"$ref": "#/$defs/texto"}, {"type": "null"}]},
+        "key": {"$ref": "#/$defs/texto"},
+        "ancora": {"$ref": "#/$defs/ancora"},
+        "s": {"$ref": "#/$defs/tempo"},
+        "d": {"type": "number", "exclusiveMinimum": 0},
+        "estilo": {"enum": ["caixa_nativa", "serif_editorial", "punch", "marcador", "statement", "lateral", "seta_cta", "gigante_atras"]},
+        "pilha": {"anyOf": [{"$ref": "#/$defs/chave"}, {"type": "null"}], "description": "Id da pilha quando o lettering é item de [lista]."},
+        "cta": {"type": "boolean"}
+      }
+    },
+    "densidade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fracao_insert", "alvo_min", "alvo_max", "piso", "teto"],
+      "description": "Seção 'densidade': fração do tempo com insert na tela. Exceção à faixa mora em projeto.json (excecoes), não aqui.",
+      "properties": {
+        "fracao_insert": {"type": "number", "minimum": 0, "maximum": 1},
+        "alvo_min": {"type": "number", "minimum": 0, "maximum": 1},
+        "alvo_max": {"type": "number", "minimum": 0, "maximum": 1},
+        "piso": {"type": "number", "minimum": 0, "maximum": 1},
+        "teto": {"type": "number", "minimum": 0, "maximum": 1},
+        "propostas": {
+          "type": "array",
+          "description": "Abaixo do alvo: falas filmáveis que ficaram no rosto, com 2 ou 3 opções de insert cada.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bloco", "fala", "opcoes"],
+            "properties": {
+              "bloco": {"type": "integer", "minimum": 0},
+              "fala": {"type": "string", "minLength": 1},
+              "opcoes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/texto"}}
+            }
+          }
+        }
+      }
+    },
+    "efeitos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sfx", "camera"],
+      "description": "Seção 'efeitos': som com função (sem whoosh) e movimento de câmera previstos.",
+      "properties": {
+        "sfx": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["t", "efeito", "funcao"],
+            "properties": {
+              "t": {"$ref": "#/$defs/tempo"},
+              "efeito": {"enum": ["riser", "tick", "boom"]},
+              "funcao": {"enum": ["cta", "pilha", "key_gigante"]}
+            }
+          }
+        },
+        "camera": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bloco", "tipo"],
+            "properties": {
+              "bloco": {"type": "integer", "minimum": 0},
+              "tipo": {"enum": ["zoom", "punch", "respiro", "push_in"]},
+              "t": {"$ref": "#/$defs/tempo"}
+            }
+          }
+        }
+      }
+    },
+    "item_checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["atendido", "nao_se_aplica", "pendente"]},
+        "como": {"$ref": "#/$defs/texto", "description": "Como o item é atendido neste anúncio."},
+        "motivo": {"$ref": "#/$defs/motivo"}
+      },
+      "if": {"properties": {"status": {"const": "pendente"}}, "required": ["status"]},
+      "then": {"required": ["motivo"]}
+    },
+    "trecho": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["take", "inicio", "fim"],
+      "properties": {
+        "take": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$", "description": "Nome do take em takes/ (sem extensão)."},
+        "inicio": {"$ref": "#/$defs/tempo"},
+        "fim": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

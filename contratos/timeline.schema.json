@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "timeline.json",
+  "description": "Relógio único do anúncio, em render/timeline.json, escrito por timeline/construir a partir de UMA transcrição e UM alinhamento. Footage e overlay leem este arquivo e nada mais para decidir tempo. Todos os tempos (s, e, t, inicio) estão no relógio da footage a 1x; o arquivo entregue converte com (t - a0) / aceleracao e soma cauda_s só na duração total. Listas de intervalos ficam em ordem; blocos e segmentos são contíguos (buraco de no máximo 1 quadro).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "projeto", "relogio", "duracao_s", "formato", "fontes", "blocos", "segmentos", "janelas_split", "legendas", "letterings", "hook", "cta", "camera", "sfx", "ducking"],
+  "properties": {
+    "versao": {"const": 1},
+    "projeto": {"$ref": "#/$defs/slug"},
+    "relogio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "fps", "aceleracao", "cauda_s", "a0"],
+      "properties": {
+        "base": {"const": "footage_1x", "description": "O relógio é o da footage, como o motor já declara."},
+        "fps": {"type": "integer", "minimum": 24, "maximum": 60},
+        "aceleracao": {"type": "number", "minimum": 1.0, "maximum": 1.6},
+        "cauda_s": {"type": "number", "minimum": 0, "maximum": 2, "description": "Último quadro congelado depois da aceleração (TAIL_FINAL)."},
+        "a0": {"type": "number", "minimum": 0, "description": "Deslocamento de início da footage; 0 quando o relógio único está completo."}
+      }
+    },
+    "duracao_s": {"type": "number", "exclusiveMinimum": 0},
+    "formato": {"enum": ["9x16", "1x1"]},
+    "fontes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avatar", "avatar_sha256", "alinhamento", "alinhamento_sha256"],
+      "description": "Os arquivos de onde o tempo saiu. O sha256 prova que footage e overlay usaram a mesma transcrição.",
+      "properties": {
+        "avatar": {"$ref": "#/$defs/caminho", "description": "Vídeo do apresentador (avatar, take montado ou one-shot)."},
+        "avatar_sha256": {"$ref": "#/$defs/sha256"},
+        "alinhamento": {"$ref": "#/$defs/caminho"},
+        "alinhamento_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "blocos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["i", "tipo", "s", "e"],
+        "properties": {
+          "i": {"type": "integer", "minimum": 0},
+          "tipo": {"enum": ["apresentador", "insert", "lista", "cta"]},
+          "insert": {"anyOf": [{"$ref": "#/$defs/chave"}, {"type": "null"}]},
+          "s": {"$ref": "#/$defs/tempo"},
+          "e": {"$ref": "#/$defs/tempo"}
+        }
+      }
+    },
+    "segmentos": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Plano de ritmo: o que está na tela em cada instante. tipo apresentador ou insert.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bloco", "tipo", "s", "e", "sub", "de"],
+        "properties": {
+          "bloco": {"type": "integer", "minimum": 0},
+          "tipo": {"enum": ["apresentador", "insert"]},
+          "s": {"$ref": "#/$defs/tempo"},
+          "e": {"$ref": "#/$defs/tempo"},
+          "sub": {"type": "integer", "minimum": 0},
+          "de": {"type": "integer", "minimum": 1},
+          "layout": {"enum": ["split", "cheio", "pip", null]},
+          "fonte_off": {"type": "number", "minimum": 0, "description": "Quanto da fonte do insert já correu antes desta fatia."},
+          "base": {"type": "number", "minimum": 1.0, "maximum": 1.5, "description": "Escala base do plano de apresentador."},
+          "punch": {"type": "boolean"},
+          "deitico": {"type": "boolean", "description": "A fala aponta para a tela: o insert fica o bloco inteiro."}
+        }
+      }
+    },
+    "janelas_split": {
+      "type": "array",
+      "description": "Onde a tela está dividida de verdade (fonte única para colisão, legenda e lettering).",
+      "items": {"$ref": "#/$defs/intervalo"}
+    },
+    "legendas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["s", "e", "texto", "palavras", "posicao", "suprimida"],
+        "properties": {
+          "s": {"$ref": "#/$defs/tempo"},
+          "e": {"$ref": "#/$defs/tempo"},
+          "texto": {"type": "string", "minLength": 1, "description": "Verbatim do roteiro, nunca a transcrição crua."},
+          "palavras": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["t", "s", "e"],
+              "properties": {
+                "t": {"type": "string", "minLength": 1},
+                "s": {"$ref": "#/$defs/tempo"},
+                "e": {"$ref": "#/$defs/tempo"}
+              }
+            }
+          },
+          "posicao": {"enum": ["padrao", "rodape", "costura"]},
+          "suprimida": {"type": "boolean", "description": "true quando um lettering ocupa a janela: lettering e legenda nunca juntos."}
+        }
+      }
+    },
+    "letterings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "bloco", "key", "s", "d", "estilo", "split", "baixo", "pilha", "cta"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9_-]+$"},
+          "bloco": {"type": "integer", "minimum": 0},
+          "lead": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+          "key": {"type": "string", "minLength": 1},
+          "s": {"$ref": "#/$defs/tempo"},
+          "d": {"type": "number", "exclusiveMinimum": 0},
+          "estilo": {"enum": ["caixa_nativa", "serif_editorial", "punch", "marcador", "statement", "lateral", "seta_cta", "gigante_atras"]},
+          "split": {"type": "boolean"},
+          "baixo": {"type": "boolean"},
+          "pilha": {"anyOf": [{"$ref": "#/$defs/chave"}, {"type": "null"}]},
+          "cta": {"type": "boolean"}
+        }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s", "e", "eyebrow", "linha", "destaque", "estilo"],
+      "properties": {
+        "s": {"$ref": "#/$defs/tempo"},
+        "e": {"$ref": "#/$defs/tempo"},
+        "eyebrow": {"type": "string", "minLength": 1},
+        "linha": {"type": "string", "minLength": 1},
+        "destaque": {"type": "string", "minLength": 1},
+        "estilo": {"enum": ["editorial", "punch"]}
+      }
+    },
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inicio", "logo", "label", "sem_lead"],
+      "properties": {
+        "inicio": {"$ref": "#/$defs/tempo"},
+        "logo": {"$ref": "#/$defs/tempo"},
+        "label": {"type": "string", "minLength": 1},
+        "sem_lead": {"type": "boolean"}
+      }
+    },
+    "camera": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["t", "tipo", "de", "para", "dur"],
+        "properties": {
+          "t": {"$ref": "#/$defs/tempo"},
+          "tipo": {"enum": ["zoom", "punch", "respiro", "push_in"]},
+          "de": {"type": "number", "minimum": 0.5, "maximum": 2.0},
+          "para": {"type": "number", "minimum": 0.5, "maximum": 2.0},
+          "dur": {"type": "number", "exclusiveMinimum": 0},
+          "segura": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "sfx": {
+      "type": "array",
+      "description": "Som com função. O whoosh está desligado por decisão do diretor (31/08): não é um valor aceito.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["t", "efeito", "funcao", "nivel_dbfs"],
+        "properties": {
+          "t": {"$ref": "#/$defs/tempo"},
+          "efeito": {"enum": ["riser", "tick", "boom"]},
+          "funcao": {"enum": ["cta", "pilha", "key_gigante"]},
+          "nivel_dbfs": {"type": "number", "minimum": -38, "maximum": -31, "description": "RMS do efeito no arquivo entregue."}
+        }
+      }
+    },
+    "ducking": {
+      "description": "Automação da cama musical, ou desligada com motivo quando o projeto não tem trilha.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cama_fala", "cama_pausa", "rampa_ms", "fade_in_s", "fade_out_s", "pausas"],
+          "properties": {
+            "cama_fala": {"type": "number", "minimum": 0, "maximum": 1},
+            "cama_pausa": {"type": "number", "minimum": 0, "maximum": 1},
+            "rampa_ms": {"type": "number", "minimum": 0, "maximum": 2000},
+            "fade_in_s": {"type": "number", "minimum": 0},
+            "fade_out_s": {"type": "number", "minimum": 0},
+            "pausas": {"type": "array", "items": {"$ref": "#/$defs/intervalo"}, "description": "Pausas reais do envelope (audio/pausas_reais): a mesma lista que o gate_mix confere."}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["desligado", "motivo"],
+          "properties": {
+            "desligado": {"const": true},
+            "motivo": {"type": "string", "minLength": 5}
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "chave": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "caminho": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$"},
+    "tempo": {"type": "number", "minimum": 0},
+    "intervalo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s", "e"],
+      "properties": {
+        "s": {"$ref": "#/$defs/tempo"},
+        "e": {"$ref": "#/$defs/tempo"}
+      }
+    }
+  }
+}

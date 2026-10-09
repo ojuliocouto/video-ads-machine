@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "nota.json",
+  "description": "Nota da auditoria adversarial, em entrega/nota.json, amarrada ao sha256 do arquivo auditado. Escrita só pelo auditor; o montador nunca escreve este arquivo. O gate_entrega exige nota mínima 8 e sha256 igual ao do arquivo entregue. Teto de 2 rodadas; a rodada 2 reconfere os mesmos achados, nunca uma varredura nova.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "projeto", "arquivo", "sha256", "nota", "rodada", "auditado_em", "achados", "emissor"],
+  "properties": {
+    "versao": {"const": 1},
+    "projeto": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "arquivo": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$", "description": "Arquivo auditado, relativo à pasta do projeto."},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nota": {"type": "number", "minimum": 0, "maximum": 10},
+    "rodada": {"enum": [1, 2]},
+    "auditado_em": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "auditor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelo": {"type": "string", "maxLength": 60},
+        "esforco": {"type": "string", "maxLength": 20}
+      }
+    },
+    "achados": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/achado"}
+    },
+    "reconfere": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^A[0-9]+$"},
+      "description": "Na rodada 2: os ids dos achados reconferidos. Todos têm que existir em 'achados'."
+    },
+    "emissor": {"const": "auditor"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"rodada": {"const": 2}}, "required": ["rodada"]},
+      "then": {"required": ["reconfere"], "properties": {"reconfere": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "achado": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "gravidade", "descricao", "status"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^A[0-9]+$"},
+        "gravidade": {"enum": ["grave", "moderada", "leve"]},
+        "instante_s": {"type": "number", "minimum": 0, "description": "Instante no arquivo entregue."},
+        "descricao": {"type": "string", "minLength": 3, "maxLength": 600},
+        "status": {"enum": ["aberto", "corrigido", "aceito"]}
+      }
+    }
+  }
+}

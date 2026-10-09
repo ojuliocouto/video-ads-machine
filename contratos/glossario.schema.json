@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "glossario.json",
+  "description": "Grafias do aluno, em _local/glossario.json. 'termos' corrige o que o ASR escreve errado (cada variante vira a grafia, e só ela) e alimenta o prompt da transcrição. 'equivalencias' lista diferenças de fala que o gate fala x roteiro aceita. Nada fora daqui é trocado: o glossário nunca reescreve palavra não declarada.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "termos"],
+  "properties": {
+    "versao": {"const": 1},
+    "termos": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/termo"}
+    },
+    "equivalencias": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/equivalencia"}
+    }
+  },
+  "$defs": {
+    "texto": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^\\S([\\s\\S]*\\S)?$"},
+    "termo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grafia"],
+      "properties": {
+        "grafia": {"$ref": "#/$defs/texto", "description": "Como a palavra tem que aparecer na legenda."},
+        "variantes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/texto"},
+          "description": "Como o ASR costuma escrever errado. Uma variante pertence a um termo só."
+        },
+        "tipo": {"enum": ["marca", "produto", "nome", "termo"]}
+      }
+    },
+    "equivalencia": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roteiro", "fala"],
+      "properties": {
+        "roteiro": {"$ref": "#/$defs/texto", "description": "Como está escrito no roteiro.md."},
+        "fala": {"$ref": "#/$defs/texto", "description": "Como foi falado (elisão aceita, por exemplo 'pra')."}
+      }
+    }
+  }
+}
