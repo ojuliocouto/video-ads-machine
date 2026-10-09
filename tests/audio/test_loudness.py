@@ -17,8 +17,8 @@ def _seno(destino, pico_dbfs=-20.0, dur=5.0, freq=1000):
 
 def test_medir_um_seno_de_menos_20_dbfs(tmp_path):
     m = loudness.medir(_seno(tmp_path / "s.wav"))
-    # K-weighting a 1 kHz: pico -20 dBFS vira cerca de -23,7 LUFS
-    assert m.integrado_lufs == pytest.approx(-23.7, abs=0.5)
+    # seno de pico -20 dBFS: RMS -23,0 dBFS e K-weighting neutro a 1 kHz, logo cerca de -23 LUFS
+    assert m.integrado_lufs == pytest.approx(-23.0, abs=0.5)
     assert m.true_peak_dbtp == pytest.approx(-20.0, abs=0.3)
 
 

@@ -85,9 +85,9 @@ def test_pausas_do_envelope_e_pura_e_nao_chama_ffmpeg():
     assert pausas_reais.pausas_do_envelope(db, 0.05) == [(0.5, 1.5)]
     assert pausas_reais.pausas_do_envelope(np.array([]), 0.05) == []
     # vale no fim do arquivo também fecha
-    db2 = np.full(20, -20.0)
-    db2[12:] = -60.0
-    assert pausas_reais.pausas_do_envelope(db2, 0.05) == [(0.6, 1.0)]
+    db2 = np.full(30, -20.0)
+    db2[18:] = -60.0
+    assert pausas_reais.pausas_do_envelope(db2, 0.05) == [(0.9, 1.5)]
 
 
 def test_arquivo_ilegivel_da_erro_claro_e_nao_lista_vazia(tmp_path):
