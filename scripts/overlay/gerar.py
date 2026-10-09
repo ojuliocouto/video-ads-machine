@@ -107,6 +107,7 @@ def main(cfg_path):
     if cfg.get("timeline"):
         tl, blocks, inserts_map, words = _relogio_da_timeline(cfg, cfg["timeline"], speed)
     dst, total = transcricao.preparar_avatar(Path(cfg["avatar"]), out, speed)
+    total_relogio_antigo = total      # fim do áudio + TAIL_PAD: o relógio em que o teto do CTA foi calibrado (M2)
     _preparar_pasta(out, tmpl)
     if tl is None:
         transcript = transcricao.transcrever(dst, out)
@@ -150,7 +151,8 @@ def main(cfg_path):
     cta_s, logo_s = cta_m.janela(cta_start, lead)
 
     # ---------- gate de tela vazia (barato, antes do render) ----------
-    vao = tela_vazia.checar(h.hook_dur, groups, lett_windows, cta_s, total)
+    vao = tela_vazia.checar(h.hook_dur, groups, lett_windows, cta_s, total,
+                            fim_janela_cta=total_relogio_antigo if tl else None)
 
     # ---------- montar html ----------
     chips = chips_m.calcular(plano_ritmo, groups, lett_windows, logo_s)
