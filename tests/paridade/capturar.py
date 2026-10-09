@@ -103,7 +103,7 @@ SUFIXO_FOOTAGE_TIMELINE = "_pelatimeline"     # nome da saída da footage que ro
 DESLOCAMENTO_FORA_DO_JEITO = 0.16
 
 _STUB_PARAKEET = """#!/usr/bin/env python3
-# Stub do parakeet-mlx (paridade): devolve a saida real gravada em <output-dir>/<nome>.json quando chamado do
+# Stub do parakeet-mlx (paridade): devolve a saída real gravada em <output-dir>/<nome>.json quando chamado do
 # jeito da footage antiga (um .wav, sem --chunk-duration); de outro jeito, a mesma fala com os tempos deslocados.
 import json, os, sys
 args = sys.argv[1:]

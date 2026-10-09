@@ -37,12 +37,12 @@ AMOSTRAS = 5          # quadros ao longo do video: pessoa se mexe, um frame so e
 LIMIAR_DIF = 12       # diferenca minima de luminancia entre faixa central e lateral
 CORRIDA_MIN = 0.012   # fracao da altura que a diferenca precisa durar, mata ruido pontual
 # A LUZ DO FUNDO (W3.X, 09/10/2026). "Linha com pessoa = faixa central difere da lateral" supunha um fundo que
-# nao muda da lateral pro meio. O avatar do fixture da paridade tem luz central (vinheta): a faixa do meio do
-# FUNDO e 15 a 18 niveis mais clara que as laterais, acima do LIMIAR_DIF de 12. Toda linha "tinha pessoa", o topo
-# saia 0,0 e a base 0,998, e a bolinha recortava y 0 a 720 com 55% do rosto (boca e queixo fora). Agora a diferenca
-# do proprio fundo e MEDIDA nas linhas que com certeza sao fundo e descontada: as que ficam mais de
-# FUNDO_ACIMA_DO_ROSTO alturas de rosto acima do topo da caixa do rosto (o cabelo sobe ate ~0,4 altura de rosto
-# acima da caixa do Haar no fixture; 0,8 deixa folga). Sem rosto ou sem linhas suficientes, nada e descontado.
+# não muda da lateral para o meio. O avatar do fixture da paridade tem luz central (vinheta): a faixa do meio do
+# FUNDO é 15 a 18 níveis mais clara que as laterais, acima do LIMIAR_DIF de 12. Toda linha "tinha pessoa", o topo
+# saía 0,0 e a base 0,998, e a bolinha recortava y 0 a 720 com 48% do rosto (boca e queixo fora). Agora a diferença
+# do próprio fundo é MEDIDA nas linhas que com certeza são fundo e descontada: as que ficam mais de
+# FUNDO_ACIMA_DO_ROSTO alturas de rosto acima do topo da caixa do rosto (o cabelo sobe até ~0,4 altura de rosto
+# acima da caixa do Haar no fixture; 0,8 deixa folga). Sem rosto ou sem linhas suficientes, nada é descontado.
 FUNDO_ACIMA_DO_ROSTO = 0.8
 LIMIAR_REL = 0.45     # mantido so para compatibilidade de chamadas antigas
 PERDA_MAX = 0.22      # acima disso, preencher descarta conteudo demais: melhor encaixar
@@ -65,7 +65,7 @@ def _frames(video, n=AMOSTRAS):
 
 
 def _linhas_de_fundo(h, rosto, alt_fonte=1920):
-    """Quantas linhas do topo do quadro (de altura `h`) sao fundo com certeza: acima do topo da caixa do rosto
+    """Quantas linhas do topo do quadro (de altura `h`) são fundo com certeza: acima do topo da caixa do rosto
     menos FUNDO_ACIMA_DO_ROSTO alturas de rosto. 0 sem rosto."""
     if not rosto:
         return 0
@@ -75,7 +75,7 @@ def _linhas_de_fundo(h, rosto, alt_fonte=1920):
 
 
 def _diferenca_do_fundo(dif_com_sinal, n_fundo, n_corrida):
-    """Mediana da diferenca centro x lateral nas linhas de fundo (a luz do proprio cenario). 0 quando nao ha
+    """Mediana da diferença centro x lateral nas linhas de fundo (a luz do próprio cenário). 0 quando não há
     linhas de fundo suficientes para medir: nada a descontar."""
     if n_fundo < n_corrida:
         return 0.0
@@ -139,11 +139,11 @@ def medir_avatar(video):
 
 
 _VIDEO_ATUAL = []       # preenchido pelo main; o bias precisa do arquivo pra achar o rosto
-_ROSTO = {}             # video -> (topo, altura) do rosto ou None: medido UMA vez por processo
+_ROSTO = {}             # vídeo -> (topo, altura) do rosto ou None: medido UMA vez por processo
 
 
 def _caixa_do_rosto(video):
-    """(topo, altura) do rosto no avatar, em pixel da fonte (1920 de altura). None se nao achar."""
+    """(topo, altura) do rosto no avatar, em pixel da fonte (1920 de altura). None se não achar."""
     if video not in _ROSTO:
         try:
             import medir_rosto
