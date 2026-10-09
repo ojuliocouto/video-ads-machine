@@ -175,13 +175,26 @@ def test_mutante_rodape_no_split_tambem_reprova():
     g = antes(timeline([leg(7.0, 8.5, "rodape")]))
     assert g["resultado"] == "REPROVA"
     (f,) = g["medido"]["legendas"]["com_problema"][0]["fatias"]
-    assert f["intersecao_px"] == OL.FAIXA_LEGENDA["baixa"][1] - 1326
+    a, b = OL.FAIXA_LEGENDA["baixa"]
+    assert f["intersecao_px"] == min(b, 1667) - max(a, 1326) == 150      # a faixa inteira (1370 a 1520) está no núcleo
 
 
 def test_costura_no_avatar_cheio_reprova():
     """No avatar cheio a costura (y 1000 a 1130) cai na boca dele: é a posição do split, não a do rosto livre."""
     g = antes(timeline([leg(1.0, 2.5, "costura")]))
     assert g["resultado"] == "REPROVA" and "costura" in g["motivo"] and "avatar cheio" in g["motivo"]
+    assert "a padrão" in g["motivo"]                                  # a posição certa depende do look
+    g = antes(timeline([leg(1.0, 2.5, "costura")]), rosto=ROSTO_FECHADO)
+    assert "o rodapé" in g["motivo"]
+
+
+def test_rodape_no_split_que_nao_toca_o_rosto_ainda_reprova_mas_nao_inventa_pixel():
+    """Rosto lá embaixo (núcleo a partir de y 1600): o rodapé (1370 a 1520) não o toca, mas no split a ordem é a
+    costura. O motivo diz isso, sem fingir uma interseção."""
+    g = antes(timeline([leg(7.0, 8.5, "rodape")]), rosto_split=(1590, 1900))
+    assert g["resultado"] == "REPROVA"
+    (f,) = g["medido"]["legendas"]["com_problema"][0]["fatias"]
+    assert f["intersecao_px"] == 0 and "não toca" in g["motivo"] and "costura" in g["motivo"]
 
 
 def test_as_faixas_sao_lidas_do_layout_texto_na_hora_da_chamada(monkeypatch):
@@ -216,6 +229,16 @@ def test_legenda_padrao_em_look_fechado_reprova_e_o_motivo_indica_o_rodape():
     assert g["medido"]["rosto_avatar"]["fechado"] is True
     assert "acao" not in g["medido"]
     assert formato_do_laudo(g) == []
+
+
+def test_a_mesma_causa_em_varias_legendas_vira_um_motivo_so():
+    """Um anúncio inteiro em look fechado tem dezenas de legendas padrão: o motivo não repete a frase 40 vezes."""
+    tl = timeline([leg(0.3 + 0.7 * k, 0.9 + 0.7 * k, "padrao") for k in range(8)] + [leg(12.2, 13.5, "padrao")])
+    g = antes(tl, rosto=ROSTO_FECHADO)
+    assert g["resultado"] == "REPROVA"
+    assert g["motivo"].count("raspa o queixo") == 1
+    assert "legendas #0, #1, #2, #3, #4 e mais 3" in g["motivo"]                  # 8 em avatar cheio; a do insert não conta
+    assert len(g["medido"]["legendas"]["com_problema"]) == 8                      # o detalhe de cada uma fica no medido
 
 
 def test_o_mesmo_look_fechado_com_a_legenda_no_rodape_passa():
@@ -746,6 +769,34 @@ def test_avatar_real_o_rosto_medido_decide_a_posicao_da_legenda():
     errada = gate_geometria.rodar_antes(tl if fechado else timeline([leg(1.0, 2.5, "costura")]),
                                         avatar=avatar, rosto_split=ROSTO_SPLIT)
     assert errada["resultado"] == "REPROVA"
+
+
+@pytest.mark.lento
+@pytest.mark.midia_real
+@pytest.mark.parametrize("bias", [0.1, 0.2, 0.3])
+def test_avatar_real_o_rosto_previsto_no_split_e_o_que_o_filtro_do_motor_desenha(tmp_path, bias):
+    """A conta do plano (`rosto_no_split`) contra a imagem: o filtro do painel de baixo do motor
+    (`filtros_avatar.filtro_avatar_split`) sobre o avatar real, posto em y 1150, e o Haar no quadro. O Haar varia
+    de escala de um quadro para outro, então vale o topo (45 px) e o centro (60 px), não a altura."""
+    import cv2
+    avatar = _avatar_real()
+    from medir_rosto import caixa_rosto
+    topo, altura = caixa_rosto(avatar)
+    prev0, prev1 = gate_geometria.rosto_no_split(topo, altura, bias)
+    casc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    for t in ("6", "10"):
+        png = tmp_path / ("painel_%s_%s.png" % (bias, t))
+        cmd = ["ffmpeg", "-v", "error", "-y", "-nostdin", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=1",
+               "-ss", t, "-i", avatar, "-filter_complex",
+               FA.filtro_avatar_split(bias) + "[0:v][bot]overlay=0:%d[o]" % FA.SPLIT_TOP_H, "-map", "[o]",
+               "-frames:v", "1", str(png)]
+        subprocess.run(cmd, check=True, capture_output=True)
+        achados = casc.detectMultiScale(cv2.cvtColor(cv2.imread(str(png)), cv2.COLOR_BGR2GRAY), 1.1, 5,
+                                        minSize=(216, 216))
+        assert len(achados) >= 1, "o Haar não achou o rosto no painel (bias %s, t=%s)" % (bias, t)
+        x, y, w, h = max(achados, key=lambda b: b[2] * b[3])
+        assert abs(y - prev0) <= 45, (bias, t, (prev0, prev1), (y, y + h))
+        assert abs((y + h / 2.0) - (prev0 + prev1) / 2.0) <= 60, (bias, t, (prev0, prev1), (y, y + h))
 
 
 @pytest.mark.lento
