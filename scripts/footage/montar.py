@@ -20,8 +20,12 @@ Este é o antigo MAIN do `produzir_roteiro.py`, que executava tudo no import. Ag
 VAM_AVATAR e VAM_ROTEIRO são obrigatórias: os padrões antigos apontavam para os arquivos de um
 anúncio específico. VAM_INSERTS_JSON, VAM_OUT, VAM_XF, VAM_XF_SECO, VAM_XF_TIPO, VAM_SPLIT_TOP_H,
 VAM_SPLIT_GRAD, VAM_SPLIT_BIAS, VAM_CACHE_SEG e VAM_PARALELO seguem como eram. VAM_TIMELINE (W3.A) é o
-caminho da timeline.json: o relógio é o dela, que foi construído com as funções desta footage, então o
-`_ritmo.json`, o `timing.json` e os quadros saem iguais aos do caminho antigo.
+caminho da timeline.json: o relógio é o dela, construído com as funções desta footage (spans, contiguidade, plano
+de ritmo) sobre uma transcrição feita do MESMO jeito que o caminho antigo faz (perfil "alinhamento": wav 16 kHz,
+parakeet sem chunk, leitor da footage). O que foi medido (W3.X A2): com a mesma transcrição, `_ritmo.json`,
+`timing.json` e quadros saem iguais (paridade: footage pela timeline = footage antiga, com um stub do parakeet que
+devolve OUTRA fala se for chamado de outro jeito); com o chunk de 15/3 s que a W3.A usava, o parakeet real deslocava
+fronteira em até 0,16 s no avatar do fixture.
 
 `CAP=1` e `VAM_BAKE_LETTERING=1` foram removidos e viram ERRO ALTO: legenda e lettering da footage
 são do overlay (`gen_ad_v2`). Ignorar o valor em silêncio entregaria um vídeo sem o que o chamador

@@ -16,9 +16,11 @@ timeline e não decidem tempo por conta própria.
 Todo tempo está no relógio da footage a 1x, que é o do áudio do avatar: a footage começa em `relogio.a0`
 (o início do 1º bloco) e acaba em `duracao_s` (o fim do último). O arquivo entregue converte com
 `(t - a0) / aceleracao` e soma `cauda_s` só na duração total. Os spans e o plano de ritmo saem das MESMAS
-funções que a footage usava sozinha (`footage.blocos`: atribuir_spans, tornar_contiguos, plano_de_ritmo),
-por isso o golden da footage não muda. O que muda é o overlay, que passa a usar este relógio no lugar do
-dele (e a duração dele passa a ser a da footage, sem a folga de cauda que ninguém via).
+funções que a footage usava sozinha (`footage.blocos`: atribuir_spans, tornar_contiguos, plano_de_ritmo), sobre
+uma transcrição feita do mesmo jeito que a footage antiga fazia (`timeline.alinhar`, perfil "alinhamento"). O que foi
+medido (W3.X A2): com a mesma transcrição o golden da footage não muda; com o chunk de 15/3 s do parakeet, que a W3.A
+usava, a fronteira de bloco andava até 0,16 s no avatar do fixture. O que muda é o overlay, que passa a usar este
+relógio no lugar do dele (e a duração dele passa a ser a da footage).
 
 ## O que vem de onde
 

@@ -6,7 +6,10 @@ algoritmo próprio. Os dois relógios derivavam: 1,07 s no fim de um anúncio de
 
 Agora:
   - a transcrição sai do `audio.transcrever` (W1.C), uma chamada por alinhamento, com cache pelo sha256 do
-    CONTEÚDO do avatar: o mesmo avatar nunca é transcrito duas vezes, em build nenhum;
+    CONTEÚDO do avatar: o mesmo avatar nunca é transcrito duas vezes, em build nenhum. É o perfil "alinhamento", o
+    jeito que a footage sempre transcreveu (wav 16 kHz mono, parakeet SEM chunk, leitor da footage). Medido no
+    fixture com o parakeet real (W3.X A2): o chunk de 15/3 s que a W3.A usava deslocava fronteira de bloco em até
+    0,16 s, 16 de 52 palavras; mp4 x wav e leitor antigo x novo, zero. Com o perfil, a transcrição é a mesma;
   - o casamento roteiro x fala é o da FOOTAGE, o relógio que vale (`casar`, abaixo). A footage não tem mais
     cópia dele: `footage.blocos.alinhar_palavras` junta os tokens do parakeet e chama o `casar` daqui;
   - o resultado vai para um arquivo (`render/alinhamento.json` no projeto) cujo sha256 a timeline cita em
@@ -137,7 +140,7 @@ def alinhar(avatar, narr_words, *, cache_dir, raiz=None, glossario=None, duracao
         raise ErroAlinhamento(f"avatar não encontrado: {avatar}. Gere ou copie o avatar antes de alinhar.")
     duracao = duracao or duracao_do_audio
     try:
-        transcricao = _T.transcrever(avatar, cache_dir=Path(cache_dir), glossario=glossario)
+        transcricao = _T.transcrever(avatar, cache_dir=Path(cache_dir), glossario=glossario, perfil="alinhamento")
     except _T.SemTranscritor as e:
         raise ErroAlinhamento(str(e))
     dur = float(duracao(avatar))      # sem arredondar: a cauda sem par ancora neste número, como na footage

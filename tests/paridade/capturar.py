@@ -45,6 +45,8 @@ overlay roda como sempre rodou, então o golden antigo continua reproduzível.
     hyperframes transcribe` são stubs que devolvem a saída REAL do parakeet sobre o
     avatar do fixture. Sem rede, sem modelo de 1 GB, sem o binário do HyperFrames. O que
     o `hyperframes render` faria (MOV com alpha) NÃO é coberto: não há Chromium aqui.
+    O do parakeet só devolve a fala gravada quando chamado do jeito em que ela foi gravada
+    (wav, sem chunk); de outro jeito ela vem deslocada (W3.X A2, ver `stub_parakeet`).
 
 ## Uso
 
@@ -93,17 +95,44 @@ SUFIXO_FOOTAGE_TIMELINE = "_pelatimeline"     # nome da saída da footage que ro
 # A fase dela é `timeline_footage` e nunca `footage_...`: comparar por prefixo `argv/footage` pegaria as duas.
 
 # stubs: devolvem a transcrição REAL gravada em fixture/asr/
-_STUB_PARAKEET = """#!/bin/sh
-# Stub do parakeet-mlx (paridade): copia a saida real gravada para <output-dir>/<nome>.json
-wav="$1"; out="."; prev=""
-for a in "$@"; do
-  if [ "$prev" = "--output-dir" ]; then out="$a"; fi
-  prev="$a"
-done
-nome=$(basename "$wav"); nome="${nome%.*}"
-cp "__ASR__/av.json" "$out/$nome.json"
-echo "stub parakeet: $nome"
+# W3.X A2: o stub do parakeet NÃO devolve o mesmo JSON a qualquer chamada. A fala gravada (asr/av.json) é a do
+# parakeet sobre o wav 16 kHz, sem chunk: é o que ele devolve quando chamado desse jeito. Chamado de outro (um mp4,
+# ou com --chunk-duration), devolve a mesma fala com todo tempo DESLOCADO de DESLOCAMENTO_FORA_DO_JEITO s, o que o
+# parakeet real fez no avatar do fixture com chunk de 15/3 s (fronteira 0,16 s adiante). Assim a footage pela
+# timeline só sai igual à antiga se a timeline transcrever do mesmo jeito: a paridade não cega de novo.
+DESLOCAMENTO_FORA_DO_JEITO = 0.16
+
+_STUB_PARAKEET = """#!/usr/bin/env python3
+# Stub do parakeet-mlx (paridade): devolve a saida real gravada em <output-dir>/<nome>.json quando chamado do
+# jeito da footage antiga (um .wav, sem --chunk-duration); de outro jeito, a mesma fala com os tempos deslocados.
+import json, os, sys
+args = sys.argv[1:]
+entrada = args[0]
+saida = args[args.index("--output-dir") + 1] if "--output-dir" in args else "."
+with open(os.path.join("__ASR__", "av.json"), encoding="utf-8") as f:
+    dados = json.load(f)
+if not entrada.endswith(".wav") or "--chunk-duration" in args:
+    def mexe(o):
+        if isinstance(o, dict):
+            for k in ("start", "end"):
+                if isinstance(o.get(k), (int, float)):
+                    o[k] = round(o[k] + __DESLOCA__, 3)
+            for v in o.values():
+                mexe(v)
+        elif isinstance(o, list):
+            for v in o:
+                mexe(v)
+    mexe(dados)
+nome = os.path.splitext(os.path.basename(entrada))[0]
+with open(os.path.join(saida, nome + ".json"), "w", encoding="utf-8") as f:
+    json.dump(dados, f)
+print("stub parakeet: " + nome)
 """
+
+
+def stub_parakeet(asr):
+    """O texto do stub do parakeet-mlx, lendo a fala gravada da pasta `asr` (fixture/asr)."""
+    return _STUB_PARAKEET.replace("__ASR__", str(asr)).replace("__DESLOCA__", repr(DESLOCAMENTO_FORA_DO_JEITO))
 
 _STUB_HYPERFRAMES = """#!/bin/sh
 # Stub do hyperframes (paridade): so entende `transcribe`; devolve a transcricao real gravada.
@@ -325,8 +354,8 @@ def montar_sandbox(motor_raiz, midia, mutacao=None):
     shutil.copy(AQUI / "sitecustomize.py", sb.pysite / "sitecustomize.py")
 
     asr = (midia / "fixture" / "asr").resolve()
-    _gravar_exec(sb.bin / "parakeet-mlx", _STUB_PARAKEET.replace("__ASR__", str(asr)))
-    _gravar_exec(sb.home / ".local" / "bin" / "parakeet-mlx", _STUB_PARAKEET.replace("__ASR__", str(asr)))
+    _gravar_exec(sb.bin / "parakeet-mlx", stub_parakeet(asr))
+    _gravar_exec(sb.home / ".local" / "bin" / "parakeet-mlx", stub_parakeet(asr))
     (sb.raiz / "node_modules" / ".bin").mkdir(parents=True, exist_ok=True)
     _gravar_exec(sb.raiz / "node_modules" / ".bin" / "hyperframes",
                  _STUB_HYPERFRAMES.replace("__ASR__", str(asr)))

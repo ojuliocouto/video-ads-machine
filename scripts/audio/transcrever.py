@@ -21,6 +21,14 @@ padrão, de propósito, para nada cair em pasta temporária do sistema. O cache 
 resultado BRUTO do ASR; o glossário é aplicado depois, na saída, então trocar o glossário
 não retranscreve nada. (O prompt do glossário só influencia a primeira transcrição.)
 
+## Perfil
+
+`perfil="padrao"` é a transcrição de sempre. `perfil="alinhamento"` é a do relógio do anúncio (timeline/alinhar):
+no parakeet, wav 16 kHz sem chunk e leitor da footage, porque o chunk deslocava fronteira em até 0,16 s (medido no
+fixture, W3.X A2). Backend que não distingue perfil (não declara `PERFIS`) recebe a chamada de sempre. Cada perfil
+tem o seu arquivo de cache (`<sha>.json` e `<sha>.alinhamento.json`): a mesma fala lida de dois jeitos nunca se
+mistura.
+
 ## Glossário
 
 `glossario` é o dict de `_local/glossario.json` (contratos/glossario.schema.json):
@@ -44,6 +52,7 @@ import sysconfig
 from pathlib import Path
 
 ORDEM = ("parakeet", "faster_whisper", "groq")
+PERFIS = ("padrao", "alinhamento")
 
 PROMPT_BASE = "Transcrição em português do Brasil."
 PROMPT_MAX = 600       # o Whisper aceita ~224 tokens de prompt; folga para o português
@@ -132,14 +141,20 @@ def _ler_cache(arquivo, sha):
     return None
 
 
-def _gravar_cache(arquivo, sha, backend, palavras):
+def _gravar_cache(arquivo, sha, backend, palavras, perfil="padrao"):
     arquivo = Path(arquivo)
     arquivo.parent.mkdir(parents=True, exist_ok=True)
     tmp = arquivo.with_name(arquivo.name + ".tmp")
-    tmp.write_text(json.dumps({"versao": 1, "sha256": sha, "backend": backend,
-                               "palavras": palavras}, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
+    dados = {"versao": 1, "sha256": sha, "backend": backend, "palavras": palavras}
+    if perfil != "padrao":
+        dados["perfil"] = perfil
+    tmp.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(str(tmp), str(arquivo))
+
+
+def arquivo_de_cache(cache_dir, sha, perfil="padrao"):
+    """`<sha>.json` no perfil padrão; `<sha>.<perfil>.json` nos outros."""
+    return Path(cache_dir) / (f"{sha}.json" if perfil == "padrao" else f"{sha}.{perfil}.json")
 
 
 # --- glossário ------------------------------------------------------------------------------
@@ -261,19 +276,21 @@ def escolher_backend(amb=None, preferido=None):
 # --- API ------------------------------------------------------------------------------------
 
 def transcrever(audio, *, cache_dir, glossario=None, backend=None, amb=None, forcar=False,
-                idioma="pt"):
+                idioma="pt", perfil="padrao"):
     """Palavras com tempo de `audio`. `cache_dir` é obrigatório (a pasta do projeto).
 
     `backend`: nome (um de ORDEM), um módulo/objeto com `NOME` e `transcrever`, ou None
-    para a escolha automática. `forcar=True` ignora o cache.
+    para a escolha automática. `forcar=True` ignora o cache. `perfil`: ver "Perfil" no topo.
     """
+    if perfil not in PERFIS:
+        raise ValueError(f"perfil desconhecido: {perfil!r} (use um de {', '.join(PERFIS)})")
     audio = Path(audio)
     if not audio.is_file():
         raise FileNotFoundError(f"áudio não encontrado: {audio}")
     amb = amb or Ambiente.real()
     cache_dir = Path(cache_dir)
     sha = sha_do_conteudo(audio)
-    arquivo = cache_dir / f"{sha}.json"
+    arquivo = arquivo_de_cache(cache_dir, sha, perfil)
 
     palavras = None if forcar else _ler_cache(arquivo, sha)
     if palavras is None:
@@ -283,9 +300,10 @@ def transcrever(audio, *, cache_dir, glossario=None, backend=None, amb=None, for
             modulo = backend
         trabalho = cache_dir / "_trabalho" / sha[:16]
         trabalho.mkdir(parents=True, exist_ok=True)
+        extra = {"perfil": perfil} if perfil != "padrao" and perfil in getattr(modulo, "PERFIS", ()) else {}
         try:
             bruto = modulo.transcrever(audio, amb=amb, workdir=trabalho,
-                                       prompt=prompt_do_glossario(glossario), idioma=idioma)
+                                       prompt=prompt_do_glossario(glossario), idioma=idioma, **extra)
         finally:
             shutil.rmtree(str(trabalho), ignore_errors=True)
             try:
@@ -293,7 +311,7 @@ def transcrever(audio, *, cache_dir, glossario=None, backend=None, amb=None, for
             except OSError:
                 pass
         palavras = monotonizar(bruto)
-        _gravar_cache(arquivo, sha, getattr(modulo, "NOME", "desconhecido"), palavras)
+        _gravar_cache(arquivo, sha, getattr(modulo, "NOME", "desconhecido"), palavras, perfil)
     return aplicar_glossario(palavras, glossario)
 
 
@@ -305,11 +323,12 @@ def main(argv=None, amb=None):
     ap.add_argument("--glossario", help="caminho do _local/glossario.json")
     ap.add_argument("--backend", choices=ORDEM)
     ap.add_argument("--forcar", action="store_true")
+    ap.add_argument("--perfil", choices=PERFIS, default="padrao")
     a = ap.parse_args(argv)
     glossario = json.loads(Path(a.glossario).read_text(encoding="utf-8")) if a.glossario else None
     try:
         palavras = transcrever(a.audio, cache_dir=a.cache_dir, glossario=glossario,
-                               backend=a.backend, amb=amb, forcar=a.forcar)
+                               backend=a.backend, amb=amb, forcar=a.forcar, perfil=a.perfil)
     except SemTranscritor as e:
         print(str(e), file=sys.stderr)
         return 2
