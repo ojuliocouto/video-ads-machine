@@ -63,7 +63,7 @@ def test_constantes_do_c3_com_os_numeros_do_plano():
     assert camera.PUNCH_VOLTA_QUADROS == 2
     assert (camera.RESPIRO_DE, camera.RESPIRO_PARA, camera.RESPIRO_DUR_S) == (1.10, 1.00, 1.0)
     assert camera.PUNCH_GANHO_MIN == 0.15            # "punch sem +15% de escala medida"
-    assert camera.CAIXA_VARIACAO_MIN == 0.08         # "caixa do rosto varia menos de 8%"
+    assert camera.ESCALA_VARIACAO_MIN == camera.CAIXA_VARIACAO_MIN == 0.08   # "caixa do rosto varia menos de 8%"
     assert camera.PLANO_AVATAR_MIN_S == 2.0          # "num plano de avatar de 2 s ou mais"
     assert camera.PARADO_MAX_S == 20.0               # "mais de 20 s sem movimento"
 
@@ -493,14 +493,35 @@ def test_para_entregue_divide_pela_aceleracao_depois_de_tirar_o_a0():
     assert camera.para_entregue(1.59, rel) == pytest.approx(1.0)
 
 
-def test_variacao_da_caixa_ignora_o_tremido_do_detector_e_pega_o_zoom():
-    parado = [400 + d for d in (0, 6, -4, 5, -6, 3, 0, -5, 4, -3)]      # tremido de +-1,5%, sem zoom
-    assert camera.variacao_da_caixa(parado) < camera.CAIXA_VARIACAO_MIN
-    zoom16 = [400 * (1 + 0.16 * k / 9.0) + d for k, d in enumerate((0, 6, -4, 5, -6, 3, 0, -5, 4, -3))]
-    v = camera.variacao_da_caixa(zoom16)
-    assert 0.09 < v < 0.20
-    assert camera.variacao_da_caixa([400, 410]) is None                  # poucas amostras: não dá pra medir
-    assert camera.variacao_da_caixa([None, None, 400, None]) is None
+def test_variacao_da_escala_e_o_total_que_a_imagem_cresceu_ou_encolheu():
+    tempos = [k / 12.0 for k in range(36)]
+    dentro = [1.0 + 0.16 * k / 35.0 for k in range(36)]                  # zoom de entrada de 16% em 36 quadros
+    fora = [1.16 / (1.0 + 0.16 * k / 35.0) for k in range(36)]           # zoom de saída, mesma amplitude
+    assert 0.15 < camera.variacao_da_escala(dentro, tempos) < 0.17
+    assert 0.14 < camera.variacao_da_escala(fora, tempos) < 0.17         # o sentido não importa
+    rng = np.random.RandomState(3)
+    parado = [1.0 + float(rng.uniform(-0.006, 0.006)) for _ in range(36)]  # ruído do rastreador num avatar parado
+    assert camera.variacao_da_escala(parado, tempos) < camera.ESCALA_VARIACAO_MIN
+    assert camera.variacao_da_escala([1.0, 1.1]) is None                 # poucos quadros: não dá pra medir
+    assert camera.variacao_da_escala([None, None, 1.0, None]) is None
+
+
+def test_variacao_usa_o_tempo_de_cada_medida_e_nao_so_a_ordem():
+    tempos = [k / 12.0 for k in range(36)]
+    dentro = [1.0 + 0.16 * k / 35.0 for k in range(36)]
+    sobra = [k for k in range(36) if k % 3 != 0]                         # quadros que o rastreador perdeu
+    v = camera.variacao_da_escala([dentro[k] for k in sobra], [tempos[k] for k in sobra])
+    assert v == pytest.approx(camera.variacao_da_escala(dentro, tempos), abs=0.01)
+
+
+def test_o_intervalo_da_caixa_acusaria_zoom_num_avatar_parado_e_a_escala_nao():
+    """Num avatar real e PARADO a caixa do rosto balança 12% (medido). O intervalo acusaria zoom; a escala da
+    imagem, que não vê a pessoa se inclinar, não."""
+    t = [k / 12.0 for k in range(72)]
+    caixa = [400.0 * (1 + 0.055 * math.sin(2 * math.pi * x / 3.7)) for x in t]
+    assert (max(caixa) - min(caixa)) / min(caixa) > camera.ESCALA_VARIACAO_MIN          # a caixa "varia" 11%
+    escala = [1.0 for _ in t]                                                            # a câmera não se mexeu
+    assert camera.variacao_da_escala(escala, t) == 0.0
 
 
 def test_ganho_do_punch_e_a_razao_das_medianas():

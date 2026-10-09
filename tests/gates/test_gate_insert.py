@@ -5,7 +5,7 @@ Reprova quando:
     `projeto.excecoes` (regra `densidade`); fora de piso 40 e teto 65 reprova até com exceção;
   - o congelamento previsto de um insert passa de 0,20 s (a conta do `analise_inserts`, já medida em
     `plano.mapa_inserts[].congela_s` pela W3.B);
-  - há faixa morta contínua acima de 40 px no composto, em 6 instantes dentro dos inserts;
+  - há faixa morta (preto liso) contínua acima de 40 px no composto, em 6 instantes dentro dos inserts;
   - um insert horizontal entra recortado, sem a moldura de navegador.
 
 Densidade e congelamento NÃO são recalculados aqui: a densidade vem dos segmentos da timeline (ou do
@@ -29,6 +29,7 @@ from contratos import validar
 from footage import enquadramento as enq
 from footage import filtros_avatar as FA
 from footage import filtros_insert as FI
+from footage import grade_final as GF
 from gates import gate_insert
 from plano import medir as plano_medir
 
@@ -227,14 +228,29 @@ def oficina(tmp_path_factory):
            "-frames:v", "1", str(out))
         return out
 
+    def graduar(png, nome):
+        """A grade final do motor (grão 7, contraste, saturação, vinheta) + h264 crf 18, num quadro só."""
+        mp4, saida = tmp / ("%s_g.mp4" % nome), tmp / ("%s_g.png" % nome)
+        ff("-loop", "1", "-framerate", "30", "-i", str(png), "-t", "1", "-filter_complex", GF.FILTRO_GRADE,
+           "-map", "[v]", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", str(mp4))
+        ff("-i", str(mp4), "-ss", "0.5", "-frames:v", "1", str(saida))
+        return saida
+
+    def com_faixa_preta(png, y0, altura, nome):
+        im = Image.open(png).convert("RGB")
+        im.paste((0, 0, 0), (0, y0, im.width, y0 + altura))
+        saida = tmp / ("%s.png" % nome)
+        im.save(saida)
+        return saida
+
     return {"tmp": tmp, "asset": asset, "cheio": quadro_cheio(asset), "split": quadro_split(asset),
             "recortado": recortado(asset), "cheio_interior_preto": quadro_cheio(escuro, t=1.5, nome="cheio_escuro"),
-            "ff": ff}
+            "ff": ff, "graduar": graduar, "com_faixa_preta": com_faixa_preta}
 
 
 def meio(png):
     """Quadro em meia resolução (540x960 RGB uint8), o que o gate mede."""
-    return np.asarray(Image.open(png).convert("RGB").resize((540, 960), Image.BOX))
+    return np.array(Image.open(png).convert("RGB").resize((540, 960), Image.BOX))
 
 
 def leitor_de(*quadros):
@@ -247,10 +263,15 @@ def tl_de_layout(layout, total=20.0):
     return timeline_com_densidade(0.5, total, layout)
 
 
-def com_faixa(quadro, y0, altura_px, cor=(14, 14, 14)):
-    """Pinta uma faixa lisa de largura inteira (y0 e altura em px do quadro 1080x1920)."""
+def com_faixa(quadro, y0, altura_px, cor=(4, 4, 4), grao=0):
+    """Pinta uma faixa lisa de largura inteira (y0 e altura em px do quadro 1080x1920). Com `grao`, soma o
+    ruído uniforme de +-grao níveis que a grade final (noise=alls=7) põe em tudo, seed fixa."""
     q = quadro.copy()
-    q[y0 // 2:(y0 + altura_px) // 2, :, :] = cor
+    y_a, y_b = y0 // 2, (y0 + altura_px) // 2
+    faixa = np.full((y_b - y_a, q.shape[1], 3), cor, dtype=np.float32)
+    if grao:
+        faixa += np.random.RandomState(7).uniform(-grao, grao, faixa.shape)
+    q[y_a:y_b, :, :] = np.clip(faixa, 0, 255).astype(np.uint8)
     return q
 
 
@@ -299,6 +320,43 @@ def test_faixa_morta_em_um_so_dos_6_instantes_reprova(oficina):
     g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(ok, ok, ok, ok, ok, ruim))
     assert g["resultado"] == "REPROVA"
     assert [i["faixa_morta_px"] > 40 for i in g["medido"]["faixa_morta"]["instantes"]].count(True) == 1
+
+
+def test_faixa_morta_com_o_grao_da_grade_final_ainda_e_pega(oficina):
+    """A grade final põe ruído de +-7 em tudo: o preto liso entregue não tem desvio zero."""
+    q = com_faixa(meio(oficina["cheio"]), 100, 80, cor=(5, 5, 5), grao=7)
+    g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "REPROVA" and g["medido"]["faixa_morta"]["maior_px"] >= 80
+
+
+@pytest.mark.parametrize("cor", [(230, 230, 230), (60, 60, 60), (24, 24, 24)])
+def test_faixa_lisa_que_nao_e_preta_nao_e_faixa_morta(oficina, cor):
+    """Página branca e fundo desfocado claro são o desenho do motor; só preto liso é faixa morta."""
+    q = com_faixa(meio(oficina["cheio"]), 100, 200, cor=cor, grao=3)
+    g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "PASS", g.get("motivo")
+
+
+@pytest.mark.parametrize("layout", ["cheio", "split"])
+def test_a_grade_final_nao_esconde_a_moldura_e_o_quadro_real_segue_passando(oficina, layout):
+    """Depois da grade (grão, vinheta, h264) o vermelho do ponto já não é (255, 95, 86): a moldura se acha pelo matiz."""
+    q = meio(oficina["graduar"](oficina[layout], layout))
+    g = rodar(timeline=tl_de_layout(layout), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert all(i["moldura"] for i in g["medido"]["faixa_morta"]["instantes"])
+
+
+def test_faixa_preta_de_80px_sobrevive_a_grade_final(oficina):
+    png = oficina["com_faixa_preta"](oficina["cheio"], 100, 80, "cheio_faixa")
+    q = meio(oficina["graduar"](png, "cheio_faixa"))
+    g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "REPROVA" and g["medido"]["faixa_morta"]["maior_px"] == 80
+
+
+def test_horizontal_recortado_depois_da_grade_continua_sem_moldura(oficina):
+    q = meio(oficina["graduar"](oficina["recortado"], "recortado"))
+    g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "REPROVA" and "moldura" in g["motivo"]
 
 
 def test_o_interior_liso_do_card_nao_e_faixa_morta(oficina):

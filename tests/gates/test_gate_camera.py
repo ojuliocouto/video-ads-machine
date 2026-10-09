@@ -1,18 +1,22 @@
 """W4.A: gate_camera (capacidade C3). Mede a câmera no vídeo ENTREGUE, nunca no plano.
 
 Reprova quando (limiares do plano, seção 3):
-  - a caixa do rosto varia menos de 8% num plano de avatar de 2 s ou mais (câmera parada);
+  - a escala da imagem varia menos de 8% num plano de avatar de 2 s ou mais (câmera parada);
   - um punch não cresce +15% de escala MEDIDA (o punch declarado não existe na imagem);
   - passam mais de 20 s sem movimento de câmera.
 Mais: punch declarado em insert ou em janela de split reprova (o C3 proíbe).
 
+O que se mede é a escala da IMAGEM (pontos de textura rastreados entre quadros), e não a caixa do rosto
+(o plano diz "caixa do rosto"): num avatar real e parado a caixa balança 12% sozinha e o gate com Haar
+reprovaria anúncio correto e aprovaria anúncio sem zoom. Ver o docstring de `gate_camera`.
+
 O gate devolve um dict no formato de gate do laudo (`contratos/laudo.schema.json`): PASS com saída 0,
 REPROVA com saída 1 e motivo, ERRO com saída 2 quando o insumo é inválido.
 
-Os testes rápidos usam um "render virtual": o leitor devolve, para cada instante ENTREGUE, a caixa do rosto
-que o filtro de verdade produziria (o zoom do `filtros_avatar` multiplicado pelo fator do punch, avaliado
-pelo mesmo avaliador). Sem ffmpeg e sem rosto. Os testes `lento` renderizam o filtro de verdade num
-quadrado sintético e medem o vídeo.
+Os testes rápidos usam uma câmera virtual: o leitor devolve, para cada instante ENTREGUE, o zoom que o
+filtro de verdade produziria (o do `filtros_avatar` multiplicado pelo fator do punch, avaliado pelo mesmo
+avaliador) e o estimador devolve a escala relativa ao primeiro quadro. Sem ffmpeg e sem imagem. Os testes
+`lento` renderizam o filtro de verdade numa cena com textura e medem o vídeo.
 """
 import json
 import subprocess
@@ -28,7 +32,6 @@ from gates import gate_camera
 
 RAIZ = Path(__file__).resolve().parents[2]
 LAUDO_VALIDO = RAIZ / "contratos" / "exemplos" / "laudo.valido.json"
-ALTURA_ROSTO = 400.0
 
 
 # =================================================================================== insumos sintéticos
@@ -65,11 +68,11 @@ def tl_padrao(aceleracao=1.0, a0=0.0):
     return timeline(segs, cam, aceleracao, a0, janelas_split=[{"s": 9.0, "e": 14.0}])
 
 
-def leitor_virtual(tl, zoom=True, punch=True, tremido=0.0, seed=1):
-    """Para cada instante entregue, a caixa do rosto que o filtro produziria. Insert: sem rosto (None)."""
+def leitor_virtual(tl, zoom=True, punch=True):
+    """Para cada instante entregue, o zoom que o filtro produziria (o quadro é esse número). Insert: sem
+    quadro de avatar (None)."""
     rel = tl["relogio"]
     acel, a0, fps = rel["aceleracao"], rel["a0"], rel["fps"]
-    rng = np.random.RandomState(seed)
     segs = tl["segmentos"]
     punches = [e for e in tl["camera"] if e["tipo"] == "punch"] if punch else []
 
@@ -90,19 +93,24 @@ def leitor_virtual(tl, zoom=True, punch=True, tremido=0.0, seed=1):
             if punches:
                 rel_ev = camera.eventos_do_segmento(punches, sg["s"], sg["e"])
                 z *= camera.fator_total(rel_ev, tf - sg["s"], fps)
-            h = ALTURA_ROSTO * z + (rng.uniform(-1, 1) * tremido * ALTURA_ROSTO)
-            yield td, (100.0, 100.0, 0.7 * h, h)
+            yield td, z
     return leitor
 
 
-def detector_identidade(quadro):
-    return quadro
+def estimador_virtual(ruido=0.0, seed=1):
+    """Escala relativa ao primeiro quadro da série, com ruído multiplicativo uniforme (+-ruido) como o do rastreador."""
+    rng = np.random.RandomState(seed)
+
+    def estimador(serie):
+        z0 = serie[0][1]
+        return [(z / z0) * (1 + rng.uniform(-ruido, ruido)) for _t, z in serie]
+    return estimador
 
 
 def rodar(tl, tmp_path, **kw):
     video = tmp_path / "final_9x16.mp4"
     video.write_bytes(b"x")                      # o leitor é injetado: o arquivo só precisa existir
-    kw.setdefault("detector", detector_identidade)
+    kw.setdefault("estimador", estimador_virtual())
     return gate_camera.rodar(video, tl, **kw)
 
 
@@ -125,11 +133,12 @@ def test_camera_viva_passa_e_o_resultado_esta_no_formato_do_laudo(tmp_path):
     assert formato_do_laudo(g) == []
     m = g["medido"]
     assert [p["ok"] for p in m["planos"]] == [True, True]
-    assert all(p["variacao"] >= camera.CAIXA_VARIACAO_MIN for p in m["planos"])
+    assert m["planos"][0]["variacao"] >= camera.ESCALA_VARIACAO_MIN             # plano sem punch: medido
+    assert m["planos"][1]["variacao"] is None and "punch" in m["planos"][1]["dispensado"]   # com punch: vale o punch
     (p,) = m["punches"]
     assert p["ok"] and 0.17 <= p["ganho"] <= 0.30           # 22% pedidos; o zoom contínuo mexe uns pontos
     assert m["parado"]["maior_s"] < camera.PARADO_MAX_S
-    assert g["limiar"]["punch_ganho_min"] == 0.15 and g["limiar"]["caixa_variacao_min"] == 0.08
+    assert g["limiar"]["punch_ganho_min"] == 0.15 and g["limiar"]["escala_variacao_min"] == 0.08
     assert g["limiar"]["parado_max_s"] == 20.0
 
 
@@ -143,9 +152,11 @@ def test_com_aceleracao_e_a0_o_punch_e_medido_no_instante_entregue(tmp_path):
     assert p["ganho"] > 0.15
 
 
-def test_tremido_pequeno_do_detector_nao_reprova_um_zoom_de_verdade(tmp_path):
+@pytest.mark.parametrize("ruido", [0.005, 0.015])
+def test_ruido_do_rastreador_nao_reprova_um_zoom_de_verdade(tmp_path, ruido):
+    """0,5% é o ruído mediano medido num avatar real e parado; 1,5% é o p90."""
     tl = tl_padrao()
-    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl, tremido=0.015))
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), estimador=estimador_virtual(ruido))
     assert g["resultado"] == "PASS", g.get("motivo")
 
 
@@ -155,13 +166,13 @@ def test_o_cli_devolve_o_codigo_de_saida_do_gate(tmp_path, capsys, monkeypatch):
     video = tmp_path / "final.mp4"
     video.write_bytes(b"x")
     monkeypatch.setattr(gate_camera, "_leitor_padrao", lambda: leitor_virtual(tl))
-    monkeypatch.setattr(gate_camera, "_detector_padrao", lambda: detector_identidade)
+    monkeypatch.setattr(gate_camera, "_estimador_padrao", lambda: estimador_virtual())
     assert gate_camera.main([str(video), "--timeline", str(tmp_path / "timeline.json")]) == 0
     assert "PASSA" in capsys.readouterr().out
-    tl2 = tl_padrao()
-    monkeypatch.setattr(gate_camera, "_leitor_padrao", lambda: leitor_virtual(tl2, zoom=False, punch=False))
+    monkeypatch.setattr(gate_camera, "_leitor_padrao", lambda: leitor_virtual(tl, zoom=False, punch=False))
     assert gate_camera.main([str(video), "--timeline", str(tmp_path / "timeline.json")]) == 1
     assert "REPROVA" in capsys.readouterr().out
+    assert gate_camera.main([str(video), "--timeline", str(tmp_path / "nao_existe.json")]) == 2
 
 
 # =================================================================================== mutantes: tudo isto TEM que reprovar
@@ -182,8 +193,8 @@ def test_mutante_punch_declarado_que_nao_existe_na_imagem_reprova(tmp_path):
     assert "punch" in g["motivo"] and "15%" in g["motivo"]
     (p,) = g["medido"]["punches"]
     assert p["ok"] is False and abs(p["ganho"]) < 0.10
-    # os planos, esses sim, têm câmera
-    assert all(x["ok"] for x in g["medido"]["planos"])
+    # o plano sem punch tem câmera; o plano do punch que não existe herda a reprovação dele
+    assert g["medido"]["planos"][0]["ok"] is True and g["medido"]["planos"][1]["ok"] is False
 
 
 def test_mutante_punch_de_10_por_cento_reprova(tmp_path):
@@ -229,6 +240,25 @@ def test_avatar_parado_por_mais_de_20s_reprova_pelas_duas_regras(tmp_path):
     assert "20 s" in g["motivo"] and "plano de avatar" in g["motivo"]
 
 
+def test_plano_com_punch_medido_e_dispensado_da_regra_dos_8_por_cento(tmp_path):
+    """O rastreador acumula erro na subida e na volta do punch: o plano com punch vale o punch medido. O zoom
+    contínuo segue cobrado em todos os planos sem punch."""
+    segs = [seg_avatar(0.0, 8.0, 0)]
+    tl = timeline(segs, [camera.evento_punch(2.0, 1.5)])
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl, zoom=False, punch=True))
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert g["medido"]["planos"][0]["variacao"] is None and g["medido"]["planos"][0]["ok"] is True
+    assert g["medido"]["punches"][0]["ok"] is True
+
+
+def test_plano_com_punch_que_nao_existe_na_imagem_reprova_pelo_punch(tmp_path):
+    segs = [seg_avatar(0.0, 8.0, 0)]
+    tl = timeline(segs, [camera.evento_punch(2.0, 1.5)])
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl, zoom=False, punch=False))
+    assert g["resultado"] == "REPROVA" and "punch em 2.00 s" in g["motivo"]
+    assert "plano de avatar" not in g["motivo"]                         # uma razão só: a do punch
+
+
 def test_punch_declarado_dentro_de_insert_ou_split_reprova(tmp_path):
     tl = tl_padrao()
     tl["camera"] = [e for e in tl["camera"] if e["tipo"] != "punch"] + [camera.evento_punch(10.0, 1.5)]
@@ -243,8 +273,7 @@ def test_plano_curto_de_avatar_nao_e_cobrado_pelo_zoom(tmp_path):
     segs = [seg_avatar(0.0, 1.5, 0), seg_avatar(1.5, 8.0, 1)]
     cam = [{"t": 1.5, "tipo": "zoom", "de": 1.16, "para": 1.0, "dur": 6.5}]
     tl = timeline(segs, cam)
-    leitor = leitor_virtual(tl)
-    g = rodar(tl, tmp_path, leitor=leitor)
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl))
     planos = g["medido"]["planos"]
     assert len(planos) == 1 and planos[0]["inicio"] == pytest.approx(1.5)
 
@@ -253,7 +282,7 @@ def test_plano_curto_de_avatar_nao_e_cobrado_pelo_zoom(tmp_path):
 
 def test_video_ausente_e_erro_com_saida_2(tmp_path):
     tl = tl_padrao()
-    g = gate_camera.rodar(tmp_path / "nao_existe.mp4", tl, leitor=leitor_virtual(tl), detector=detector_identidade)
+    g = gate_camera.rodar(tmp_path / "nao_existe.mp4", tl, estimador=estimador_virtual())
     assert g["resultado"] == "ERRO" and g["saida"] == 2
     assert "não existe" in g["motivo"]
     assert formato_do_laudo(g) == []
@@ -266,11 +295,11 @@ def test_timeline_sem_campo_obrigatorio_e_erro(tmp_path):
     assert g["resultado"] == "ERRO" and g["saida"] == 2 and "segmentos" in g["motivo"]
 
 
-def test_rosto_nao_detectado_e_erro_e_pede_outro_detector(tmp_path):
+def test_imagem_sem_textura_para_rastrear_e_erro_e_nao_aprova(tmp_path):
     tl = tl_padrao()
-    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), detector=lambda q: None)
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), estimador=lambda serie: [1.0] + [None] * (len(serie) - 1))
     assert g["resultado"] == "ERRO" and g["saida"] == 2
-    assert "rosto" in g["motivo"] and "detector" in g["motivo"]
+    assert "textura" in g["motivo"] and "estimador" in g["motivo"]
 
 
 def test_leitor_que_quebra_vira_erro_e_nao_traceback(tmp_path):
@@ -288,34 +317,80 @@ def test_timeline_sem_nenhum_plano_de_avatar_so_mede_o_movimento(tmp_path):
     assert g["resultado"] == "PASS" and g["medido"]["planos"] == []
 
 
+# =================================================================================== o rastreador de escala, sem vídeo
+
+def textura(seed=5, largura=270, altura=480):
+    import cv2
+    rng = np.random.RandomState(seed)
+    ruido = rng.uniform(0, 255, (altura, largura)).astype(np.float32)
+    return np.clip(cv2.GaussianBlur(ruido, (0, 0), 1.4) * 2.2 - 120, 0, 255).astype(np.uint8)
+
+
+def ampliada(quadro, fator):
+    """O quadro ampliado em torno do centro, como o zoompan faz: recorta 1/fator do centro e volta ao tamanho."""
+    import cv2
+    h, w = quadro.shape
+    cw, ch = w / fator, h / fator
+    x0, y0 = (w - cw) / 2.0, (h - ch) / 2.0
+    m = np.float32([[fator, 0, -x0 * fator], [0, fator, -y0 * fator]])
+    return cv2.warpAffine(quadro, m, (w, h), flags=cv2.INTER_LINEAR)
+
+
+@pytest.mark.parametrize("fator", [1.01, 1.03, 1.08])
+def test_escala_entre_mede_o_zoom_de_um_quadro_para_o_outro(fator):
+    q = textura()
+    s = gate_camera.escala_entre(q, ampliada(q, fator))
+    assert s == pytest.approx(fator, abs=0.004)
+
+
+def test_escala_entre_de_quadro_liso_nao_inventa_um_numero():
+    liso = np.full((480, 270), 90, dtype=np.uint8)
+    assert gate_camera.escala_entre(liso, liso) is None
+
+
+def test_estimador_padrao_encadeia_os_quadros_e_acha_16_por_cento():
+    q = textura()
+    zooms = [1.0 + 0.16 * k / 24.0 for k in range(25)]
+    serie = [(k / 12.0, ampliada(q, z)) for k, z in enumerate(zooms)]
+    escalas = gate_camera._estimador_padrao()(serie)
+    assert escalas[0] == 1.0 and escalas[-1] == pytest.approx(1.16, abs=0.02)
+    assert all(b >= a - 0.003 for a, b in zip(escalas, escalas[1:]))        # só cresce (com folga do ruído)
+
+
+def test_estimador_padrao_numa_cena_parada_acha_1_00():
+    q = textura()
+    serie = [(k / 12.0, q) for k in range(25)]
+    assert gate_camera._estimador_padrao()(serie)[-1] == pytest.approx(1.0, abs=0.003)
+
+
 # =================================================================================== render de verdade (lento)
 
-def _render(tmp_path, nome, filtro_ou_punches):
-    """Cena parada com um quadrado branco, passada pelo filtro do avatar de verdade."""
+def _cena_com_textura(tmp_path):
+    """Cena parada 270x480 com textura (o rastreador precisa de pontos para seguir): tudo o que mudar de
+    escala no render é câmera."""
+    import cv2
     fonte = tmp_path / "av.mp4"
     if not fonte.exists():
-        subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
-                        "color=c=0x141414:s=270x480:r=30:d=3.4,drawbox=x=95:y=200:w=80:h=80:color=white:t=fill",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "12", str(fonte)],
+        png = tmp_path / "tex.png"
+        cv2.imwrite(str(png), textura())
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-loop", "1", "-framerate", "30", "-t", "3.4",
+                        "-i", str(png), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "12", str(fonte)],
                        check=True, capture_output=True)
+    return fonte
+
+
+def _render(tmp_path, nome, punches, estatico=False):
+    """A cena, passada pelo filtro do avatar de verdade (ou parada, sem zoompan)."""
+    fonte = _cena_com_textura(tmp_path)
     saida = tmp_path / nome
-    if isinstance(filtro_ou_punches, str):                     # câmera parada: só reenquadra, sem zoompan
+    if estatico:
         cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-ss", "0", "-t", "3.4", "-i", str(fonte), "-vf",
                "fps=30,scale=1080:1920,setsar=1,trim=end_frame=90,setpts=N/30/TB", "-r", "30", "-an",
                "-c:v", "libx264", "-pix_fmt", "yuv420p", str(saida)]
     else:
-        cmd = FA.cmd_orig(str(fonte), 0.0, 3.0, str(saida), idx=0, base=1.0, punches=filtro_ou_punches)
+        cmd = FA.cmd_orig(str(fonte), 0.0, 3.0, str(saida), idx=0, base=1.0, punches=punches)
     subprocess.run(cmd, check=True, capture_output=True)
     return saida
-
-
-def caixa_do_quadrado_branco(quadro):
-    """Detector sintético: a caixa dos pixels brancos. `quadro` é RGB (altura, largura, 3)."""
-    cinza = quadro.astype(np.float32).mean(axis=2)
-    ys, xs = np.where(cinza > 160)
-    if len(xs) == 0:
-        return None
-    return (float(xs.min()), float(ys.min()), float(xs.max() - xs.min() + 1), float(ys.max() - ys.min() + 1))
 
 
 def tl_do_render_sintetico(com_punch):
@@ -328,17 +403,25 @@ def tl_do_render_sintetico(com_punch):
 @pytest.mark.lento
 def test_render_de_verdade_com_zoom_e_punch_passa(tmp_path):
     com = _render(tmp_path, "com.mp4", [camera.evento_punch(0.5, 1.0)])
-    g = gate_camera.rodar(com, tl_do_render_sintetico(True), detector=caixa_do_quadrado_branco)
+    g = gate_camera.rodar(com, tl_do_render_sintetico(True))
     assert g["resultado"] == "PASS", g.get("motivo")
     (p,) = g["medido"]["punches"]
     assert 0.17 <= p["ganho"] <= 0.30, p
-    assert g["medido"]["planos"][0]["variacao"] >= 0.08
+    assert "dispensado" in g["medido"]["planos"][0]
+
+
+@pytest.mark.lento
+def test_render_de_verdade_so_com_zoom_passa_e_mede_o_zoom_de_16_por_cento(tmp_path):
+    so_zoom = _render(tmp_path, "so_zoom.mp4", [])
+    g = gate_camera.rodar(so_zoom, tl_do_render_sintetico(False))
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert 0.10 <= g["medido"]["planos"][0]["variacao"] <= 0.20
 
 
 @pytest.mark.lento
 def test_render_de_verdade_sem_zoom_reprova(tmp_path):
-    parado = _render(tmp_path, "parado.mp4", "estatico")
-    g = gate_camera.rodar(parado, tl_do_render_sintetico(False), detector=caixa_do_quadrado_branco)
+    parado = _render(tmp_path, "parado.mp4", None, estatico=True)
+    g = gate_camera.rodar(parado, tl_do_render_sintetico(False))
     assert g["resultado"] == "REPROVA" and g["saida"] == 1
     assert g["medido"]["planos"][0]["variacao"] < 0.02
 
@@ -347,6 +430,6 @@ def test_render_de_verdade_sem_zoom_reprova(tmp_path):
 def test_render_de_verdade_punch_declarado_e_nao_renderizado_reprova(tmp_path):
     """O filtro rodou só com o zoom contínuo: o punch está na timeline mas não na imagem."""
     sem_punch = _render(tmp_path, "sem_punch.mp4", [])
-    g = gate_camera.rodar(sem_punch, tl_do_render_sintetico(True), detector=caixa_do_quadrado_branco)
+    g = gate_camera.rodar(sem_punch, tl_do_render_sintetico(True))
     assert g["resultado"] == "REPROVA"
     assert "punch" in g["motivo"] and g["medido"]["punches"][0]["ok"] is False

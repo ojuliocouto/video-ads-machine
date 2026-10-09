@@ -40,7 +40,7 @@ def video_cinza(destino, dur=5.0, fade_in=0.0, tamanho=TAMANHO, fps=10):
     return Path(destino)
 
 
-def overlay_com_texto(destino, janelas, dur=5.0, tamanho=TAMANHO, fps=10):
+def overlay_com_texto(destino, janelas, dur=5.0, tamanho=TAMANHO, fps=20):
     """MOV com alfa: um bloco branco opaco (o 'texto') só dentro de `janelas` [(s, e), ...]."""
     enable = "+".join("between(t,%s,%s)" % (a, b) for a, b in janelas) or "0"
     cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
