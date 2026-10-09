@@ -722,9 +722,22 @@ def _pronto_para_entregar(tmp_path):
     return p
 
 
+def _por_janela():
+    """Uma frase distinta por JANELA (take e tempos), a mesma no wav e no limpo: o gate de fala compara as mesmas
+    janelas dos dois lados (W5.A, 12.4) e os de retomada e redundância leem janelas diferentes."""
+    proxima, vistas = sx.textos_em_sequencia(), {}
+
+    def texto(audio, ini, fim):
+        chave = (Path(audio).stem, round(ini, 2), round(fim, 2))
+        if chave not in vistas:
+            vistas[chave] = proxima(audio, ini, fim)
+        return vistas[chave]
+    return texto
+
+
 def _leitor_da_entrega():
     limpas = [w("a", 0.0, 0.9), w("b", 1.15, 1.9), w("c", 2.1, 2.9)]          # nenhuma palavra atravessa as emendas
-    return sx.LeitorFalso(textos=sx.textos_em_sequencia(), palavras_da_peca=limpas, texto_peca=TEXTO_DA_PECA)
+    return sx.LeitorFalso(textos=_por_janela(), palavras_da_peca=limpas, texto_peca=TEXTO_DA_PECA)
 
 
 def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_mais_legenda_aprovada_e_tecnico_e_copia(tmp_path):

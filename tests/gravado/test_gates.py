@@ -700,11 +700,11 @@ def test_fala_cli_sai_0_e_1(tmp_path, monkeypatch):
     inteiro = _texto(100)
     sem_dez = " ".join("palavra%d" % i for i in range(100) if i % 10 != 3)
 
-    def por_pasta(limpo):
-        return lambda arquivo: limpo if Path(arquivo).parent.name == "limpo" else inteiro
-    _com_leitor(monkeypatch, sx.LeitorFalso(texto_peca=por_pasta(inteiro)))
+    def por_pasta(limpo):                       # o gate lê as janelas dos trechos usados (W5.A, 12.4)
+        return lambda arquivo, ini, fim: limpo if Path(arquivo).parent.name == "limpo" else inteiro
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos=por_pasta(inteiro)))
     assert m.main(["--projeto", str(p.base)]) == 0
-    _com_leitor(monkeypatch, sx.LeitorFalso(texto_peca=por_pasta(sem_dez)))
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos=por_pasta(sem_dez)))
     assert m.main(["--projeto", str(p.base)]) == 1
 
 

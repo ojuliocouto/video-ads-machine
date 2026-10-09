@@ -45,9 +45,10 @@ from projeto import status as _status  # noqa: E402
 
 ARQUIVO_PLANO = "plano_gravado.json"
 PASTAS = ("wav", "audio", "limpo", "transcricoes", "cache_asr", "montados", "com_caixinha",
-          "caixinhas", "legendas", "legendado", "ENTREGA", "_tmp")
+          "caixinhas", "legendas", "legendado", "entrega", "_tmp")
 CHAVES_DO_PLANO = ("versao", "brutos", "ignorar", "ads")
-CHAVES_DO_AD = ("nome", "tema", "corpo", "corpo_desconto", "cta_normal", "cta_desconto")
+CHAVES_DO_AD = ("nome", "tema", "corpo", "corpo_desconto", "cta_normal", "cta_desconto", "fragmentos_aceitos")
+MOTIVO_MIN = 5                 # o fragmento aceito tem motivo escrito, como toda exceção do produto
 CHAVES_DE_TRECHOS = ("corpo", "corpo_desconto", "cta_normal", "cta_desconto")
 EXTENSOES_DE_BRUTO = (".mov", ".mp4", ".m4v")
 EXTENSOES_DE_LIMPO = (".mp3", ".wav", ".m4a", ".flac")
@@ -116,6 +117,30 @@ def _erros_do_ad(cod, ad):
             erros.extend(_erros_do_trecho(t, "%s.%s[%d]" % (base, chave, i)))
     if "corpo_desconto" in ad and "cta_desconto" not in ad:
         erros.append("%s.corpo_desconto: só existe junto com cta_desconto" % base)
+    erros.extend(_erros_dos_fragmentos(ad.get("fragmentos_aceitos"), "%s.fragmentos_aceitos" % base))
+    return erros
+
+
+def _erros_dos_fragmentos(lista, caminho):
+    """`fragmentos_aceitos`: [[take, instante, motivo]], o fragmento curto na borda de um trecho que o diretor quis
+    (uma vinheta, um "então," de abertura). O gate de retomada aceita o fragmento que cobre o instante declarado."""
+    if lista is None:
+        return []
+    if not isinstance(lista, list):
+        return ["%s: lista de [take, instante, motivo]" % caminho]
+    erros = []
+    for i, f in enumerate(lista):
+        c = "%s[%d]" % (caminho, i)
+        if not isinstance(f, (list, tuple)) or len(f) != 3:
+            erros.append("%s: o fragmento aceito é [take, instante, motivo]" % c)
+            continue
+        take, t, motivo = f
+        if not isinstance(take, str) or not _RE_TAKE.match(take):
+            erros.append("%s: take %r inválido" % (c, take))
+        if not _numero(t) or t < 0:
+            erros.append("%s: instante %r inválido" % (c, t))
+        if not isinstance(motivo, str) or len(motivo.strip()) < MOTIVO_MIN:
+            erros.append("%s: motivo escrito obrigatório (pelo menos %d letras)" % (c, MOTIVO_MIN))
     return erros
 
 
@@ -153,6 +178,8 @@ def _normalizar(dados):
         for chave in CHAVES_DE_TRECHOS:
             if chave in ad:
                 novo[chave] = _trechos(ad[chave])
+        if ad.get("fragmentos_aceitos"):
+            novo["fragmentos_aceitos"] = [(str(f[0]), float(f[1]), str(f[2])) for f in ad["fragmentos_aceitos"]]
         ads[cod] = novo
     return {"versao": 1, "brutos": dados["brutos"], "ignorar": list(dados.get("ignorar", [])), "ads": ads}
 
@@ -285,6 +312,22 @@ class Projeto(object):
                 raise KeyError("o anúncio %s não tem cta_desconto" % cod)
             return list(ad.get("corpo_desconto", ad["corpo"])) + list(ad["cta_desconto"])
         return list(ad["corpo"]) + list(ad["cta_normal"])
+
+    def fragmentos_aceitos(self, cod):
+        """[(take, instante, motivo)] que o plano declara aceitos no anúncio `cod` (vazio se nenhum)."""
+        return [tuple(f) for f in self.ads[cod].get("fragmentos_aceitos", [])]
+
+    def janelas_usadas(self, take):
+        """[(início, fim)] do take que entram em ALGUM anúncio (corpo e CTAs), já unidas: o que os gates de texto medem.
+        Pendência 12.4: medir o take inteiro reprovava a peça pelo trecho que ficou de fora do plano."""
+        janelas = sorted((ini, fim) for _cod, _ch, t, ini, fim in self.todos_os_trechos() if t == take)
+        unidas = []
+        for ini, fim in janelas:
+            if unidas and ini <= unidas[-1][1] + 1e-9:
+                unidas[-1] = (unidas[-1][0], max(unidas[-1][1], fim))
+            else:
+                unidas.append((ini, fim))
+        return unidas
 
     def nomes_das_pecas(self):
         nomes = []

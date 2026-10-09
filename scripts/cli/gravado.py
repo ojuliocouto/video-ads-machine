@@ -25,7 +25,7 @@ da ação e as opções por último.
                       queima a legenda APROVADA (sem aprovação vigente, nenhum ffmpeg roda)
     gates [PECA...]   roda os 11 gates do gravado e a conferência da legenda aprovada, sem copiar nada
     entregar [--abrir]
-                      copia as peças legendadas para ENTREGA/, só se TODOS passarem (confere a cópia por sha256)
+                      copia as peças legendadas para entrega/, só se TODOS passarem (confere a cópia por sha256)
 
     exit 0  fez
     exit 1  defeito medido na peça: algum gate reprovou (gates, entregar)
@@ -94,7 +94,7 @@ def registrar(subparsers):
     p.add_argument("--divergencia-aceita", action="store_true", dest="divergencia_aceita",
                    help="aprovar-legenda: aprova mesmo com o relatório fala x roteiro REPROVA")
     p.add_argument("--fontsdir", help="queimar: pasta com a Inter (padrão: fonts/ do repo)")
-    p.add_argument("--abrir", action="store_true", help="entregar: abre a pasta ENTREGA depois de copiar")
+    p.add_argument("--abrir", action="store_true", help="entregar: abre a pasta entrega/ depois de copiar")
     p.add_argument("--estado", default=None, help=argparse.SUPPRESS)
     p.set_defaults(func=executar)
     return p

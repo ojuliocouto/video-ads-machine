@@ -1,6 +1,6 @@
-"""FASE 6: monta a pasta ENTREGA/ do projeto, mas só se TODOS os gates passarem.
+"""FASE 6: monta a pasta entrega/ do projeto, mas só se TODOS os gates passarem.
 
-O pipeline de origem copiava `legendado/` para `ENTREGA/` sem consultar gate nenhum: o defeito
+O pipeline de origem copiava `legendado/` para a pasta de entrega sem consultar gate nenhum: o defeito
 passava até o fim e só o olho do diretor o pegava. Agora a entrega consulta os 11 gates, na ordem
 do pipeline, mais a conferência `legenda_aprovada`, e não copia NADA se qualquer um sai com defeito (1)
 ou não consegue medir (2). Defeito vale mais que insumo no código de saída: o que está errado na peça
@@ -16,7 +16,9 @@ peak): o 11 gates leem fala e imagem, e uma peça a -1,4 dBTP passaria por todos
   Resultado.codigo     0 entregue, 1 algum gate reprovou, 2 algum gate não mediu (ou sem peças)
   Resultado.gates      [(nome do gate, "ok" | "defeito" | "insumo", motivo)]
 
-Entregue, fica `ENTREGA/entrega.json`: o sha256 de cada peça e o veredito de cada gate.
+Entregue, fica `entrega/entrega.json`: o sha256 de cada peça e o veredito de cada gate. A pasta é
+`entrega/` em minúsculas, a mesma do layout do projeto (`ENTREGA/` e `entrega/` eram a mesma pasta no
+macOS e duas no Linux; unificada na W5.A).
 
 `entregar(proj, gates=None, abrir=False, leitor=None)` é a função que a CLI do produto chama; a
 lista de gates entra por parâmetro para o teste (e a CLI) poderem trocá-la. `gates_padrao` são os 11
@@ -184,7 +186,7 @@ def entregar(proj, gates=None, abrir=False, leitor=None):
         return Resultado(False, 1, resultados, [])
     if "insumo" in estados:
         return Resultado(False, 2, resultados, [])
-    destino = proj.garantir("ENTREGA")
+    destino = proj.garantir("entrega")
     copiados = []
     for p in pecas:
         alvo = destino / p.name
@@ -204,7 +206,7 @@ def entregar(proj, gates=None, abrir=False, leitor=None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Entrega as peças legendadas se TODOS os gates passarem.")
-    ap.add_argument("--abrir", action="store_true", help="abre a pasta ENTREGA depois de copiar")
+    ap.add_argument("--abrir", action="store_true", help="abre a pasta entrega/ depois de copiar")
     ap.add_argument("--projeto", help="pasta do projeto (padrão: o diretório atual)")
     a = ap.parse_args(argv)
     try:

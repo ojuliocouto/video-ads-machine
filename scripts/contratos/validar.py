@@ -488,6 +488,10 @@ def _regras_plano(p):
     return erros
 
 
+# O logo do CTA pode subir até isto antes da pílula: é o `LOGO_LEAD` do overlay (overlay/cta.py), quando o bloco
+# anterior ao CTA é o apresentador. O validador não importa o overlay (só biblioteca padrão): um teste amarra os dois.
+LOGO_ANTECIPA_MAX_S = 0.9
+
 def _regras_timeline(t):
     erros = []
     dur = t["duracao_s"]
@@ -529,8 +533,10 @@ def _regras_timeline(t):
     c = t["cta"]
     if not c["inicio"] < dur:
         erros.append(_erro(("cta", "inicio"), f"o CTA começa em {c['inicio']}s, depois do fim ({dur}s)"))
-    if c["logo"] < c["inicio"] - EPS:
-        erros.append(_erro(("cta", "logo"), "o logo não pode entrar antes do CTA"))
+    if c["logo"] < c["inicio"] - LOGO_ANTECIPA_MAX_S - EPS:
+        erros.append(_erro(("cta", "logo"), f"o logo entra {c['inicio'] - c['logo']:.2f}s antes do CTA; o máximo é "
+                                            f"{LOGO_ANTECIPA_MAX_S}s (o overlay antecipa o logo só quando o bloco "
+                                            "anterior é o apresentador)"))
     erros += _em_ordem(t["camera"], ("camera",), fim=dur)
     erros += _em_ordem(t["sfx"], ("sfx",), fim=dur)
     if "pausas" in t["ducking"]:
