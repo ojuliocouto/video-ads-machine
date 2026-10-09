@@ -27,10 +27,14 @@ TAGS_BT709 = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc",
               "-color_range", "tv"]
 
 
+HLG = "setparams=colorspace=bt2020nc:color_primaries=bt2020:color_trc=arib-std-b67"
+
+
 def codificar(destino, segmentos, tags=True, fps=10, extra=()):
     """Vídeo mudo de cor chapada. `segmentos` = [(duração, cor de fundo, cor do rosto ou None)].
     `tags=True` codifica como o grade_final (filtro colorspace + as três tags); `False` não
-    escreve tag nenhuma (o mutante "sem tags")."""
+    escreve tag nenhuma (o mutante "sem tags"); `"hlg"` marca como HDR/HLG pelo filtro setparams
+    (as flags -color_primaries e -color_trc sozinhas não chegam ao arquivo neste ffmpeg)."""
     S.exigir_ffmpeg()
     entradas, rotulos, partes = [], "", []
     for i, (dur, cor, rosto) in enumerate(segmentos):
@@ -40,10 +44,11 @@ def codificar(destino, segmentos, tags=True, fps=10, extra=()):
         partes.append("%s[v%d]" % (cadeia, i))
         rotulos += "[v%d]" % i
     fc = ";".join(partes) + ";%sconcat=n=%d:v=1:a=0%s[o]" % (
-        rotulos, len(segmentos), ",colorspace=all=bt709:iall=bt709:fast=1" if tags else "")
+        rotulos, len(segmentos),
+        ",colorspace=all=bt709:iall=bt709:fast=1" if tags is True else ("," + HLG if tags == "hlg" else ""))
     cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-filter_complex", fc, "-map", "[o]",
            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "12"]
-    cmd += TAGS_BT709 if tags else []
+    cmd += TAGS_BT709 if tags is True else []
     cmd += list(extra) + [str(destino)]
     r = subprocess.run(cmd, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-400:]
@@ -122,9 +127,7 @@ def test_mutante_tag_pela_metade_reprova_e_diz_qual_falta(tmp_path):
 
 def test_tag_hdr_hlg_reprova(tmp_path):
     """O defeito que as tags existem para evitar: o libx264 marcando a saída como HLG."""
-    v = codificar(tmp_path / "hlg.mp4", [(1, CINZA, PELE)] * 3, tags=False,
-                  extra=["-colorspace", "bt2020nc", "-color_primaries", "bt2020",
-                         "-color_trc", "arib-std-b67"])
+    v = codificar(tmp_path / "hlg.mp4", [(1, CINZA, PELE)] * 3, tags="hlg")
     g = gate_cor.rodar(v, planos=PLANOS_3)
     assert g["resultado"] == "REPROVA" and "arib-std-b67" in g["motivo"]
 
@@ -281,5 +284,26 @@ def test_planos_da_timeline_convertem_para_o_relogio_da_entrega():
           "segmentos": [{"tipo": "apresentador", "s": 0.5, "e": 3.0},
                         {"tipo": "insert", "s": 3.0, "e": 5.5}]}
     planos = gate_cor.planos_da_timeline(tl, rosto=CAIXA)
-    assert planos[0] == {"inicio": 0.0, "fim": 2.0, "rosto": CAIXA}
+    assert planos[0] == {"inicio": 0.0, "fim": 2.0, "rosto": list(CAIXA)}
     assert planos[1] == {"inicio": 2.0, "fim": 4.0}
+
+
+# --- o laço inteiro: o que o grade_final grava, o gate aprova ------------------------------------------
+
+@pytest.mark.lento
+@pytest.mark.parametrize("nome", ["quente-suave", "natural", "frio-teal", "pb"])
+def test_saida_do_grade_final_de_cada_preset_passa_no_gate(tmp_path, nome):
+    from footage import grade_final as GF
+    fonte = tmp_path / "fonte.mp4"
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
+                        "color=c=%s:s=%s:r=25:d=1,drawbox=x=%d:y=%d:w=%d:h=%d:color=%s:t=fill"
+                        % (CINZA, TAMANHO, *CAIXA, PELE),
+                        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(fonte)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-300:]
+    saida = tmp_path / "saida.mp4"
+    GF.aplicar(str(fonte), 0.0, 1.0, str(fonte), str(saida), preset=nome)
+    g = gate_cor.rodar(saida, caixa_rosto=CAIXA)
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert g["medido"]["cor"] == {"primarias": "bt709", "transferencia": "bt709", "matriz": "bt709"}
