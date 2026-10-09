@@ -255,6 +255,22 @@ def test_comparar_acusa_uma_diferenca_de_um_caractere():
     assert "-<html>a</html>" in diffs[0] and "+<html>b</html>" in diffs[0]
 
 
+def test_diff_de_argv_aponta_o_numero_que_mudou_e_nao_a_linha_inteira():
+    """Um registro de argv tem 2 mil caracteres; o diff tem que mostrar SÓ o filtro que mudou."""
+    def reg(dur):
+        return json.dumps({"argv": ["ffmpeg", "-filter_complex",
+                                    f"[0:v]fps=30;[1:v]xfade=transition=fade:duration={dur}:offset=3.1[v1];"
+                                    "[v1]settb=AVTB[v]", "-r", "30"],
+                           "cwd": None, "shell": False}) + "\n"
+    diffs = C.comparar({"argv/footage.jsonl": reg("0.10")}, {"argv/footage.jsonl": reg("0.08")},
+                       prefixos=("argv",))
+    assert len(diffs) == 1
+    mudou = [l for l in diffs[0].splitlines() if l[:1] in "+-" and l[:3] not in ("+++", "---")]
+    assert [l[0] for l in mudou] == ["-", "+"], mudou
+    assert "duration=0.08" in mudou[0] and "duration=0.10" in mudou[1]
+    assert "settb=AVTB" not in mudou[0], "o diff arrastou o resto do registro junto"
+
+
 def test_comparar_acusa_chave_que_existe_so_de_um_lado():
     diffs = C.comparar({"overlay/a": "x"}, {"overlay/b": "x"}, prefixos=("overlay",))
     assert sorted(d.split(":")[0] for d in diffs) == ["overlay/a", "overlay/b"]
