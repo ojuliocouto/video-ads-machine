@@ -52,7 +52,9 @@ AMOSTRAS = {
     "seta_cta": {"lead": "toque em", "key": "SAIBA MAIS"},
     "gigante_atras": {"lead": "é", "key": "AGORA"},
 }
-NOME_CURTO = {e: e.replace("_", " ") for e in LE.ESTILOS}
+NOME_CURTO = {"caixa_nativa": "caixa nativa", "serif_editorial": "serif editorial", "punch": "punch",
+              "marcador": "marcador", "statement": "statement", "lateral": "lateral", "seta_cta": "seta CTA",
+              "gigante_atras": "gigante atrás"}
 DESCRICAO = {
     "caixa_nativa": "caixa nativa (ambar, branco, preto)",
     "serif_editorial": "serif editorial (padrão)",
