@@ -41,12 +41,22 @@ def video_cinza(destino, dur=5.0, fade_in=0.0, tamanho=TAMANHO, fps=10, cor="0x3
     return Path(destino)
 
 
-def overlay_com_texto(destino, janelas, dur=5.0, tamanho=TAMANHO, fps=20):
-    """MOV com alfa: um bloco branco opaco (o 'texto') só dentro de `janelas` [(s, e), ...]."""
+def overlay_com_texto(destino, janelas, dur=5.0, tamanho=TAMANHO, fps=20, placa=False):
+    """MOV com alfa: um bloco branco opaco (o 'texto') só dentro de `janelas` [(s, e), ...]. Com `placa`, o bloco vem
+    sobre uma placa escura (o texto lê sobre imagem clara ou cheia de textura)."""
     enable = "+".join("between(t,%s,%s)" % (a, b) for a, b in janelas) or "0"
+    caixa = ("drawbox=x=0:y=40:w=130:h=100:color=black@0.85:t=fill:replace=1:enable='%s'," % enable) if placa else ""
     cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
-           "color=c=black@0:s=%s:r=%d:d=%s,format=rgba,drawbox=x=10:y=80:w=88:h=20:color=white@1:t=fill"
-           ":replace=1:enable='%s'" % (tamanho, fps, dur, enable), "-c:v", "png", str(destino)]
+           "color=c=black@0:s=%s:r=%d:d=%s,format=rgba,%sdrawbox=x=10:y=80:w=88:h=20:color=white@1:t=fill"
+           ":replace=1:enable='%s'" % (tamanho, fps, dur, caixa, enable), "-c:v", "png", str(destino)]
+    subprocess.run(cmd, check=True, capture_output=True)
+    return Path(destino)
+
+
+def queimar(video, overlay, destino):
+    """O entregue de verdade: o overlay composto por cima da imagem (o gate mede a LEITURA no quadro entregue)."""
+    cmd = ["ffmpeg", "-y", "-v", "error", "-nostdin", "-i", str(video), "-i", str(overlay), "-filter_complex",
+           "[0:v][1:v]overlay=0:0:eof_action=pass,format=yuv420p", "-c:v", "libx264", "-crf", "14", str(destino)]
     subprocess.run(cmd, check=True, capture_output=True)
     return Path(destino)
 
@@ -78,9 +88,9 @@ def formato_do_laudo(g):
 @pytest.fixture
 def bom(tmp_path):
     """Vídeo normal, texto desde o quadro 0 até o fim, insert na abertura: tudo que o gancho pede."""
-    return {"video": video_cinza(tmp_path / "final.mp4"),
-            "overlay": overlay_com_texto(tmp_path / "ov.mov", [(0.0, 5.0)]),
-            "tl": tl_com_insert_na_abertura(), "tmp": tmp_path}
+    ov = overlay_com_texto(tmp_path / "ov.mov", [(0.0, 5.0)])
+    return {"video": queimar(video_cinza(tmp_path / "base.mp4"), ov, tmp_path / "final.mp4"),
+            "overlay": ov, "tl": tl_com_insert_na_abertura(), "tmp": tmp_path}
 
 
 def rodar(bom, **kw):
@@ -209,8 +219,8 @@ def test_com_aceleracao_a_janela_de_3s_e_a_do_entregue(bom):
 # =================================================================================== corte confirmado de verdade
 
 def test_corte_real_na_imagem_confirma_o_corte_do_plano(tmp_path):
-    video = sinteticos.video_por_planos(tmp_path / "planos.mp4", [1.5, 2.0, 2.0])
-    ov = overlay_com_texto(tmp_path / "ov.mov", [(0.0, 5.5)], dur=5.5, tamanho="180x320")
+    ov = overlay_com_texto(tmp_path / "ov.mov", [(0.0, 5.5)], dur=5.5, tamanho="180x320", placa=True)
+    video = queimar(sinteticos.video_por_planos(tmp_path / "planos.mp4", [1.5, 2.0, 2.0]), ov, tmp_path / "f.mp4")
     t = tl([seg("apresentador", 0.0, 1.5, 0, base=1.0), seg("apresentador", 1.5, 3.5, 1, base=1.0),
             seg("apresentador", 3.5, 5.5, 2, base=1.0)])
     g = gate_hook_visual.rodar(video, t, overlay=ov)
@@ -275,7 +285,7 @@ def test_cli_devolve_0_passa_1_reprova(bom, capsys):
 def test_mutante_gancho_presente_mas_ilegivel_reprova(bom):
     """O defeito do v1 (0 a 2,1 s): o gancho ESTÁ na tela, mas branco sobre claro. Presença não é leitura: texto que
     não lê conta como tempo sem texto."""
-    claro = video_cinza(bom["tmp"] / "claro.mp4", cor="0xE6E6E6")
+    claro = queimar(video_cinza(bom["tmp"] / "claro0.mp4", cor="0xE6E6E6"), bom["overlay"], bom["tmp"] / "claro.mp4")
     g = rodar(bom, video=claro)
     assert g["resultado"] == "REPROVA", g
     assert "legível" in g["motivo"]
@@ -305,5 +315,5 @@ def test_render_real_v1_gancho_ilegivel_de_0_a_2_08_s_reprova():
     g = gate_hook_visual.rodar(str(p / "final_9x16.mp4"), t, overlay=str(p / "overlay.mov"), cortes_confirmados=[])
     assert g["resultado"] == "REPROVA", g
     leg = dict((round(x, 2), v) for x, v in g["medido"]["legivel_por_instante"])
-    assert leg[0.3] is False and leg[2.1] is False, leg
+    assert leg[0.3] is False and leg[2.0] is False and leg[2.1] is not True, leg
     assert g["medido"]["sem_texto_legivel_s"] > 2.0

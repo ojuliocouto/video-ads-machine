@@ -371,13 +371,10 @@ def _g_colisao(ctx):
 
 
 def _g_contraste(ctx):
+    """Todo texto na tela, CTA incluído (W5.X): o corte no CTA (`--ate`) deixava o botão e o logo sem medida."""
     m = ctx.motor
     argv = [GATES / "gate-contraste-legenda.py", m.final, "--overlay", m.overlay_mov, "--accel", ctx.accel,
-            "--a0", ctx.a0, "--intervalo", "0.5"]
-    html = m.overlay_dir / "index_overlay.html"
-    ate = ate_do_cta(html.read_text(encoding="utf-8"), ctx.a0, ctx.accel) if html.is_file() else None
-    if ate is not None:
-        argv += ["--ate", "%.3f" % ate]
+            "--a0", ctx.a0, "--json", _log_dos_gates(ctx) / "gate-contraste-legenda.json"]
     return _cli(ctx, "gate-contraste-legenda", argv)
 
 
