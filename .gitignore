@@ -25,3 +25,7 @@ _tmp*/
 
 # arte real de cliente (logo, wordmark): nunca versionar
 assets/
+
+# bytecode
+__pycache__/
+*.pyc

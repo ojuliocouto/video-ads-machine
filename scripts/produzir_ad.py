@@ -30,9 +30,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from caminhos import V2L  # noqa: E402  (era o proprio dir; agora e o _local, que guarda o estado)
+from caminhos import V2L, gate_script  # noqa: E402  (V2L: o _local, que guarda o estado)
 from gates_paralelo import rodar_em_paralelo
-GATE = Path.home() / ".claude" / "scripts" / "gate-ad.py"
+from material_local import checar_material  # noqa: E402
+# Os gates vivem em scripts/gates/ (gate_script acha la primeiro, e so depois em
+# ~/.claude/scripts). Resolvido a cada uso, nunca preso no import.
 STATUS = V2L / "_status.json"
 
 # rodizio: 3 avatares verticais, sem repetir entre vizinhos.
@@ -109,9 +111,9 @@ def revisar_copy(ad):
     ocorrencias em 10 dos 12 anuncios, o nome do produto errado na tela de um anuncio
     pago. Rodar ANTES do build, porque depois do render o erro custa 8 min por ad.
     """
-    rev = Path.home() / ".claude" / "scripts" / "revisor-copy-ad.py"
-    if not rev.exists():
-        print("AVISO: revisor de copy ausente"); return True
+    rev = gate_script("revisor-copy-ad.py")
+    if rev is None:
+        print("AVISO: revisor de copy ausente (scripts/gates/revisor-copy-ad.py)"); return True
     print(f"\n--- REVISAO DE COPY AD{ad} ---", flush=True)
     r = subprocess.run([sys.executable, str(rev), ad], capture_output=True, text=True)
     print(r.stdout, flush=True)
@@ -345,8 +347,10 @@ def ate_do_cta(html_texto, a0, accel):
 
 def gate(ad, fmt="9x16"):
     print(f"\n--- GATE AD{ad} {fmt} (obrigatorio, nao pulavel) ---", flush=True)
-    if not GATE.exists():
-        print(f"GATE AUSENTE em {GATE}. Sem gate nao ha entrega.", flush=True)
+    GATE = gate_script("gate-ad.py")
+    if GATE is None:
+        print("GATE AUSENTE: scripts/gates/gate-ad.py nao foi encontrado no repo. "
+              "Sem gate nao ha entrega.", flush=True)
         return False, "gate ausente"
 
     # PARALELIZACAO DOS GATES DE SAIDA (31/08/2026): gate-ad.py, medir_ritmo.py,
@@ -393,10 +397,10 @@ def gate(ad, fmt="9x16"):
             _tem_ritmo = True
 
     # COLISAO DE TEXTO COM O ROSTO (17/08/2026): ver historico completo no comentario
-    # original abaixo. Ver ~/.claude/scripts/gate-colisao-texto.py.
-    gcol = Path.home() / ".claude" / "scripts" / "gate-colisao-texto.py"
+    # original abaixo. Ver scripts/gates/gate-colisao-texto.py.
+    gcol = gate_script("gate-colisao-texto.py")
     _tem_colisao = False
-    if gcol.exists() and os.environ.get("GATE_COLISAO") != "0":
+    if gcol is not None and os.environ.get("GATE_COLISAO") != "0":
         pref = "" if str(ad).startswith("jh") else "ad"
         finais = sorted(V1.glob(f"output/{pref}{ad}v2_*_v2composite_{fmt}.mp4"),
                         key=lambda p: p.stat().st_mtime)
@@ -440,10 +444,10 @@ def gate(ad, fmt="9x16"):
             _tem_colisao = True
 
     # CONTRASTE DA LEGENDA CONTRA O FUNDO (29/08/2026): ver historico completo no
-    # comentario original abaixo. Ver ~/.claude/scripts/gate-contraste-legenda.py.
-    gcon = Path.home() / ".claude" / "scripts" / "gate-contraste-legenda.py"
+    # comentario original abaixo. Ver scripts/gates/gate-contraste-legenda.py.
+    gcon = gate_script("gate-contraste-legenda.py")
     _tem_contraste = False
-    if gcon.exists() and os.environ.get("GATE_CONTRASTE") != "0":
+    if gcon is not None and os.environ.get("GATE_CONTRASTE") != "0":
         pref = "" if str(ad).startswith("jh") else "ad"
         finais = sorted(V1.glob(f"output/{pref}{ad}v2_*_v2composite_{fmt}.mp4"),
                         key=lambda p: p.stat().st_mtime)
@@ -562,6 +566,10 @@ def produzir(ad, look=None, fmt="9x16"):
     look = look or LOOK_POR_AD.get(ad)
     if not look:
         print(f"AD{ad}: look nao definido"); return False
+    # Material do SEU anuncio (_local: config, roteiro, mapa de insercoes): falta vira UMA mensagem clara, nao
+    # um traceback tres processos adiante.
+    if not checar_material(ad, look, fmt):
+        return False
     # 9x16 e 1x1 tem veredito proprio no _status.json: a chave do 1x1 leva sufixo pra um
     # nao apagar o resultado do outro.
     chave = ad if fmt == "9x16" else f"{ad}:1x1"
@@ -650,8 +658,14 @@ def main():
         sys.exit(1 if pend else 0)
 
     if "--lote" in sys.argv:
+        # (bug antigo: glob() devolve gerador, sempre verdadeiro; list() filtra de verdade)
         alvos = [a for a in sorted(LOOK_POR_AD)
-                 if (V2L / "configs").glob(f"ad{a}v2_*.json")]
+                 if list((V2L / "configs").glob(f"ad{a}v2_*.json"))]
+        if not alvos:
+            from material_local import mensagem
+            print(mensagem(V2L / "configs" / "ad<NN>v2_<look>.json",
+                           "nenhum config de anuncio encontrado"), file=sys.stderr)
+            sys.exit(2)
         for ad in alvos:
             if not produzir(ad):
                 # um reprovado PARA a fila: nao empilha defeito

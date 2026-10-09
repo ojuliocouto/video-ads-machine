@@ -65,18 +65,13 @@ PAD_X, PAD_Y = 40, 26   # respiro interno em px de um canvas 1080 de largura
 TAM_MIN, TAM_MAX = 20, 120
 MAX_LINHAS = 2          # título é título: 3 linhas já é parágrafo dentro da caixa
 
-# Só existe UMA arte do wordmark, e ela é clara (texto creme + sunburst
-# terracota). Em badge de fundo claro ela some, então a versão escura é DERIVADA
-# aqui, escurecendo só o texto e preservando o sunburst colorido.
-# (`logo_occ_branca.png` / `logo_occ_preta.png` NÃO são o wordmark: são uma
-# ilustração de laptop. Conferi abrindo os dois; o nome engana.)
-# O arquivo é arte real de cliente e NÃO vive no repo (ver .gitignore). Procura
-# nos lugares conhecidos da máquina; se não achar, exige --logo explícito.
+# O wordmark é a SUA arte e NÃO vive no repo (ver .gitignore). Ela costuma ser clara
+# (texto claro + marca colorida); em badge de fundo claro ela some, então a versão
+# escura é DERIVADA aqui, escurecendo só o texto e preservando a marca colorida.
+# Procura em _local/render-reel-editorial/logo.png e em assets/logo.png; se não achar, exige --logo explícito.
 LOGOS_CONHECIDAS = [
-    "~/video-ads-machine-2/assets/logo_occ_wordmark.png",
-    "~/video-ads-machine-2/_local/render-reel-editorial/logo_occ_wordmark.png",
-    "~/video-ads-machine/_hyperframes_test/reelC/logo_occ_wordmark.png",
-    "~/video-ads-machine/inputs/assets_jheni/occ_logo.png",
+    str(__import__("caminhos").RENDER_MODELO / "logo.png"),
+    str(__import__("caminhos").ASSETS / "logo.png"),
 ]
 
 
@@ -85,7 +80,8 @@ def achar_logo(caminho=None):
         c = os.path.expanduser(c)
         if os.path.exists(c):
             return c
-    raise SystemExit("wordmark nao encontrado nesta maquina; passe --logo <arquivo>")
+    raise SystemExit("logo não encontrado: ponha o seu em _local/render-reel-editorial/logo.png "
+                     "(python3 scripts/init_local.py cria a pasta) ou passe --logo <arquivo>")
 LUM_TEXTO = 200          # acima disso é o texto creme do wordmark
 COR_TEXTO_ESCURO = (14, 14, 14)
 

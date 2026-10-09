@@ -614,7 +614,7 @@ AVATARES = {
 
 if __name__ == "__main__":
     outdir = V2L / "configs"
-    outdir.mkdir(exist_ok=True)
+    outdir.mkdir(parents=True, exist_ok=True)
     # SO 9x16. A Jhenifer definiu (04/08/2026) que a campanha produz apenas vertical,
     # entao gerar config 1x1 junto so criava arquivo morto. Pra voltar a produzir
     # quadrado, e so acrescentar ("1x1", "_1x1") na lista abaixo.

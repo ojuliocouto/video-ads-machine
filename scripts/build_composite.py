@@ -249,7 +249,9 @@ def _conferir_template(fmt, antes):
 
 def build(ad, look, fmt):
     lk, sfx = LK[look], SUFFIX[fmt]
-    base_cfg = json.loads((V2L / "configs" / f"{ad}_{lk}{sfx}.json").read_text())
+    from material_local import exigir
+    base_cfg = json.loads(exigir(V2L / "configs" / f"{ad}_{lk}{sfx}.json",
+                                 "config deste anúncio e look").read_text())
     avatar = base_cfg["avatar"]
     workdir = V2L / f"render-{ad}-{lk}{sfx}-ovl"
     print(f"\n===== {ad} {look} {fmt} =====")

@@ -13,7 +13,7 @@ def classify(instr):
     # entregava um CARD DE LOGO EM TELA CHEIA, sem o apresentador, justamente no bloco
     # em que ele pede a inscricao. Reprovado pelo diretor de arte no jh14 (8,2s de card)
     # e no jh16 (6,7s). "+ logo" num bloco de Thales quer dizer logo SOBRE ele.
-    if "thales" in s:
+    if "thales" in s or "apresentador" in s:
         return ("lettering_logo" if "logo" in s else "orig")
     if "logo" in s:
         return "logo"

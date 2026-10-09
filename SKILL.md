@@ -80,7 +80,14 @@ Só entra na biblioteca preset que foi **renderizado e auditado frame a frame**.
 - Nunca escreva o texto literal de um marcador `INJECT:` dentro de um comentário do script (o `build` faz replace de todas as ocorrências e injeta HTML no JS).
 - Auditoria frame a frame do RENDER final, sempre. O lint pega estrutura, não pega colisão de layout, texto na boca, nem lettering descolado da fala.
 
+## O que vem no repo e o que é do usuário (`_local/`)
+**Vem no repo:** o motor, templates, presets, fontes e os gates de entrega em `scripts/gates/`: `gate-ad.py`, `gate-colisao-texto.py`, `gate-contraste-legenda.py`, `revisor-copy-ad.py`, `auditar_ad.py` (+ `gate-excecoes.json` vazio). Eles rodam do próprio repo; só precisam de `pip install -r scripts/gates/requirements.txt` e do `ffmpeg`. O resolvedor `gate_script(nome)` em `scripts/caminhos.py` procura em `scripts/gates/` primeiro e só depois em `~/.claude/scripts/`. **Nunca peça ao usuário scripts que "faltam" em `~/.claude/scripts/`: eles estão no repo.**
+
+**É do usuário, nunca versionado (`_local/`, no `.gitignore`):** configs (`configs/`), roteiros (`roteiros/` e `<ad>_leva.txt`), mapas de inserção (`<ad>_inserts.json`), logo (`render-reel-editorial/logo.png`), `render-reel-editorial/meta.json` e a mídia (avatar, voz, inserts, renders).
+
+**Primeira vez, ou quando aparecer a mensagem "_local/... não existe":** rode `python3 scripts/init_local.py`. Ele cria a estrutura com exemplos (não sobrescreve nada) e diz os próximos passos. O formato mínimo de roteiro e brief está em `demo/`. A falta desse material é do anúncio do usuário: oriente a criar, não trate como bug do motor.
+
 ## Estrutura do projeto
 - `references/` style.md (números), blocks.md, presets.md, workflow.md, hyperframes-gotchas.md
 - `blocks/` partials HTML/CSS/GSAP · `presets/` variantes por dimensão · `templates/` reel-editorial, reel-editorial-1x1, ad-hook
-- `scripts/` setup.sh, check_assets.py, build_timeline.py, audit_frames.sh · `fonts/` woff2 · `demo/` pacote genérico
+- `scripts/` setup.sh, check_assets.py, build_timeline.py, audit_frames.sh, init_local.py, caminhos.py, material_local.py · `scripts/gates/` gates de entrega · `fonts/` woff2 · `demo/` pacote genérico

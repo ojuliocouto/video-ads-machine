@@ -1,0 +1,4 @@
+# Dependências Python dos gates (scripts/gates/). Também precisam de ffmpeg/ffprobe no PATH.
+numpy
+opencv-python
+pillow

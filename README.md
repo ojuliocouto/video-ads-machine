@@ -29,6 +29,7 @@ The script uses a simple annotation convention:
 ## Requirements (onboarding)
 Have these BEFORE you start:
 - **Node.js 18+** and **ffmpeg** installed.
+- **Python 3.9+** with the gate dependencies: `pip install -r scripts/gates/requirements.txt` (numpy, opencv-python, pillow).
 - A **talking-head video** (`avatar.mp4`), the **voice** track, your **b-rolls**, and a **logo**. If you do not have the avatar, the skill can offer to generate one via HeyGen (Avatar V engine), which needs your own `HEYGEN_API_KEY` and a HeyGen `avatar_id`.
 - Optional, macOS only: `parakeet-mlx` for faster alignment. The default uses HyperFrames' own word-level transcript, which is cross-platform.
 
@@ -48,10 +49,26 @@ bash scripts/setup.sh
 - `blocks/` : reusable HTML/CSS/GSAP partials.
 - `presets/` : one file per style variant, grouped by dimension (caption, lettering, transition, grade, hook, endcard).
 - `templates/` : `reel-editorial` (flagship, 9:16), `reel-editorial-1x1` (1:1 square, for feed), and `ad-hook`.
-- `scripts/` : `setup.sh`, `check_assets.py`, `build_timeline.py`, `audit_frames.sh`.
+- `scripts/` : `setup.sh`, `check_assets.py`, `build_timeline.py`, `audit_frames.sh`, `init_local.py` and the production engine (`produzir_ad.py`, `build_composite.py`, ...).
+- `scripts/gates/` : the delivery gates, shipped with the repo (see below).
 - `fonts/` : embedded open woff2 fonts (Inter, Montserrat, Playfair Display Italic, Archivo).
 - `demo/` : a starter pack so you can render something end to end (see `demo/README.md`).
 - `tests/` : pytest suite for the Python scripts.
+
+## What ships in the repo and what is yours (`_local/`)
+
+**Included in the repo**
+- The engine, templates, presets and fonts.
+- The delivery gates in `scripts/gates/`: `gate-ad.py` (text-on-screen gaps, stray frames, markers, loudness), `gate-colisao-texto.py` (text colliding with the face), `gate-contraste-legenda.py` (caption contrast against the background), `revisor-copy-ad.py` (transcription errors in the copy) and `auditar_ad.py` (cuts, flashes, frozen inserts). They run from the repo with no extra setup besides `pip install -r scripts/gates/requirements.txt` (numpy, opencv-python, pillow) and `ffmpeg` on your PATH. `scripts/caminhos.py` (`gate_script(name)`) finds them in the repo first; `~/.claude/scripts/` is only a legacy fallback.
+
+**Yours, never versioned (`_local/`, gitignored)**
+- `configs/` (one config per ad and look), `roteiros/` and the annotated scripts (`<ad>_leva.txt`), insert maps (`<ad>_inserts.json`), your logo (`render-reel-editorial/logo.png`), `render-reel-editorial/meta.json`, your media (avatar, voice, inserts) and the renders.
+
+Create the structure, with examples of each file, in one command:
+```bash
+python3 scripts/init_local.py
+```
+It is safe to re-run (it never overwrites what you already have). If something from `_local/` is missing when you run the engine, you get one clear message pointing to this command, not a traceback. Override locations with `VAM_ESTADO` (the `_local` folder) and `VAM_DADOS` (media) if you keep them elsewhere. `demo/` has a minimal script and brief to start from.
 
 ## Security and privacy
 - **Bring your own keys.** `HEYGEN_API_KEY` and any other credential are yours and are never committed. The skill never sends them anywhere.

@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from caminhos import V2L  # noqa: E402  (era o proprio dir; agora e o _local, que guarda o estado)
-from caminhos import V1  # noqa: E402
+from caminhos import V1, CODIGO  # noqa: E402
 
 # (defeito que ACONTECEU, custo real, o que impede hoje, comando, mecanico?)
 TRAVAS = [
@@ -75,12 +75,12 @@ TRAVAS = [
     ("Efeito sonoro gerado mas INAUDIVEL (-40 dBFS, 26 dB abaixo da voz)",
      "mixagem rodava, log dizia '6 efeitos', delta de energia era 0,0 dB",
      "test_nivel_som.py: todo efeito tem que ficar entre -30 e -20 dBFS",
-     "python3 /Users/ojuliocouto/video-ads-machine/test_nivel_som.py", True),
+     f"python3 {CODIGO}/test_nivel_som.py", True),
 
     ("Painel do split cortava o apresentador no NARIZ (boca fora do quadro)",
      "avatar de lipsync sem boca nos 4 splits do AD15",
      "test_enquadramento_split.py: a janela tem que conter o rosto DETECTADO inteiro",
-     "python3 /Users/ojuliocouto/video-ads-machine/test_enquadramento_split.py", True),
+     f"python3 {CODIGO}/test_enquadramento_split.py", True),
 
     ("Patch de texto nao aplicava e passava silencioso",
      "2 ciclos rodando com codigo velho",

@@ -20,6 +20,8 @@ from pathlib import Path
 
 from caminhos import V1  # noqa: E402
 from caminhos import V2  # noqa: E402
+from caminhos import achar_logo, achar_meta, RENDER_MODELO as ESTADO_RENDER  # noqa: E402
+from material_local import exigir  # noqa: E402
 import cache_transcricao  # noqa: E402
 def _sem_emoji(t):
     """Remove pictogramas do texto de tela (19/08/2026, Jheni: "esses emojis deixam
@@ -214,8 +216,12 @@ def main(cfg_path):
     total = math.ceil((_real + TAIL_PAD) * 100) / 100   # D5: cauda nunca cortada
     if not (out / "fonts").exists():
         shutil.copytree(tmpl.parent / "fonts", out / "fonts")
-    shutil.copy(V2 / "_local" / "render-reel-editorial" / "logo_occ_wordmark.png", out / "logo.png")
-    shutil.copy(V2 / "_local" / "render-reel-editorial" / "meta.json", out / "meta.json")
+    # Logo e meta.json sao do SEU anuncio (_local/render-reel-editorial/). Falta vira uma
+    # mensagem so, com o comando que cria a estrutura.
+    _logo = achar_logo() or exigir(ESTADO_RENDER / "logo.png", "o logo do seu anúncio (PNG)")
+    _meta = achar_meta() or exigir(ESTADO_RENDER / "meta.json", "metadados do render")
+    shutil.copy(_logo, out / "logo.png")
+    shutil.copy(_meta, out / "meta.json")
 
     # ---------- transcript ----------
     # Cache entre builds (31/08/2026): 8 builds do mesmo ad no mesmo dia rodaram o
@@ -235,8 +241,10 @@ def main(cfg_path):
     transcript = json.loads((out / "transcript.json").read_text())
 
     # ---------- roteiro v1: blocos + narracao ----------
-    blocks = parse_v1(str(V1 / "inputs" / f"{ad}_leva.txt"))
-    inserts_map = json.loads((V1 / "inputs" / f"{ad}_inserts.json").read_text())
+    _leva = exigir(V1 / "inputs" / f"{ad}_leva.txt", "o roteiro anotado deste anúncio")
+    _ins = exigir(V1 / "inputs" / f"{ad}_inserts.json", "o mapa de inserções deste anúncio")
+    blocks = parse_v1(str(_leva))
+    inserts_map = json.loads(_ins.read_text())
     narr_words = []
     for b in blocks:
         narr_words += b["narr"].split()
