@@ -121,6 +121,7 @@ def travar_no_layout(letts, janelas_split):
                       f"{max(l['dur'], PISO_DURACAO):.2f}s)", flush=True)
                 l["dur"] = max(l["dur"], PISO_DURACAO)
                 l["start"] = _novo_t0
+                l["adiado"] = True        # W5.X: o eco dele só sai se encostar (legendas.FOLGA_ECO_ADIADO)
                 if l.get("linhas"):
                     l["linhas"] = [{**x, "delay": max(0.0, round(x["delay"] - _desloc, 2))}
                                    for x in l["linhas"]]
