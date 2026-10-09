@@ -61,7 +61,8 @@ def test_so_ficam_os_grupos_depois_do_hook_e_antes_da_janela_do_logo():
     gs = [grupo(pal("a", 1.0, 1.5)), grupo(pal("b", 3.0, 3.5)), grupo(pal("c", 5.0, 5.5)),
           grupo(pal("d", 9.9, 10.4)), grupo(pal("e", 9.96, 10.4)), grupo(pal("f", 12.0, 12.5))]
     saida = G.filtrar_corpo(gs, 3.0, 10.0)
-    assert [g["words"][0]["text"] for g in saida] == ["c", "d"]       # 3,0 exato nao passa (estrito)
+    # W5.X: "b" nasce no fim do gancho e termina 0,5 s depois: entra (aparado no gancho), não deixa a tela vazia
+    assert [g["words"][0]["text"] for g in saida] == ["b", "c", "d"]
 
 
 # --- fechar_grupos ---------------------------------------------------------------------------------
