@@ -29,3 +29,5 @@ assets/
 # bytecode
 __pycache__/
 *.pyc
+
+!.env.example
