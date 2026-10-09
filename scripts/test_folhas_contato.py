@@ -7,44 +7,32 @@ contato existe pra ninguem mais avaliar anuncio sem ter visto o filme inteiro.
 
 Rodar: python3 -m pytest test_folhas_contato.py -q
 """
-import subprocess
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from PIL import Image
 
 import folhas_contato as FC
-
-SC = Path("/private/tmp/claude-501/-Users-ojuliocouto--claude-worktrees-video-editing-skill-optimization-6d0679/77358218-94e0-4420-8a73-b3c2ced0fd83/scratchpad")
-SC.mkdir(parents=True, exist_ok=True)
-
-
-def _gerar_video_sintetico(destino):
-    """6s: vermelho 0-2s, verde 2-4s, azul 4-6s. Dois cortes nitidos, em 2s e 4s."""
-    partes = []
-    for i, cor in enumerate(("red", "green", "blue")):
-        p = SC / f"_parte{i}.mp4"
-        subprocess.run(
-            ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
-             f"color=c={cor}:s=320x240:d=2:r=25", "-c:v", "libx264",
-             "-pix_fmt", "yuv420p", str(p)], check=True)
-        partes.append(p)
-    lista = SC / "_concat.txt"
-    lista.write_text("".join(f"file '{p}'\n" for p in partes))
-    subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i",
-         str(lista), "-c", "copy", str(destino)], check=True)
+from tests.fixtures import sinteticos as SIN  # noqa: E402
 
 
 class TesteFolhasContato(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.video = SC / "sintetico_6s.mp4"
-        _gerar_video_sintetico(cls.video)
+        # 6s: vermelho 0-2s, verde 2-4s, azul 4-6s. Dois cortes nitidos, em 2s e 4s.
+        SC = Path(tempfile.mkdtemp(prefix="vam_folhas_"))
+        cls.addClassCleanup(shutil.rmtree, SC, True)
+        cls.video = SIN.video_cores(SC / "sintetico_6s.mp4", cores=("red", "green", "blue"),
+                                    dur_cada=2.0, tamanho="320x240", fps=25)
         cls.pasta_saida = SC / "folhas_out"
 
     def test_gerar_folhas_produz_os_dois_pngs_com_medidas_corretas(self):

@@ -20,15 +20,21 @@ dBFS ja estava ABAIXO da voz (-17,9) e mesmo assim soava como tiro, porque os ef
 caem nos CORTES e corte coincide com PAUSA de fala: eles aparecem sozinhos, no silencio.
 O que importa e o nivel absoluto tocando so, nao a relacao com a fala.
 """
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent))
-import som_cortes as S
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+import som_cortes as S  # noqa: E402
+from tests.fixtures import sinteticos as SIN  # noqa: E402
 
 MIN_DB, MAX_DB = -38.0, -31.0
 
@@ -45,10 +51,18 @@ def rms_db(p):
 
 class TesteNivelDeSom(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        # Mede a biblioteca que a RECEITA (som_cortes.EFEITOS) produz, gerada em tmp. Antes
+        # o teste lia _local/dados/assets/som, que só existe depois do setup.
+        cls.som = Path(tempfile.mkdtemp(prefix="vam_som_"))
+        cls.addClassCleanup(shutil.rmtree, cls.som, True)
+        SIN.gerar_som(cls.som)
+
     def test_todo_efeito_e_audivel_e_nao_compete(self):
         for nome in S.EFEITOS:
             with self.subTest(efeito=nome):
-                db = rms_db(S.SOM / nome)
+                db = rms_db(self.som / nome)
                 self.assertIsNotNone(db, f"{nome} sem audio")
                 self.assertGreaterEqual(db, MIN_DB,
                     f"{nome} em {db:.1f} dBFS: some na entrega (defeito de 20/08, -40,2)")
@@ -59,7 +73,7 @@ class TesteNivelDeSom(unittest.TestCase):
     def test_nao_estoura(self):
         for nome in S.EFEITOS:
             with self.subTest(efeito=nome):
-                r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(S.SOM / nome),
+                r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(self.som / nome),
                                     "-map", "0:a", "-f", "s16le", "-ac", "1",
                                     "-ar", "48000", "-"], capture_output=True)
                 a = np.frombuffer(r.stdout, dtype=np.int16).astype(np.float64) / 32768.0

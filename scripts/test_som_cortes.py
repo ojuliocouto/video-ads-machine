@@ -10,15 +10,23 @@ Contrato ANTES do código, pra ver vermelho:
     misturado dessincroniza o mux)
 """
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-# (migracao 26/08/2026) o teste tinha a PROPRIA copia deste caminho e por isso
-# continuou apontando pro lugar errado depois da mudanca. Teste que reimplementa
-# a constante valida a copia, nao o codigo: agora importa do modulo.
-from som_cortes import SOM  # noqa: E402
+RAIZ = Path(__file__).resolve().parent.parent
+for _p in (str(RAIZ / "scripts"), str(RAIZ)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+from tests.fixtures import sinteticos as SIN  # noqa: E402
+
+# (migracao 26/08/2026) o teste tinha a PROPRIA copia do caminho da biblioteca e por isso
+# continuou apontando pro lugar errado depois da mudanca. Agora a biblioteca nao e lida de
+# lugar nenhum: o teste a GERA em tmp pela receita do modulo (som_cortes.EFEITOS), que e o
+# que o contrato fiscaliza. O clone limpo nao tem os wav que o setup produz.
 ESPERADO = {
     "whoosh.wav": (0.25, 0.80),
     "tick.wav": (0.03, 0.15),
@@ -47,11 +55,17 @@ def _pico_db(p):
 
 class TesteSomCortes(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.som = Path(tempfile.mkdtemp(prefix="vam_som_"))
+        cls.addClassCleanup(shutil.rmtree, cls.som, True)
+        SIN.gerar_som(cls.som)
+
     def test_biblioteca_existe_e_dentro_do_contrato(self):
         for nome, (dmin, dmax) in ESPERADO.items():
-            p = SOM / nome
+            p = self.som / nome
             with self.subTest(efeito=nome):
-                self.assertTrue(p.exists(), f"{nome} não existe em {SOM}")
+                self.assertTrue(p.exists(), f"{nome} não existe em {self.som}")
                 sr, dur = _probe(p)
                 self.assertEqual(sr, 48000, f"{nome}: sample rate {sr}, pipeline é 48k")
                 self.assertTrue(dmin <= dur <= dmax,
