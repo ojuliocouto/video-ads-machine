@@ -10,8 +10,12 @@ todo subprocess do overlay. Três rodadas:
   overlay_convergido/  2a rodada: o overlay lê o `_ritmo.json` que a footage deixou
                        (o "relógio da footage"; a W3.A troca isso de propósito e rebaseia)
 
-O golden mora em $VAM_PARIDADE_MIDIA/golden e nasce do commit base. Fora do repo.
-Sem a variável, tudo aqui pula dizendo por quê.
+O golden mora em $VAM_PARIDADE_GOLDEN (padrão $VAM_PARIDADE_MIDIA/golden) e nasce do commit base.
+Fora do repo. Sem a variável da mídia, tudo aqui pula dizendo por quê.
+
+W3.A (relógio único): `overlay/` e `overlay_1x1/` agora leem a timeline.json (uma transcrição só, o relógio
+da footage): o golden deles muda DE PROPÓSITO, só em tempo. `overlay_convergido/` continua no caminho antigo
+(sem timeline, lendo o `_ritmo.json` da footage) e prova que ele segue funcionando até a W5.A.
 
 Não coberto (ver fixture/MANIFESTO.json): o render MOV do `hyperframes render` (sem
 Chromium aqui); o `hyperframes transcribe` real (um stub devolve a saída real gravada);
@@ -119,6 +123,9 @@ def test_a_fixture_exercita_os_ramos_do_overlay(atual):
     assert atual["overlay/index_overlay.html"] != atual["overlay/index.html"], "o strip fez algo"
     assert atual["overlay_convergido/index.html"] != atual["overlay/index.html"], \
         "a 2a rodada não leu a footage (o relógio da footage não foi exercitado)"
+    if "timeline/timeline.json" in atual:
+        assert '"<HF>", "transcribe"' not in atual["argv/overlay.jsonl"], "com timeline o overlay não transcreve"
+        assert '"<HF>", "transcribe"' in atual["argv/overlay_convergido.jsonl"], "o caminho antigo ainda transcreve"
 
 
 # --- a paridade --------------------------------------------------------------------------
@@ -148,3 +155,11 @@ def test_overlay_e_deterministico_entre_sandboxes(midia):
     a = C.capturar(C.raiz_do_repo(), midia, etapas=("overlay",))
     b = C.capturar(C.raiz_do_repo(), midia, etapas=("overlay",))
     assert a.hashes() == b.hashes()
+
+
+def test_o_golden_vem_de_vam_paridade_golden_quando_definida(tmp_path, monkeypatch):
+    """O rebase da W3.A nasce em outra pasta e só vira o golden padrão depois da revisão do diff."""
+    monkeypatch.delenv("VAM_PARIDADE_GOLDEN", raising=False)
+    assert C.pasta_golden(tmp_path) == tmp_path / "golden"
+    monkeypatch.setenv("VAM_PARIDADE_GOLDEN", str(tmp_path / "golden-w3a"))
+    assert C.pasta_golden(tmp_path) == tmp_path / "golden-w3a"
