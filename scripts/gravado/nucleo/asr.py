@@ -39,8 +39,9 @@ MARGEM_S = 0.1
 _DETERMINISTICO = ["-map_metadata", "-1", "-fflags", "+bitexact", "-flags:a", "+bitexact"]
 
 
-class ErroDeASR(RuntimeError):
-    """A transcrição não saiu. A mensagem traz o motivo do backend."""
+class ErroDeASR(InsumoInvalido, RuntimeError):
+    """A transcrição não saiu. A mensagem traz o motivo do backend. Num gate é insumo inválido
+    (saída 2): um gate que não conseguiu ler a fala não aprova nem reprova."""
 
 
 def falhou(texto):

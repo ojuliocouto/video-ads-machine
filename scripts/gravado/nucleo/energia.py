@@ -17,13 +17,16 @@ import subprocess
 
 import numpy as np
 
+from gravado.veredito import InsumoInvalido
+
 SR = 16000
 JANELA_S = 0.02
 PISO_DB = -120.0        # silêncio digital exato
 
 
-class ErroDeAudio(RuntimeError):
-    """O ffmpeg não conseguiu decodificar o arquivo. Nunca vira "silêncio" calado."""
+class ErroDeAudio(InsumoInvalido, RuntimeError):
+    """O ffmpeg não conseguiu decodificar o arquivo. Nunca vira "silêncio" calado, e num gate é
+    insumo inválido (saída 2): não deu para medir."""
 
 
 def amostras(caminho, ini=0.0, dur=None, sr=SR):
@@ -45,6 +48,19 @@ def amostras(caminho, ini=0.0, dur=None, sr=SR):
         raise ErroDeAudio("não consegui ler o áudio de %s: %s" % (caminho, detalhe or "ffmpeg falhou"))
     bruto = p.stdout[: len(p.stdout) // 2 * 2]
     return np.frombuffer(bruto, dtype="<i2")
+
+
+def duracao_s(caminho):
+    """Duração do arquivo em segundos (ffprobe)."""
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+                            "default=nw=1:nk=1", str(caminho)], capture_output=True, text=True)
+    except FileNotFoundError:
+        raise ErroDeAudio("ffprobe não encontrado: instale o ffmpeg com `brew install ffmpeg`")
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        raise ErroDeAudio("não consegui ler a duração de %s: %s" % (caminho, r.stderr.strip()[-200:] or "ffprobe falhou"))
 
 
 def db_por_janela(pcm, sr=SR, jan=JANELA_S):

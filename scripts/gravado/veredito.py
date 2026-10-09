@@ -56,6 +56,17 @@ def cli(nome, parser, verificar, argv=None):
     return SAIDA_OK if ok else SAIDA_DEFEITO
 
 
+def ferramenta(fazer):
+    """Roda a ferramenta `fazer()` (extrair, isolar, montar...) e devolve 0; se ela levantar
+    InsumoInvalido (ou o erro do ffmpeg, que também é "não deu para fazer"), imprime e devolve 2."""
+    try:
+        fazer()
+    except InsumoInvalido as e:
+        print(str(e), file=sys.stderr)
+        return SAIDA_INSUMO
+    return SAIDA_OK
+
+
 def juntar(resultados):
     """Junta vários `(ok, motivo)` num só: ok se todos ok; o motivo lista um por linha."""
     resultados = list(resultados)
