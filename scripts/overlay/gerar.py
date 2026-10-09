@@ -7,7 +7,12 @@ cards, legendas palavra a palavra (kw por frase), letterings, CTA e logo no bloc
 Uso: `python3 gen_ad_v2.py <config.json>` (o wrapper chama `main`).
 Config: {"ad", "look", "avatar", "out_dir", "hook": {eyebrow, l1, accent[, style]}, "cta_label",
          "kw_phrases": [...], "letterings": [{"lead", "key", "anchor", "nth": 1, "dur": 2.2}],
-         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead"}
+         "format": "9x16" | "1x1", "speed", "labels", "cta_sem_lead", "timeline"}
+
+RELÓGIO ÚNICO (W3.A). Com `"timeline": <caminho da timeline.json>` o overlay não transcreve nem alinha:
+lê da timeline as palavras (o alinhamento único que ela cita, conferido pelo sha256), os spans, o plano
+de ritmo, as janelas de split e a duração, que são os mesmos da footage. Roda a 1x (`speed` 1.0: a
+aceleração é do arquivo entregue). Sem timeline segue o caminho antigo e avisa no fim (stderr).
 
 Importar este módulo não executa nada. O pipeline, na ordem em que o original o fazia (a ordem
 importa: cada passo lê o que o anterior decidiu):
@@ -18,6 +23,7 @@ importa: cada passo lê o que o anterior decidiu):
 """
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from caminhos import V1, V2, RENDER_MODELO as ESTADO_RENDER, achar_logo, achar_meta
@@ -40,20 +46,48 @@ def _preparar_pasta(out, tmpl):
 
 
 def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert, letts,
-                     lett_windows):
+                     lett_windows, medir_rosto=None, medir_fundo=True):
     """Os grupos de legenda finais, na ordem do original: corpo, texto próprio, look fechado,
-    fronteira de split, costura, tinta invertida, guarda pós-split, fechamento e letterings."""
+    fronteira de split, costura, tinta invertida, guarda pós-split, fechamento e letterings.
+
+    `medir_rosto` (padrão: a medição do `medir_rosto`) e `medir_fundo` existem para a timeline montar as
+    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida)."""
     groups = legendas.agrupar(words)
     groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
     layout_texto.descer_para_rodape_em_texto(groups, janelas_texto)
-    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""))
+    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto)
     if janelas_split:
         groups = layout_texto.cortar_na_fronteira(groups, janelas_split)
         layout_texto.marcar_costura(groups, janelas_split)
-    fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert)
+    if medir_fundo:
+        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert)
     layout_texto.empurrar_pos_split(groups, janelas_split)
     groups = legendas.fechar_grupos(groups, logo_start)
     return legendas.aparar_nos_letterings(groups, letts, lett_windows)
+
+
+def _relogio_da_timeline(cfg, caminho, speed):
+    """(timeline, blocos, mapa de inserts, palavras) lidos da timeline; para o motor com a causa se ela não
+    é deste anúncio, deste avatar ou desta transcrição."""
+    from timeline import construir as TC
+    if abs(speed - 1.0) > 1e-6:
+        sys.exit(f"ERRO: com timeline.json o overlay roda a 1x (speed 1.0, recebi {speed}): o relogio da "
+                 "timeline e o da footage a 1x, e a aceleracao e do arquivo entregue.")
+    blocks, inserts_map = _roteiro_e_inserts(cfg["ad"])
+    try:
+        tl, palavras = TC.ler_para_motor(caminho, blocks, avatar=cfg.get("avatar"))
+    except TC.ErroTimeline as e:
+        sys.exit(f"ERRO: timeline: {e}")
+    print(f"   [relogio] timeline.json ({Path(caminho).name}): {len(tl['blocos'])} blocos, "
+          f"{len(tl['segmentos'])} planos, a0 {tl['relogio']['a0']:.2f}s, fim {tl['duracao_s']:.2f}s, "
+          f"alinhamento {tl['fontes']['alinhamento_sha256'][:12]}", flush=True)
+    return tl, blocks, inserts_map, transcricao.palavras_da_timeline(palavras)
+
+
+def _roteiro_e_inserts(ad):
+    _leva = exigir(V1 / "inputs" / f"{ad}_leva.txt", "o roteiro anotado deste anúncio")
+    _ins = exigir(V1 / "inputs" / f"{ad}_inserts.json", "o mapa de inserções deste anúncio")
+    return parse_v1(str(_leva)), json.loads(_ins.read_text(encoding="utf-8"))
 
 
 def main(cfg_path):
@@ -66,32 +100,38 @@ def main(cfg_path):
     fmt = cfg.get("format", "9x16")
     tmpl = V2 / "templates" / ("reel-editorial-1x1" if fmt == "1x1" else "reel-editorial") / "index.html"
 
-    # ---------- assets base e transcrição ----------
+    # ---------- assets base e o relógio (timeline única ou o caminho antigo) ----------
     speed = float(cfg.get("speed", transcricao.SPEED))
+    tl = None
+    if cfg.get("timeline"):
+        tl, blocks, inserts_map, words = _relogio_da_timeline(cfg, cfg["timeline"], speed)
     dst, total = transcricao.preparar_avatar(Path(cfg["avatar"]), out, speed)
     _preparar_pasta(out, tmpl)
-    transcript = transcricao.transcrever(dst, out)
-
-    # ---------- roteiro: blocos, narração e palavras com tempo ----------
-    _leva = exigir(V1 / "inputs" / f"{ad}_leva.txt", "o roteiro anotado deste anúncio")
-    _ins = exigir(V1 / "inputs" / f"{ad}_inserts.json", "o mapa de inserções deste anúncio")
-    blocks = parse_v1(str(_leva))
-    inserts_map = json.loads(_ins.read_text(encoding="utf-8"))
-    words = transcricao.alinhar_palavras(blocks, transcript)
+    if tl is None:
+        transcript = transcricao.transcrever(dst, out)
+        # ---------- roteiro: blocos, narração e palavras com tempo ----------
+        blocks, inserts_map = _roteiro_e_inserts(ad)
+        words = transcricao.alinhar_palavras(blocks, transcript)
+    else:
+        total = tl["duracao_s"]      # o fim da footage: overlay e footage com a mesma duração
     transcricao.marcar_kw(words, cfg.get("kw_phrases", []))
-    spans = spans_m.calcular_spans(blocks, words)
+    spans = spans_m.da_timeline(tl) if tl else spans_m.calcular_spans(blocks, words)
     h = hook_m.calcular_hook(blocks, spans)
 
     # ---------- inserts: ritmo, visitas, janelas de layout e arquivos ----------
-    plano_ritmo, _ = spans_m.plano_de_ritmo(blocks, spans, inserts_map)
+    plano_ritmo, _ = (spans_m.plano_da_timeline(tl, blocks, inserts_map) if tl
+                      else spans_m.plano_de_ritmo(blocks, spans, inserts_map))
     visitas, retorno_avatar = brolls_m.planejar_visitas(blocks, spans, inserts_map, plano_ritmo)
     janelas_split, janelas_texto, mapa_insert = layout_texto.janelas_por_visita(visitas)
+    if tl:
+        janelas_split = [(j["s"], j["e"]) for j in tl["janelas_split"]]
     brolls = brolls_m.montar_brolls(visitas, cfg.get("labels", {}))
     brolls_m.preparar_arquivos(brolls, out)
 
     # ---------- letterings, antes das legendas, para deconflitar ----------
     letts, lett_windows = letterings_m.montar(cfg.get("letterings", []), words, spans, blocks, janelas_split)
-    janelas_split = layout_texto.aplicar_relogio_footage(ad, look, janelas_split)
+    if tl is None:
+        janelas_split = layout_texto.aplicar_relogio_footage(ad, look, janelas_split)
     # rastro de deconflito: sem isso não dá para saber se a flag chegou (um build inteiro foi perdido
     # achando que o CSS estava errado quando a janela é que estava vazia)
     print(f"   [deconflito] split={janelas_split} texto={janelas_texto} "
@@ -132,3 +172,5 @@ def main(cfg_path):
           f"{len(groups)} grupos de legenda | CTA {cta_s}s | wipes {wipes}")
     for b in brolls:
         print(f"   {b['src']:14} {b['s']:6.2f}s +{b['d']:5.2f}s  {b['label']}")
+    if tl is None:
+        print(transcricao.AVISO_SEM_TIMELINE, file=sys.stderr, flush=True)
