@@ -396,8 +396,11 @@ def _g_camera(ctx):
 
 
 def _g_cor(ctx):
+    """Com a caixa do rosto medida no entregue (W5.X, pendência c): sem ela o R/G do C5 nunca era medido."""
     from gates import gate_cor
-    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto, planos=gate_cor.planos_da_timeline(ctx.timeline()))
+    tl = ctx.timeline()
+    rosto = gate_cor.caixa_rosto_entregue(str(ctx.motor.final), tl)
+    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto, planos=gate_cor.planos_da_timeline(tl, rosto))
 
 
 def _g_mix(ctx):
