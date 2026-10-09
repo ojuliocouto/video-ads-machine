@@ -114,3 +114,11 @@ def test_aplicar_html_com_placa():
     com = hook_m.aplicar_html(base, {"eyebrow": "a", "l1": "b", "accent": "c", "placa": True}, h)
     assert 'class="clip placa"' in com and "placa" not in sem
     assert "#hook.placa" in (PARCIAIS / "hook.css").read_text(encoding="utf-8")
+
+
+def test_ajuste_do_destaque_usa_a_largura_util_do_bloco():
+    """2º render da W5.X: o destaque ajustado pelo clientWidth (que inclui a folga da placa) vazava dela e o gate
+    mediu 1,7:1 no "NAL" de PROFISSIONAL sobre a página clara. O ajuste desconta a folga interna."""
+    js = (PARCIAIS / "timeline.js").read_text(encoding="utf-8")
+    assert "paddingLeft" in js and "paddingRight" in js
+    assert "#hook.placa .hook-inner" in (PARCIAIS / "hook.css").read_text(encoding="utf-8")
