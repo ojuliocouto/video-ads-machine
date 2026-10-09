@@ -1035,7 +1035,7 @@ def test_fatia_de_horizontal_ganha_push_in_so_quando_o_asset_encolheu(gravador, 
     fixar_medidas(monkeypatch, largo["medidas"])
     _chama(largo, dirs)
     com, sem = (c[c.index("-filter_complex") + 1] for c in gravador[:2])
-    assert "zoompan=z='min(1+0.39" in com
+    assert "zoompan=z='min(1+0.38996*on/127,1.38996)'" in com
     assert "zoompan" not in sem
 
 
