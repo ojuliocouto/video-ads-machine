@@ -16,7 +16,16 @@ sobre a landing page que exibe o PRÓPRIO wordmark, dando dois wordmarks empilha
 quadro 1352, t=45,07 s). Sobre insert o logo entra junto com o corte para o avatar.
 """
 
+import re
+import sys
+
 LOGO_LEAD = 0.9      # segundos que o logo antecipa o CTA (quando o bloco anterior é avatar)
+
+# Os elementos do CTA nos templates, achados pelo `data-hf-id` e não pelo texto que o template escreveu (W3.X M5): o
+# 9x16 tem "toca em" e `saiba mais<i class="arw"></i>`, o 1x1 tem "toque em" e `saiba mais`. Procurar o texto fazia
+# o rótulo nunca entrar no 9x16 e o `cta_sem_lead` nunca funcionar no 1x1, com a timeline registrando os dois.
+_LEAD = re.compile(r'<div data-hf-id="hf-laqu" class="lead">([^<]*)</div>\n?[ \t]*')
+_TEXTO_DO_BOTAO = re.compile(r'(<div data-hf-id="hf-wto1" class="pill" id="cta-pill">)[^<]*')
 
 
 def calcular_cta_start(blocks, spans, retorno_avatar):
@@ -56,18 +65,26 @@ def janela(cta_start, lead):
 def aplicar_html(html, cfg, cta_s, logo_s, total, janelas_split):
     """Rótulo, lead, tempos e a variante em tela dividida do CTA e do logo.
 
-    `cta_sem_lead` tira o "toca em" quando o enquadramento não tem faixa livre para os três elementos
-    (lead, pill e logo); a conta depende de onde o queixo cai naquele look. O CTA que nasce em cima de
+    `cta_sem_lead` tira o lead ("toca em" no 9x16, "toque em" no 1x1) quando o enquadramento não tem faixa livre
+    para os três elementos (lead, pill e logo); a conta depende de onde o queixo cai naquele look. O rótulo troca o
+    texto do botão nos dois templates (a seta do 9x16 fica). Template sem o elemento: aviso no stderr. O CTA que nasce em cima de
     tela dividida desce junto com o logo (`.cta-split`): `janelas_split` era consultado pela legenda e
     pelo lettering, e o CTA era o único dos três que não consultava, por isso pousava no rosto
     quando o último bloco era split.
     """
     if cfg.get("cta_sem_lead"):
-        html = html.replace(
-            '<div data-hf-id="hf-laqu" class="lead">toca em</div>\n        ', "", 1)
-        print("   [cta] sem o lead 'toca em': so pill + logo", flush=True)
-    html = html.replace('<div data-hf-id="hf-wto1" class="pill" id="cta-pill">saiba mais</div>',
-                        f'<div data-hf-id="hf-wto1" class="pill" id="cta-pill">{cfg.get("cta_label","saiba mais")}</div>')
+        m = _LEAD.search(html)
+        if m:
+            html = html[:m.start()] + html[m.end():]
+            print(f"   [cta] sem o lead '{m.group(1)}': so pill + logo", flush=True)
+        else:
+            print("   [cta] AVISO: o template nao tem o lead do CTA (data-hf-id hf-laqu): cta_sem_lead nao mudou nada",
+                  file=sys.stderr, flush=True)
+    rotulo = cfg.get("cta_label", "saiba mais")
+    html, n = _TEXTO_DO_BOTAO.subn(lambda m: m.group(1) + rotulo, html, count=1)
+    if not n:
+        print(f"   [cta] AVISO: o template nao tem o botao do CTA (id cta-pill): o rotulo {rotulo!r} nao entrou",
+              file=sys.stderr, flush=True)
     _cta_no_split = any(a <= cta_s < b for a, b in janelas_split)
     if _cta_no_split:
         print(f"   [cta] {cta_s:.2f}s cai em tela dividida: descendo o CTA e o logo "

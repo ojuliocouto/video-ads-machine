@@ -47,7 +47,8 @@ Decisões onde o motor e o contrato não falam a mesma língua (registradas, nã
     o bloco anterior ao CTA é apresentador (`overlay.cta.LOGO_LEAD`); aí a timeline registra o logo junto
     do CTA. A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
   - legenda: a posição sai do layout (costura no split, rodapé sobre insert com texto). O rodapé por look
-    fechado depende de medir o rosto: o chamador passa `medir_rosto` (o overlay mede no render);
+    fechado depende de medir o rosto: o chamador passa `medir_rosto`, e a CLI passa a medição do avatar que ela
+    alinhou (W3.X M5: sem isso a timeline registrava legenda padrão num look fechado medido);
   - lettering: estilo `serif_editorial` (o do template de hoje) até a W4.D trazer os estilos; o lettering
     que passaria do fim é aparado no fim.
 
@@ -361,6 +362,16 @@ def ler_para_motor(caminho_timeline, blocks, avatar=None):
 
 # ======================================================================================== CLI
 
+def medir_rosto_do_avatar(avatar):
+    """A medição do rosto que o overlay usa (`medir_rosto.caixa_rosto`), sempre sobre o avatar que a CLI alinhou (e
+    não sobre o `avatar` do config do overlay, que pode ser outra cópia). Falha de medição chega ao overlay como
+    exceção e ele cai no plano declarado do look."""
+    def medir(_avatar_do_config):
+        import medir_rosto
+        return medir_rosto.caixa_rosto(str(avatar))
+    return medir
+
+
 def _alinhamento_padrao(timeline):
     nome = timeline.name
     if nome == "timeline.json":
@@ -411,7 +422,7 @@ def main(argv=None):
                         raiz=raiz, glossario=glossario)
         sha = AL.gravar(al, alinhamento)
         tl = construir(blocks, al, inserts_map=inserts_map, cfg=cfg, caminho_alinhamento=alinhamento, raiz=raiz,
-                       fps=a.fps, aceleracao=a.aceleracao)
+                       fps=a.fps, aceleracao=a.aceleracao, medir_rosto=medir_rosto_do_avatar(a.avatar))
         gravar(tl, timeline)
     except (ErroTimeline, AL.ErroAlinhamento) as e:
         sys.stderr.write(f"ERRO: {e}\n")
