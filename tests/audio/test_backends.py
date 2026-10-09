@@ -143,6 +143,84 @@ def test_parakeet_sem_arquivo_de_saida_e_erro_nao_lista_vazia(tmp_path):
         PK.transcrever(audio, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t")
 
 
+# =========================== parakeet, perfil "alinhamento" (W3.X A2) ===========================
+# Medido no avatar do fixture com o parakeet REAL: o chunk de 15 s com 3 s de sobreposição desloca fronteira de
+# bloco em até 0,16 s (16 de 52 palavras com outro tempo, a0 de 0,62 para 0,54, fim de 17,68 para 17,84); mp4 x wav
+# 16 kHz não muda nada e o leitor antigo x o novo também não. O relógio que vale é o da footage, que sempre
+# transcreveu wav 16 kHz mono SEM chunk. O perfil "alinhamento" é esse jeito, e lê os tokens pela regra da footage.
+
+class _Feito(object):
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+SAIDA_DUAS_SENTENCAS = {"sentences": [
+    {"text": " Agora eu", "start": 0.5, "end": 1.0,
+     "tokens": [{"text": " Ag", "start": 0.5, "end": 0.6}, {"text": "ora", "start": 0.6, "end": 0.8},
+                {"text": " eu", "start": 0.84, "end": 1.0}]},
+    {"text": "isso", "start": 1.2, "end": 1.6,      # abre SEM espaço: a regra da footage emenda na anterior
+     "tokens": [{"text": "isso", "start": 1.2, "end": 1.6}]},
+    {"text": " sem tokens aqui", "start": 2.0, "end": 3.0},   # a footage não tira palavra de sentença sem token
+]}
+
+
+def _executar_falso(cmds, saida=SAIDA_DUAS_SENTENCAS):
+    def executar(cmd):
+        cmd = [str(c) for c in cmd]
+        cmds.append(cmd)
+        if cmd[0] == "ffmpeg":
+            Path(cmd[-1]).write_bytes(b"RIFF")
+            return _Feito()
+        destino = Path(cmd[cmd.index("--output-dir") + 1]) / (Path(cmd[1]).stem + ".json")
+        destino.write_text(json.dumps(saida), encoding="utf-8")
+        return _Feito()
+    return executar
+
+
+def test_parakeet_perfil_alinhamento_extrai_wav_16k_mono_e_roda_sem_chunk(tmp_path):
+    exe = _executavel(tmp_path / "bin")
+    av = tmp_path / "avatar.mp4"
+    av.write_bytes(b"mp4")
+    cmds = []
+    trabalho = tmp_path / "t"
+    PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=trabalho, perfil="alinhamento",
+                   executar=_executar_falso(cmds))
+    wav = str(trabalho / "av.wav")
+    assert cmds[0] == ["ffmpeg", "-y", "-i", str(av), "-vn", "-ac", "1", "-ar", "16000", wav]
+    assert cmds[1] == [str(exe), wav, "--output-format", "json", "--output-dir", str(trabalho)]
+    assert "--chunk-duration" not in cmds[1] and "--overlap-duration" not in cmds[1]
+
+
+def test_parakeet_perfil_alinhamento_le_os_tokens_pela_regra_da_footage(tmp_path):
+    from footage import blocos as BL
+
+    _executavel(tmp_path / "bin")
+    av = tmp_path / "avatar.mp4"
+    av.write_bytes(b"mp4")
+    palavras = PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t", perfil="alinhamento",
+                              executar=_executar_falso([]))
+    esperado = [{"text": c, "start": s, "end": e} for s, e, c in BL.tokens_do_parakeet(SAIDA_DUAS_SENTENCAS)]
+    assert palavras == esperado
+    assert [p["text"] for p in palavras] == ["Agora", "euisso"]
+
+
+def test_parakeet_perfil_padrao_continua_com_chunk(tmp_path):
+    exe = _executavel(tmp_path / "bin")
+    av = tmp_path / "fala.wav"
+    av.write_bytes(b"wav")
+    cmds = []
+    PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t", executar=_executar_falso(cmds))
+    assert cmds == [[str(exe), str(av), "--output-format", "json", "--output-dir", str(tmp_path / "t"),
+                     "--chunk-duration", "15", "--overlap-duration", "3"]]
+
+
+def test_parakeet_perfil_desconhecido_e_erro_de_uso(tmp_path):
+    _executavel(tmp_path / "bin")
+    with pytest.raises(ValueError, match="perfil"):
+        PK.transcrever(tmp_path / "x.wav", amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t",
+                       perfil="rapido", executar=_executar_falso([]))
+
+
 # =========================== faster-whisper =====================================================
 
 class Palavra:

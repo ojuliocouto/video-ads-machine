@@ -81,12 +81,29 @@ def test_palavras_do_audio_transcrever_dao_o_mesmo_relogio_que_os_tokens_crus():
     assert via_transcrever == cru
 
 
-def test_primeira_palavra_sem_par_encosta_na_seguinte():
-    """'Minha' que o ASR ouviu como 'My': 0,18 s antes da primeira palavra casada (é o a0 do fixture)."""
+def test_primeira_palavra_que_o_asr_ouviu_com_outra_grafia_nasce_onde_a_fala_comeca():
+    """W3.X M3. 'Minha' que o ASR ouviu como 'My' (0,40 a 0,56; fixture da paridade): a palavra existe na fala e
+    começa em 0,40. Interpolar 0,18 s antes da primeira casada punha o a0 em 0,62 e a footage e o áudio entregue
+    começavam no meio da palavra (0,22 s cortados). O a0 nasce do início da 1ª palavra OUVIDA."""
     asr = [(0.4, 0.56, "My"), (0.8, 1.12, "skill"), (1.2, 1.36, "de")]
     out = AL.casar(asr, ["Minha", "skill", "de"], 5.0)
-    assert out[0] == (pytest.approx(0.62), 0.8, "Minha")
+    assert out[0] == (0.4, 0.8, "Minha")
     assert out[1] == (0.8, 1.12, "skill")
+
+
+def test_varias_palavras_iniciais_sem_par_dividem_o_trecho_ouvido_antes_da_primeira_casada():
+    asr = [(0.3, 0.5, "Uma"), (0.55, 0.7, "xis"), (0.9, 1.2, "skill")]
+    out = AL.casar(asr, ["Minha", "nova", "skill"], 5.0)
+    assert out[0][0] == 0.3 and out[0][1] == pytest.approx(0.6)
+    assert out[1][0] == pytest.approx(0.6) and out[1][1] == 0.9
+    assert out[2] == (0.9, 1.2, "skill")
+
+
+def test_sem_nada_ouvido_antes_da_primeira_casada_a_inicial_encosta_na_seguinte():
+    """O ASR não ouviu a palavra (nada antes da primeira casada): não há início medido, a regra antiga vale."""
+    asr = [(0.8, 1.12, "skill"), (1.2, 1.36, "de")]
+    out = AL.casar(asr, ["Minha", "skill", "de"], 5.0)
+    assert out[0] == (pytest.approx(0.62), 0.8, "Minha")
 
 
 def test_cauda_sem_par_ancora_no_fim_real_do_audio():
@@ -182,7 +199,64 @@ def test_o_cache_por_sha_do_avatar_segura_a_segunda_transcricao(tmp_path, espioe
     b = AL.alinhar(av, NARR, cache_dir=cache, raiz=tmp_path / "projeto", duracao=lambda p: 2.0)
     assert len(chamadas["transcrever"]) == 2 and len(backend.chamadas) == 1
     assert a == b
-    assert (cache / (_sha(av) + ".json")).is_file()
+    assert (cache / (_sha(av) + ".alinhamento.json")).is_file()
+
+
+def test_o_alinhamento_transcreve_do_jeito_da_footage_antiga(tmp_path, espioes, monkeypatch):
+    """W3.X A2: o relógio é transcrito como a footage sempre transcreveu (perfil "alinhamento": wav 16 kHz, sem
+    chunk). Medido no fixture: o chunk de 15/3 s deslocava fronteira em até 0,16 s."""
+    pedidos = []
+    original = T.transcrever
+
+    def transcrever(audio, **kw):
+        pedidos.append(kw.get("perfil"))
+        return original(audio, **kw)
+
+    monkeypatch.setattr(T, "transcrever", transcrever)
+    AL.alinhar(_avatar(tmp_path), NARR, cache_dir=tmp_path / "c", raiz=tmp_path / "projeto", duracao=lambda p: 2.0)
+    assert pedidos == ["alinhamento"]
+
+
+# ==================================================================================== o stub da paridade (A2)
+# A paridade não pode cegar de novo: o stub do parakeet devolve a fala gravada só quando é chamado do jeito da
+# footage antiga (wav, sem chunk); chamado de outro jeito, devolve uma fala DESLOCADA, e a footage pela timeline
+# deixa de sair igual à footage antiga.
+
+def _rodar_stub(tmp_path, args):
+    from tests.paridade import capturar as C
+
+    asr = tmp_path / "asr"
+    asr.mkdir(exist_ok=True)
+    gravado = {"sentences": [{"text": " Agora eu", "start": 0.5, "end": 1.0,
+                              "tokens": [{"text": " Agora", "start": 0.5, "end": 0.8},
+                                         {"text": " eu", "start": 0.84, "end": 1.0}]}]}
+    (asr / "av.json").write_text(json.dumps(gravado), encoding="utf-8")
+    stub = tmp_path / "parakeet-mlx"
+    stub.write_text(C.stub_parakeet(asr), encoding="utf-8")
+    stub.chmod(0o755)
+    saida = tmp_path / "saida"
+    saida.mkdir(exist_ok=True)
+    r = subprocess.run([str(stub), *[a.replace("@SAIDA@", str(saida)) for a in args]], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    entrada = Path(args[0]).stem
+    return gravado, json.loads((saida / f"{entrada}.json").read_text(encoding="utf-8"))
+
+
+def test_stub_da_paridade_devolve_a_fala_gravada_do_jeito_da_footage(tmp_path):
+    gravado, devolvido = _rodar_stub(tmp_path, ["/x/av.wav", "--output-format", "json", "--output-dir", "@SAIDA@"])
+    assert devolvido == gravado
+
+
+@pytest.mark.parametrize("args", [
+    ["/x/avatar.mp4", "--output-format", "json", "--output-dir", "@SAIDA@"],
+    ["/x/av.wav", "--output-format", "json", "--output-dir", "@SAIDA@", "--chunk-duration", "15",
+     "--overlap-duration", "3"],
+])
+def test_stub_da_paridade_chamado_de_outro_jeito_devolve_outra_fala(tmp_path, args):
+    gravado, devolvido = _rodar_stub(tmp_path, args)
+    assert devolvido != gravado
+    assert [t["text"] for s in devolvido["sentences"] for t in s["tokens"]] == \
+        [t["text"] for s in gravado["sentences"] for t in s["tokens"]]
 
 
 def test_alinhamento_guarda_avatar_relativo_sha_duracao_e_a_transcricao(tmp_path, espioes):

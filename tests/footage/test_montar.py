@@ -355,3 +355,31 @@ def test_o_mutante_do_xf_continua_achando_a_constante_exatamente_uma_vez():
             continue
         achados += len(re.findall(r'("VAM_XF_SECO",\s*")0\.04(")', p.read_text(encoding="utf-8")))
     assert achados == 1
+
+
+# ------------------------------------------------------------------ W3.X L6: o ambiente passado chega ao render
+
+def test_l6_config_le_a_geometria_do_split_do_ambiente_passado(tmp_path, monkeypatch):
+    monkeypatch.setenv("VAM_SPLIT_TOP_H", "1300")
+    env = {"VAM_AVATAR": "/a.mp4", "VAM_ROTEIRO": "/r.txt", "VAM_DADOS": str(tmp_path),
+           "VAM_SPLIT_TOP_H": "1000", "VAM_SPLIT_GRAD": "60", "VAM_SPLIT_BIAS": "0.25"}
+    geo = MO.ler_config(env).split
+    assert (geo.top_h, geo.grad, geo.bias) == (1000, 60, "0.25")
+
+
+def test_l6_o_contexto_do_render_leva_a_geometria_da_config(mundo, monkeypatch):
+    env, _dados, _eventos, _palavras = mundo
+    vistos = []
+
+    def renderiza(blocks, spans, ctx):
+        vistos.append(ctx.split)
+        out = []
+        for i in range(len(blocks)):
+            p = os.path.join(ctx.tmp, f"s{i:02d}.mp4")
+            Path(p).write_bytes(b"x")
+            out.append(p)
+        return out
+
+    monkeypatch.setattr(RS, "renderizar_todos", renderiza)
+    assert MO.main(env=dict(env, VAM_SPLIT_TOP_H="1000")) == 0
+    assert vistos and vistos[0].top_h == 1000

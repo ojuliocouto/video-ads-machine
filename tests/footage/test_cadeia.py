@@ -389,3 +389,44 @@ def test_montar_vchain_em_concat_puro_nao_mede_nada(tmp_path, monkeypatch):
                          str(tmp_path / "v.mp4"), lum=proibido)
     assert cmds[0][cmds[0].index("-filter_complex") + 1] == "[0:v][1:v][2:v][3:v][4:v][5:v]concat=n=6:v=1:a=0[vcat]"
     assert r["esperado"] == pytest.approx(17.06)
+
+
+# ------------------------------------------------------------------ W3.X L4: o que o xf_seco faz
+
+def test_l4_xf_seco_so_liga_o_concat_puro_nunca_vira_duracao_de_juncao():
+    """O docstring dizia que `xf_seco` é a duração da junção seca. Não é: a junção seca é concat (duração zero) e o
+    valor só importa para decidir o concat puro (os dois quase zero). Com o whip ligado, o grafo é o mesmo para
+    qualquer xf_seco."""
+    blocks, spans = _blocos(), list(SPANS_FIXTURE)
+    a = CA.montar_grafo(blocks, spans, CA.Transicao(xf=0.08, xf_seco=0.04, tipo="auto"))
+    b = CA.montar_grafo(blocks, spans, CA.Transicao(xf=0.08, xf_seco=0.5, tipo="auto"))
+    c = CA.montar_grafo(blocks, spans, CA.Transicao(xf=0.08, xf_seco=0.0, tipo="auto"))
+    assert a == b == c
+    assert "não" in CA.Transicao.__doc__ or "nao" in CA.Transicao.__doc__.lower()
+    assert "concat puro" in CA.Transicao.__doc__
+
+
+# ------------------------------------------------------------------ W3.X M1: a footage nunca passa da janela de áudio
+
+@pytest.mark.lento
+@pytest.mark.parametrize("quadros_a_mais", [1, 4, 9])
+def test_m1_o_mux_final_corta_a_cadeia_mais_longa_que_a_janela_de_audio(tmp_path, quadros_a_mais):
+    """A aritmética da cadeia pode passar da janela de áudio (o whip de 0,12 s arredonda para 4 quadros, e cada span
+    arredonda para quadro inteiro): a auditoria somou -0,037 s de folga com VAM_XF=0.12. O mux final da footage
+    (`grade_final`, com -shortest) corta o vídeo na janela de áudio, então a footage entregue nunca passa de
+    `total - a0`. É essa garantia, medida aqui com ffmpeg de verdade, que a folga de cauda da timeline usa."""
+    from footage import grade_final as GF
+    from tests.fixtures import sinteticos as fx
+
+    janela = 3.0
+    vchain = tmp_path / "vchain.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    f"testsrc=size=180x320:rate=30:duration={janela + quadros_a_mais / 30:.4f}",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(vchain)], check=True)
+    avatar = fx.testsrc_com_audio(tmp_path / "avatar.mp4", dur=5.0, tamanho="180x320", fps=30)
+    out = tmp_path / "footage.mp4"
+    subprocess.run(GF.cmd_grade_final(str(vchain), 0.5, 0.5 + janela, str(avatar), str(out)),
+                   check=True, capture_output=True)
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                        "stream=nb_read_frames", "-of", "csv=p=0", str(out)], capture_output=True, text=True)
+    assert int(r.stdout.strip()) / 30 <= janela + 1e-6

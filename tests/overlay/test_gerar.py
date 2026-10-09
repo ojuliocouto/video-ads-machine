@@ -148,7 +148,7 @@ PALAVRAS = ("Minha skill de criação de páginas transformou meu Claude em um w
             "Sabe qual é o melhor? "
             "Se eu usar um conector que é disponibilizado gratuitamente dentro do Claude, "
             "eu consigo não só produzir as páginas").split()
-VERSAO_DO_HARNESS = 2       # sobe quando o jeito de montar/normalizar o cenario muda
+VERSAO_DO_HARNESS = 3       # sobe quando o jeito de montar/normalizar o cenario muda (3: W3.X, a0 da footage sintética)
 AVATAR = "apresentador de frente para a câmera"
 LETT = "apresentador + lettering"
 LOGO = "apresentador + lettering + logo"
@@ -221,6 +221,10 @@ def _aplicar(sb, cen):
         elif extra == "footage":
             saida = sb.dados / "output"
             _footage_branco_depois_preto(saida / f"{C.AD}_{C.LOOK}_footage_1x.mp4")
+            # W3.X M4: a footage é amostrada em t - a0, e o a0 vem do _ritmo.json dela (a footage sintética começa
+            # no zero do avatar). Sem plano de split: as janelas do overlay não mudam.
+            (saida / f"{C.AD}_{C.LOOK}_footage_1x_ritmo.json").write_text(
+                json.dumps({"segs": [{"s": 0.0, "e": 22.0, "tipo": "orig"}], "total": 22.0}), encoding="utf-8")
     for chave, mudancas in cen.inserts.items():
         if mudancas is None:
             ins.pop(chave, None)
@@ -315,7 +319,9 @@ def _cenarios_fixos():
                      blocos=[("inserção de vídeo: demo a", 0, 8), ("inserção de vídeo: demo b", 8, 14),
                              ("inserção de vídeo: demo a", 14, 20), (AVATAR, 20, 33), (LETT, 33, 45),
                              (LOGO, 45, 52)]))
-    c.append(Cenario("look_fechado_pelo_nome", avatar_nome=f"{C.AD}_of13_avatar.mp4"))
+    # W3.X L10: o look fechado vem do plano declarado (looks.json do aluno); o nome do arquivo só existe aqui para o
+    # motor do commit base, que ainda decidia pelo nome, dar o mesmo resultado
+    c.append(Cenario("look_fechado_pelo_nome", avatar_nome=f"{C.AD}_of13_avatar.mp4", cfg={"look_plano": "fechado"}))
     c.append(Cenario("texto_proprio_e_baixo", inserts={"demo a": {"texto_proprio": True}},
                      letterings=LETTERINGS_BASE[:2] + [dict(LETTERINGS_BASE[3], baixo=True)]))
     c.append(Cenario("lettering_cruza_a_troca_de_layout", inserts=ins_b_split,
@@ -392,9 +398,12 @@ def _cenario_aleatorio(semente):
         cfg["cta_sem_lead"] = True
     if r.random() < 0.3:
         cfg["cta_label"] = r.choice(["ver agora", "clique aqui"])
+    formato = "1x1" if r.random() < 0.2 else "9x16"
+    avatar_nome = f"{C.AD}_of13_avatar.mp4" if r.random() < 0.15 else None
+    if avatar_nome:
+        cfg["look_plano"] = "fechado"          # W3.X L10: o plano declarado, sem sortear nada a mais
     return Cenario(f"aleatorio_{semente}", blocos=blocos, inserts=inserts, cfg=cfg, letterings=letts,
-                   formato="1x1" if r.random() < 0.2 else "9x16", extras=extras,
-                   avatar_nome=(f"{C.AD}_of13_avatar.mp4" if r.random() < 0.15 else None))
+                   formato=formato, extras=extras, avatar_nome=avatar_nome)
 
 
 CENARIOS = {c.nome: c for c in _cenarios_fixos()}
@@ -737,8 +746,18 @@ def test_equivalencia_fronteira_de_split_e_costura(original):
     assert comparar(velho, novo, gerar, n=1500)["ok"] == 1500
 
 
+# W3.X A1: a UNICA mudança deliberada no fechamento. O piso de 0,20 s (e o "sem palavra") passa a rodar DEPOIS de
+# truncar no logo, senão o grupo empurrado para depois do split e truncado no logo nascia invertido (início 13,43,
+# fim 13,25, medido pela auditoria) e a timeline recusava o anúncio. O resto do trecho é o original, caractere a caractere.
+FECHAMENTO_ORIGINAL = ('groups = [g for g in groups if g["words"] and g["end"] - g["start"] >= 0.20]\n'
+                       'for g in groups:\n    if g["end"] > logo_start:\n        g["end"] = logo_start')
+FECHAMENTO_W3X = ('for g in groups:\n    if g["end"] > logo_start:\n        g["end"] = logo_start\n'
+                  'groups = [g for g in groups if g["words"] and g["end"] - g["start"] >= 0.20]')
+
+
 def test_equivalencia_guarda_pos_split_e_fechamento(original):
-    velho = fatiar(original, [(957, 967)], ["groups", "janelas_split", "logo_start"], ["groups"])
+    velho = fatiar(original, [(957, 967)], ["groups", "janelas_split", "logo_start"], ["groups"],
+                   subst=[(FECHAMENTO_ORIGINAL, FECHAMENTO_W3X)])
 
     def novo(groups, janelas_split, logo_start):
         LT.empurrar_pos_split(groups, janelas_split)
