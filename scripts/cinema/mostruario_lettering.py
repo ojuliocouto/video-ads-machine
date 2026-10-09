@@ -13,11 +13,11 @@ aparece aqui é o que o overlay renderiza.
 Também mede (modo `medida`: fundo preto, sem guia nem rótulo) a tinta de cada estilo em +0,15 s e em +0,60 s da
 entrada, e a caixa da tinta assentada: é a prova `lento` de que a KEY é legível em até 0,15 s e cabe na FAIXA.
 
-Render: `node_modules/.bin/hyperframes` do repo, ou o caminho em VAM_HYPERFRAMES. Saída 0 gerou, 2 insumo ausente.
+Render: `node_modules/.bin/hyperframes` do repo (o setup instala). Saída 0 gerou, 1 algum estilo fora da medida,
+2 insumo ausente.
 """
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -162,10 +162,10 @@ def preparar_pasta(pasta, modo="mostruario"):
 
 
 def hyperframes():
-    for c in (os.environ.get("VAM_HYPERFRAMES"), str(RAIZ / "node_modules" / ".bin" / "hyperframes")):
-        if c and Path(c).exists():
-            return c
-    raise MostruarioFalhou("hyperframes ausente: rode `bash setup.sh` (ou defina VAM_HYPERFRAMES)")
+    c = RAIZ / "node_modules" / ".bin" / "hyperframes"
+    if c.exists():
+        return str(c)
+    raise MostruarioFalhou("hyperframes ausente em node_modules/.bin: rode `bash setup.sh`")
 
 
 def _snapshot(hf, pasta, instantes, destino):

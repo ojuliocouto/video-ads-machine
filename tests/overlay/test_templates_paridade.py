@@ -15,7 +15,6 @@ O que estes testes seguram:
     anterior à modularização.
 """
 import hashlib
-import os
 import re
 import shutil
 import subprocess
@@ -221,11 +220,10 @@ INSTANTES = "0.5,4.0,8.5,11.5,15.9,17.0"
 
 
 def _hyperframes():
-    cand = [os.environ.get("VAM_HYPERFRAMES"), str(RAIZ / "node_modules" / ".bin" / "hyperframes")]
-    for c in cand:
-        if c and Path(c).exists():
-            return c
-    pytest.skip("hyperframes ausente (rode bash setup.sh ou defina VAM_HYPERFRAMES)")
+    c = RAIZ / "node_modules" / ".bin" / "hyperframes"
+    if c.exists():
+        return str(c)
+    pytest.skip("hyperframes ausente em node_modules/.bin (rode bash setup.sh)")
 
 
 def _snapshot(hf, html, pasta, fmt, midia):

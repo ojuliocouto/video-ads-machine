@@ -204,11 +204,10 @@ def test_calcular_leva_estilo_e_cor_do_config():
 # --- render: a KEY é legível em até 0,15 s ---------------------------------------------------------
 
 def _hyperframes():
-    import os
-    for c in (os.environ.get("VAM_HYPERFRAMES"), str(RAIZ / "node_modules" / ".bin" / "hyperframes")):
-        if c and Path(c).exists():
-            return c
-    pytest.skip("hyperframes ausente (rode bash setup.sh ou defina VAM_HYPERFRAMES)")
+    c = RAIZ / "node_modules" / ".bin" / "hyperframes"
+    if c.exists():
+        return str(c)
+    pytest.skip("hyperframes ausente em node_modules/.bin (rode bash setup.sh)")
 
 
 @pytest.mark.lento
