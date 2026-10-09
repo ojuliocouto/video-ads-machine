@@ -69,7 +69,9 @@ def vdur(f):
 
 @dataclass(frozen=True)
 class Transicao(object):
-    """Duração do whip (`xf`), da junção seca (`xf_seco`) e o tipo ("auto" decide por corte)."""
+    """`xf` é a duração do whip (o xfade da volta para o apresentador) e `tipo` é o tipo do xfade ("auto" decide por
+    corte). `xf_seco` NÃO é a duração de junção nenhuma: a junção seca é concat, de duração zero. O valor só serve,
+    junto com `xf`, para ligar o concat puro (os dois quase zero, `concat_puro`)."""
     xf: float
     xf_seco: float
     tipo: str

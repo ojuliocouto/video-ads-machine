@@ -402,7 +402,7 @@ def test_l4_xf_seco_so_liga_o_concat_puro_nunca_vira_duracao_de_juncao():
     b = CA.montar_grafo(blocks, spans, CA.Transicao(xf=0.08, xf_seco=0.5, tipo="auto"))
     c = CA.montar_grafo(blocks, spans, CA.Transicao(xf=0.08, xf_seco=0.0, tipo="auto"))
     assert a == b == c
-    assert "não" in CA.Transicao.__doc__ or "nao" in CA.Transicao.__doc__.lower()
+    assert "xf_seco` não é a duração" in CA.Transicao.__doc__.lower()
     assert "concat puro" in CA.Transicao.__doc__
 
 
