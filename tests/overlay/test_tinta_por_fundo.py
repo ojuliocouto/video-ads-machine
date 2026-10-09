@@ -63,9 +63,12 @@ def test_toda_decisao_deixa_as_duas_camadas_acima_do_piso(p10, p90):
 
 def test_css_da_legenda_tem_a_camada_apagada_escura_e_a_placa_na_mesma_conta_do_motor():
     css = (PARCIAIS / "legenda.css").read_text(encoding="utf-8")
-    assert "rgba(18,20,26,%.2f)" % FC.APAGADA_ESCURA_ALFA in css.replace(" ", "")
+    def alfa(x):
+        return ("%.2f" % x).lstrip("0")
+    assert "rgba(18,20,26,%s)" % alfa(FC.APAGADA_ESCURA_ALFA) in css.replace(" ", "")
+    assert "rgba(245,239,230,%s)" % alfa(FC.APAGADA_CLARA_ALFA) in css.replace(" ", "")
     assert ".cgrp-placa" in css
-    assert ("rgba(8,9,14,%.2f)" % FC.PLACA_ALFA) in css.replace(" ", "")
+    assert "rgba(8,9,14,%s)" % alfa(FC.PLACA_ALFA) in css.replace(" ", "")
 
 
 def test_grupos_recebem_a_classe_da_tinta_medida_na_footage(tmp_path, monkeypatch):

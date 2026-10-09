@@ -123,6 +123,11 @@ def main(cfg_path):
     transcricao.marcar_kw(words, cfg.get("kw_phrases", []))
     spans = spans_m.da_timeline(tl) if tl else spans_m.calcular_spans(blocks, words)
     h = hook_m.calcular_hook(blocks, spans)
+    _foot = V1 / "output" / f"{ad}_{look}_footage_1x.mp4"
+    if tl is not None and _foot.exists() and fundo_claro.hook_pede_placa(_foot, tl["relogio"]["a0"], h.hook_gone,
+                                                                         cfg.get("format", "9x16")):
+        cfg["hook"] = dict(cfg["hook"], placa=True)
+        print("   [fundo claro] gancho com PLACA: a footage atrás dele é clara", flush=True)
 
     # ---------- inserts: ritmo, visitas, janelas de layout e arquivos ----------
     plano_ritmo, _ = (spans_m.plano_da_timeline(tl, blocks, inserts_map) if tl

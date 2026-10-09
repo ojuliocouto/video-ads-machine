@@ -397,7 +397,7 @@ def _render_captions_html(groups: list[dict]) -> str:
             # vez de branca), que resolve sem tarja (vetada pela Jheni em 19/08) e sem
             # engrossar contorno (deixa a letra oca sobre branco, achado do diretor).
             f'  <div class="cgrp'
-            f'{" cgrp-costura" if group.get("costura") else (" cgrp-baixa" if group.get("baixa") else "")}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-claro" if group.get("claro") else ""}" '
+            f'{" cgrp-costura" if group.get("costura") else (" cgrp-baixa" if group.get("baixa") else "")}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-claro" if group.get("claro") else ""}{" cgrp-placa" if group.get("placa") else ""}" '
             f'data-g-start="{group["start"]:.3f}" '
             f'data-g-end="{group["end"]:.3f}">'
         )

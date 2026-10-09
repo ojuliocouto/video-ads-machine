@@ -31,6 +31,107 @@ LIMIAR_FUNDO_CLARO = 119
 
 _CACHE_FUNDO = {}
 
+# --- W5.X: a tinta pelo fundo LOCAL, com as duas camadas da legenda acima de 4,5:1 ---------------------------------
+# O render real da W5.A pôs a camada APAGADA do karaokê a 3,1:1 sobre o borrado de um insert (5,64 s) e a apagada
+# da tinta invertida a 3,05 e 1,32:1 na costura de um split (9,21 s). O limiar de 119 na MEDIANA da faixa protegia
+# só a camada acesa e só contra o fundo típico. A decisão agora usa o fundo CRÍTICO da caixa do texto (o percentil 90
+# para a tinta clara, o 10 para a escura: a parte do fundo que apaga a letra) e as DUAS camadas, com folga.
+META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel)
+ACESA_CLARA, ACESA_ESCURA = 241, 19         # #F5EFE6 e #12141A, em cinza
+APAGADA_CLARA_ALFA = 0.70                   # legenda.css: rgba(245,239,230,.70)
+APAGADA_ESCURA_ALFA = 0.75                  # legenda.css: rgba(18,20,26,.75) (era .62: 1,32:1 no v1)
+PLACA_ALFA = 0.82                           # legenda.css e hook.css: rgba(8,9,14,.82)
+PLACA_COR = 9
+CAIXA_X = (130, 950)                        # a largura útil da legenda (o recuo do .cgrp)
+FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render da W5.A (y 910 a 1165)
+CAIXA_X_HOOK = (160, 920)
+LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
+
+
+def _lum(v):
+    c = float(v) / 255.0
+    return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _razao(a, b):
+    la, lb = _lum(a), _lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def camada_clara(fundo, apagada=True):
+    """O cinza que a tinta clara vira sobre `fundo` (a apagada é translúcida)."""
+    return ACESA_CLARA * APAGADA_CLARA_ALFA + fundo * (1 - APAGADA_CLARA_ALFA) if apagada else ACESA_CLARA
+
+
+def camada_escura(fundo, apagada=True):
+    return ACESA_ESCURA * APAGADA_ESCURA_ALFA + fundo * (1 - APAGADA_ESCURA_ALFA) if apagada else ACESA_ESCURA
+
+
+def sob_placa(fundo):
+    """O cinza da placa sobre `fundo`."""
+    return PLACA_COR * PLACA_ALFA + fundo * (1 - PLACA_ALFA)
+
+
+def decidir_tinta(p10, p90):
+    """"clara", "invertida" ou "placa" para o fundo de percentis (p10, p90), em cinza 0 a 255."""
+    if min(_razao(camada_clara(p90, True), p90), _razao(camada_clara(p90, False), p90)) >= META:
+        return "clara"
+    if min(_razao(camada_escura(p10, True), p10), _razao(camada_escura(p10, False), p10)) >= META:
+        return "invertida"
+    return "placa"
+
+
+def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
+    """(p10, p90) da luminância (0 a 255) da caixa [x0, x1) x [y0, y1) do vídeo no instante `t`; None sem quadro."""
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            q = str(Path(td) / "b.pgm")
+            w, h = max(x1 - x0, 2), max(y1 - y0, 2)
+            r = subprocess.run(
+                ["ffmpeg", "-v", "error", "-y", "-ss", f"{max(t, 0):.3f}", "-i", str(video), "-frames:v", "1",
+                 "-vf", f"crop={w}:{h}:{x0}:{y0},format=gray,scale={max(2, w // 4)}:{max(2, h // 4)}", q],
+                capture_output=True, text=True)
+            if r.returncode != 0 or not Path(q).exists():
+                return None
+            dados = Path(q).read_bytes()
+            corte, campos = 0, 0
+            while campos < 4 and corte < len(dados):
+                if dados[corte:corte + 1].isspace():
+                    campos += 1
+                corte += 1
+            px = sorted(dados[corte:])
+            if not px:
+                return None
+            return px[int(0.10 * (len(px) - 1))], px[int(0.90 * (len(px) - 1))]
+    except Exception:
+        return None
+
+
+def tinta_footage(video, ini, fim, classe):
+    """A tinta do grupo ("clara", "invertida" ou "placa") medida na footage, em 3 instantes dentro dele, com o pior
+    fundo dos três (o maior p90 e o menor p10). None sem medida."""
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
+    ps = [x for x in (_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8))
+          if x is not None]
+    if not ps:
+        return None
+    return decidir_tinta(min(p[0] for p in ps), max(p[1] for p in ps))
+
+
+def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
+    """True se a footage atrás do gancho é clara em algum instante da janela dele (relógio do overlay, t - a0 na
+    footage): o branco fino sobre o scrim não passa e o gancho ganha placa. Formato sem faixa medida: False."""
+    faixa = FAIXA_HOOK.get(formato)
+    if not faixa:
+        return False
+    fim = max(0.0, float(hook_gone) - float(a0 or 0.0))
+    p90s = []
+    for k in range(6):
+        p = _percentis_banda(video, fim * k / 5.0, faixa[0], faixa[1], CAIXA_X_HOOK[0], CAIXA_X_HOOK[1])
+        if p is not None:
+            p90s.append(p[1])
+    return bool(p90s) and max(p90s) > LIMIAR_HOOK_P90
+
 
 def _mediana_banda(video, t, y0, y1):
     """Mediana de luminância (0-255) de uma faixa horizontal do vídeo, no instante `t`.
@@ -148,13 +249,16 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
             print(f"   [fundo claro] footage {_fmp4.name} sem a0 conhecido (nem timeline nem _ritmo.json): "
                   "medindo no arquivo-fonte, nao no relogio errado", flush=True)
     if _fmp4.exists() and a0 is not None:
-        n = 0
+        n = npl = 0
         for g in groups:
-            _r = fundo_claro_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g))
-            if _r:
+            _r = tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g))
+            if _r == "invertida":
                 g["claro"] = True
                 n += 1
-        print(f"   [fundo claro] {n} de {len(groups)} grupo(s) com tinta INVERTIDA, "
+            elif _r == "placa":
+                g["placa"] = True
+                npl += 1
+        print(f"   [fundo claro] {n} de {len(groups)} grupo(s) com tinta INVERTIDA e {npl} com PLACA, "
               f"medidos na footage ({_fmp4.name})", flush=True)
     elif mapa_insert:
         n = 0

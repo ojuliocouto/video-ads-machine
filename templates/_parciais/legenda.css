@@ -32,9 +32,17 @@
       #caps .cw.kw .base { color:rgba(232,125,78,.62); }
       #caps .cw.kw .fill { color:#E87D4E; }
       /* sobre insert claro a tinta inverte, e as duas camadas invertem junto */
-      #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.62); }
+      /* .75 (era .62): a camada apagada escura virava cinza médio sobre o insert claro, 3,05 e 1,32:1 no render da W5.A;
+         a conta é overlay.fundo_claro.decidir_tinta (APAGADA_ESCURA_ALFA) */
+      #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.75); }
       #caps .cgrp-claro .cw .fill { color:#12141A; }
-      #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.62); }
+      #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.75); }
+      /* PLACA (W5.X): fundo de meio-tom ou misturado (a costura do split, o borrado do insert), onde nem a tinta clara
+         nem a invertida deixam a camada APAGADA acima de 4,5:1. Uma placa escura por palavra (não tarja: a faixa
+         inteira continua livre), com folga de .2em em volta da letra, que é o anel onde o gate mede o fundo. A cor
+         e o alfa são os de overlay.fundo_claro (PLACA_COR, PLACA_ALFA). */
+      #caps .cgrp-placa .cw { background:rgba(8,9,14,.82); border-radius:.16em; padding:.2em .26em;
+        filter:none; text-shadow:none; }
       #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
       /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
          tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá

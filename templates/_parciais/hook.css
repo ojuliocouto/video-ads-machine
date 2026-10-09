@@ -14,6 +14,12 @@
       #hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;
         font-size:72px; line-height:1.06; letter-spacing:-.5px;
         text-shadow:0 3px 22px rgba(0,0,0,.6); }
+      /* PLACA (W5.X): footage clara atrás do gancho (o insert de navegador). O scrim radial deixava o sobretítulo a
+         4,1:1 e a linha fina a 3,5:1 no render da W5.A; a placa escura por trás do bloco leva tudo acima de 10:1.
+         O motor liga com overlay.fundo_claro.hook_pede_placa. */
+      #hook.placa { background:none; }
+      #hook.placa .hook-inner { background:rgba(8,9,14,.82); border-radius:30px; padding:40px 52px 46px;
+        box-shadow:0 18px 60px rgba(0,0,0,.35); }
       #hook .accent { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:600; font-style:italic;
         color:#fff; line-height:1.02; letter-spacing:-1px;
         text-wrap:balance; text-shadow:0 8px 34px rgba(0,0,0,.5); }
