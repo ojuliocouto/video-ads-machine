@@ -78,7 +78,8 @@ def _http_urllib(url, headers):
 def token_do_ambiente(env=None):
     """O token OAuth do aluno, da variável GOOGLE_OAUTH_ACCESS_TOKEN."""
     env = os.environ if env is None else env
-    token = (env.get(ENV_TOKEN) or "").strip()
+    # Nome literal de propósito: o gate do .env.example varre por AST e só vê literal.
+    token = (env.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip()
     if not token:
         raise ErroGoogle(f"falta o token do Google: exporte {ENV_TOKEN} com um token de acesso OAuth da SUA conta "
                          f"(escopos {ESCOPOS}). Sem ele só dá para usar texto colado, .md ou .txt")
