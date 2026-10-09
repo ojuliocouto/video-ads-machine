@@ -343,7 +343,9 @@ def criar(base, brutos, estado=None):
         (base / pasta).mkdir(exist_ok=True)
     arq = base / ARQUIVO_PLANO
     if not arq.exists():
-        _status.escrever_json_atomico(arq, plano_exemplo(brutos))
+        # caminho absoluto, resolvido AGORA contra a pasta de onde o comando foi chamado: um caminho
+        # relativo guardado no plano passaria a valer contra a pasta do projeto, que é outra
+        _status.escrever_json_atomico(arq, plano_exemplo(Path(brutos).expanduser().resolve()))
     return carregar(base, estado)
 
 

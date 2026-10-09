@@ -50,6 +50,13 @@ def test_criar_faz_pastas_e_plano_de_partida_e_nao_sobrescreve(tmp_path):
     assert (p.base / gp.ARQUIVO_PLANO).read_text(encoding="utf-8") == editado
 
 
+def test_criar_guarda_os_brutos_como_caminho_absoluto_da_pasta_de_onde_foi_chamado(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    p = gp.criar(tmp_path / "leva1", brutos="relativa/aos/brutos")
+    assert p.plano["brutos"] == str((tmp_path / "relativa" / "aos" / "brutos").resolve())
+    assert p.brutos == (tmp_path / "relativa" / "aos" / "brutos").resolve()
+
+
 def test_projeto_so_escreve_dentro_da_propria_pasta(tmp_path):
     p = gp.criar(tmp_path / "leva1", brutos=tmp_path / "brutos")
     for nome in ("wav", "audio", "limpo", "montados", "legendado", "ENTREGA", "cache_asr"):
