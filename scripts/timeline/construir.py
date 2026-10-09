@@ -60,6 +60,7 @@ resto no formato de cada motor. O caminho em `fontes` é relativo à pasta do pr
 timeline (`<projeto>/render/timeline.json`; no motor antigo, `<dados>/output/<ad>_timeline.json`).
 """
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -249,9 +250,12 @@ def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, rai
     try:
         sp, _bwords = BL.atribuir_spans(blocks, words)
         sp = BL.tornar_contiguos(sp)
-        plano = BL.plano_de_ritmo(blocks, sp, inserts_map)
-        h, js, letts, groups, cta_start, logo_start, classe = _texto_da_tela(
-            blocks, words, sp, plano, inserts_map, cfg, medir_rosto)
+        # os diagnósticos do overlay ("[split]", "[look]", "[ritmo]") vão para o stderr: o stdout da timeline é só o
+        # resumo (W3.X L8), e quem lê a saída da CLI não tem que separar uma coisa da outra
+        with contextlib.redirect_stdout(sys.stderr):
+            plano = BL.plano_de_ritmo(blocks, sp, inserts_map)
+            h, js, letts, groups, cta_start, logo_start, classe = _texto_da_tela(
+                blocks, words, sp, plano, inserts_map, cfg, medir_rosto)
     except SystemExit as e:                 # o overlay para o motor com sys.exit(mensagem)
         raise ErroTimeline(str(e.code))
     except BL.CA.ErroFootage as e:
