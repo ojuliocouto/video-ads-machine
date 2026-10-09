@@ -48,6 +48,10 @@ VERSAO = 1
 LIMITE_FRACAO_UTIL = 0.93
 LIMITE_DIFERENCA_S = 1.0
 TOLERANCIA_BARRA = 6            # diferença de cinza (0 a 255) ainda considerada "linha uniforme"
+# Largura da amostra de cada quadro (1080 linhas): a barra de tarja é uniforme na LARGURA inteira. Medir só a média
+# da linha (1 pixel de largura) acusava camisa escura e microfone na base como barra (W5.A: 0,873 num avatar de plano
+# médio sem tarja nenhuma). Com 64 colunas, a linha só é barra se a variação horizontal também fica na tolerância.
+LARGURA_AMOSTRA = 64
 INSTANTES = (0.10, 0.50, 0.90)
 LARGURA_QUADRO_PRANCHA = 540
 DIMENSOES = {"9:16": (1080, 1920), "1:1": (1080, 1080), "4:5": (1080, 1350)}
@@ -75,6 +79,35 @@ def fracao_util(valores):
         return k + 1 if k else 0      # uma linha sozinha na borda não é barra
 
     topo, base = uniformes(valores), uniformes(valores[::-1])
+    if topo >= n:
+        return 0.0, topo, base
+    return max(0.0, 1.0 - (topo + base) / float(n)), topo, base
+
+
+def fracao_util_linhas(linhas):
+    """(fração, barra_topo_px, barra_base_px) de um quadro em linhas de cinza (cada linha uma lista de pixels).
+    A linha é da barra se é uniforme NA LARGURA (desvio de até TOLERANCIA_BARRA) e tem o nível da linha da borda."""
+    medias, uniformes = [], []
+    for linha in linhas:
+        m = sum(linha) / float(len(linha)) if linha else 0.0
+        medias.append(m)
+        uniformes.append(bool(linha) and max(linha) - min(linha) < 2 * TOLERANCIA_BARRA)
+
+    def barra(idx):
+        if not idx or not uniformes[idx[0]]:
+            return 0
+        k = 0
+        for i in idx[1:]:
+            if uniformes[i] and abs(medias[i] - medias[idx[0]]) < TOLERANCIA_BARRA:
+                k += 1
+            else:
+                break
+        return k + 1 if k else 0
+
+    n = len(linhas)
+    if n == 0:
+        return 0.0, 0, 0
+    topo, base = barra(list(range(n))), barra(list(range(n - 1, -1, -1)))
     if topo >= n:
         return 0.0, topo, base
     return max(0.0, 1.0 - (topo + base) / float(n)), topo, base
@@ -118,6 +151,16 @@ def _coluna(png):
         return list(im.convert("L").getdata())
 
 
+def _linhas(png):
+    """As linhas de cinza do quadro amostrado (LARGURA_AMOSTRA x 1080)."""
+    from PIL import Image
+    with Image.open(str(png)) as im:
+        g = im.convert("L")
+        w, h = g.size
+        px = list(g.getdata())
+    return [px[i * w:(i + 1) * w] for i in range(h)]
+
+
 def _prancha(quadros, destino):
     from PIL import Image
     imgs = [Image.open(str(q)).convert("RGB") for q in quadros]
@@ -156,8 +199,9 @@ def conferir(pastas_projeto, aspecto="9:16", voz=None, executar=None, agora=None
         tmp = Path(tmp)
         quadros = []
         for i, t in enumerate(quadros_s):
-            _quadro(executar, p.avatar_mp4, t, tmp / ("c%d.png" % i), "scale=1:1080:flags=area,format=gray")
-            f, topo, base = fracao_util(_coluna(tmp / ("c%d.png" % i)))
+            _quadro(executar, p.avatar_mp4, t, tmp / ("c%d.png" % i),
+                    "scale=%d:1080:flags=area,format=gray" % LARGURA_AMOSTRA)
+            f, topo, base = fracao_util_linhas(_linhas(tmp / ("c%d.png" % i)))
             util.append(f)
             topos.append(topo)
             bases.append(base)

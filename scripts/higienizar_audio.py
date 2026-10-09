@@ -142,7 +142,12 @@ def main():
             report.append(f"  silencio grande {d:.2f}s em {s:.2f}-{e:.2f}s {ctx} -> corta {b-a:.2f}s (pausa fica {d-(b-a):.2f}s)")
 
     if not cuts:
-        run(["ffmpeg","-y","-i",src,"-c","copy",out], "copy")
+        # Copia sem reencodar so quando o formato e o mesmo: um wav copiado para dentro de um .mp3 nao abre
+        # (W5.A: a voz gravada em wav, sem silencio grande, quebrava o `vam audio`).
+        if os.path.splitext(src)[1].lower() == os.path.splitext(out)[1].lower():
+            run(["ffmpeg","-y","-i",src,"-c","copy",out], "copy")
+        else:
+            run(["ffmpeg","-y","-i",src,"-vn","-c:a","libmp3lame","-b:a","192k",out], "converte")
         print(f"nenhum silencio grande (> {BIG_SIL}s). copiado -> {out}"); return
 
     keeps = []; cur = 0.0
