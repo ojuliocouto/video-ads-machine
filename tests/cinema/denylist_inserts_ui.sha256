@@ -1,7 +1,7 @@
 # sha256 de cada termo proibido nos inserts de UI (W5.B), em minúsculas, um por linha.
 # Nomes de pessoa, empresa e produto vindos dos HTML de origem, mais marcas de terceiros.
 # O repo não carrega os nomes que proíbe: só os hashes. tests/cinema/test_insert_ui.py confere.
-# A marca do app de mensagens é checada à parte (o nome do template a usa).
+# As marcas que o código cita de propósito (nome do template, navegador) são checadas à parte, só no HTML.
 0c1d22f753d64689afcdadd86108a8e0dceb46c4550d118b18673b37650a8e41
 0de5c26aeda989f4efb3883034bc62b533cb71f113c656988b0af336e73b8507
 16043e60d7707b4254f53a09094992fe256a664ffcd76c87328bd0da3b36babf
@@ -44,7 +44,6 @@
 a410b5bf29327087f83e5a424c32316c8da82978be253494f15cb4be2aa76484
 b27efa31a25a8ec090058f211f2ddfdeb485903104a2e18dd4976d77d5196060
 b9a1d9a4c3e802ac2d2fff807cc0efb13b1b0ca8ba5fd075c26fab5f833aa46e
-bbdefa2950f49882f295b1285d4fa9dec45fc4144bfb07ee6acc68762d12c2e3
 c1fcff89e1fbecb1fad353785fe85cf9458a5dac49379afd938ee603a80c9840
 c70eca6b0f88f44d81a41311647e50fda1ac454ec04ffd442b0eb4743a993131
 c7e93c53f9ec70fd38b5520afcc8723c72fe36f13847427848bb298b26d7b592
