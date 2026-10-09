@@ -1,34 +1,47 @@
 #!/usr/bin/env python3
-"""Gate de FASES da video-ads-machine (pedido do Julio, 17/08/2026).
+"""Gate de FASES da video-ads-machine, por leva (pedido do diretor, 17/08/2026; simplificado em 01/09 e na W3.B).
 
-Garante em CODIGO a ordem: fase0 (ingestao) -> fase1 (HeyGen em lote) ->
-fase2 (plano de edicao APROVADO) -> build. O produzir_ad.py consulta este
-gate antes de buildar; sem as fases aprovadas, o build recusa (exit 1).
+UMA verdade só para a cadeia: o build só anda com o PLANO DE EDIÇÃO APROVADO e a entrega só sai com
+nota de auditoria. São as duas cerimônias humanas. O resto o gate de entrada do build MEDE direto do disco
+(áudio limpo, respiro, duração do avatar contra o limpo): `scripts/gates/gate_entrada.py`. Por isso
+`aprovar-plano` NÃO exige mais `marcar fase0` nem `marcar fase1`; uma leva só com `iniciar` aprova o plano.
 
-Estado: _fase_status_<leva>.json neste diretorio. Evidencia e verificada
-(arquivo existe, duracao bate), nao declarada.
+Este comando é o caminho LEGADO por leva (anúncios numerados). A aprovação por projeto, amarrada por sha256 a
+roteiro.md, projeto.json, plano.json e inserts.json, é `scripts/plano/aprovacao.py` (e o gate
+`scripts/gates/gate_aprovacao.py`); as 6 seções do plano e o tamanho mínimo são conferidos pelo mesmo módulo
+(`plano.escrever_md`), e o plano aprovado por aqui também guarda o sha256: plano editado depois do ok vence
+("aprovação vencida"). O estado da leva fica em `_fase_status_<leva>.json`.
 
 Uso:
   python3 fase_gate.py iniciar <leva> --ads 25,26,27
-  python3 fase_gate.py marcar <leva> fase0 --comentarios <json> --clean 25=<mp3> 26=<mp3> ...
-  python3 fase_gate.py marcar <leva> fase1 --avatar 25=<mp4> 26=<mp4> ...
-  python3 fase_gate.py aprovar-plano <leva> --plano <md>   # SO depois do OK do Julio no chat
+  python3 fase_gate.py aprovar-plano <leva> --plano <md>   # SÓ depois do ok do diretor no chat
   python3 fase_gate.py check-build <AD>                    # exit 0 libera, 1 bloqueia
+  python3 fase_gate.py registrar-nota <leva> <AD> --nota N --evidencia <arquivo>
+  python3 fase_gate.py check-entrega <AD>                  # exit 0 libera, 1 bloqueia
   python3 fase_gate.py status <leva>
 
-Escape hatch (barulhento, so com ordem explicita do Julio):
+Contabilidade opcional (não bloqueia nada):
+  python3 fase_gate.py marcar <leva> fase0 --comentarios <json> --clean 25=<mp3> 26=<mp3> ...
+  python3 fase_gate.py marcar <leva> fase1 --avatar 25=<mp4> 26=<mp4> ...
+  python3 fase_gate.py registrar-edicao <leva> <AD> --tecnicas a,b,c --fundo <look>
+
+Escape hatch (barulhento, só com ordem explícita do diretor):
   FASE_GATE=0 desliga o check no produzir_ad.py.
-  FASE_GATE_LEGADO=1 libera build de ad que nao pertence a nenhuma leva registrada
-  (ads antigos, 01-21, anteriores ao gate).
+  FASE_GATE_LEGADO=1 libera build de ad que não pertence a nenhuma leva registrada
+  (ads antigos, anteriores ao gate).
 """
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from caminhos import V2L  # noqa: E402  (era o proprio dir; agora e o _local, que guarda o estado)
-TOL_DUR = 1.0  # mesmo criterio do gate_entrada do produzir_ad.py
+from plano import aprovacao as _aprovacao  # noqa: E402
+from plano import escrever_md  # noqa: E402
+
+TOL_DUR = 1.0  # mesmo critério do gate_entrada do produzir_ad.py
 
 
 def _status_path(leva):
@@ -38,7 +51,7 @@ def _status_path(leva):
 def _load(leva):
     p = _status_path(leva)
     if not p.exists():
-        sys.exit(f"FASE_GATE: leva '{leva}' nao iniciada. Rode: python3 fase_gate.py iniciar {leva} --ads ...")
+        sys.exit(f"FASE_GATE: leva '{leva}' não iniciada. Rode: python3 fase_gate.py iniciar {leva} --ads ...")
     return json.loads(p.read_text())
 
 
@@ -64,7 +77,7 @@ def _parse_pairs(args, flag):
         ad, path = a.split("=", 1)
         p = Path(path).expanduser()
         if not p.exists():
-            sys.exit(f"FASE_GATE: evidencia nao existe: {p}")
+            sys.exit(f"FASE_GATE: evidência não existe: {p}")
         pares[ad.zfill(2)] = str(p)
     return pares
 
@@ -78,39 +91,42 @@ def cmd_iniciar(leva, ads):
 
 
 def cmd_marcar(leva, fase, opts):
+    """Contabilidade opcional da ingestão (fase0) e dos avatares (fase1). NÃO bloqueia o build nem a
+    aprovação do plano: o gate de entrada (gates/gate_entrada.py) mede a mesma evidência direto do disco."""
     st = _load(leva)
     if fase == "fase0":
         com = opts.get("--comentarios")
         if not com or not Path(com).expanduser().exists():
             sys.exit("FASE_GATE: fase0 exige --comentarios <json existente> (dump do ler-comentarios-doc.py)")
-        # EVIDENCIA TEM QUE SER EVIDENCIA: antes bastava o arquivo existir, entao um
-        # json vazio ou de outra leva passava e a fase0 ficava "cumprida" sem ninguem
-        # ter lido comentario nenhum.
+        # EVIDÊNCIA TEM QUE SER EVIDÊNCIA: antes bastava o arquivo existir, então um
+        # json vazio ou de outra leva passava e a fase0 ficava "cumprida" sem ninguém
+        # ter lido comentário nenhum.
         try:
             dados = json.loads(Path(com).expanduser().read_text())
         except Exception as e:
-            sys.exit(f"FASE_GATE: --comentarios nao e json valido: {e}")
+            sys.exit(f"FASE_GATE: --comentarios não é json válido: {e}")
         if not isinstance(dados, list) or not dados:
-            sys.exit("FASE_GATE: dump de comentarios vazio. Rode ler-comentarios-doc.py de verdade.")
+            sys.exit("FASE_GATE: dump de comentários vazio. Rode ler-comentarios-doc.py de verdade.")
         com_ancora = [c for c in dados if isinstance(c, dict) and c.get("ancora")]
         com_link = [c for c in com_ancora if c.get("links")]
         if not com_ancora:
-            sys.exit("FASE_GATE: nenhum comentario com ancora no dump. Sem ancora nao da "
-                     "pra casar asset com bloco, que e o motivo da fase0 existir.")
+            sys.exit("FASE_GATE: nenhum comentário com âncora no dump. Sem âncora não dá "
+                     "pra casar asset com bloco, que é o motivo da fase0 existir.")
         if not com_link:
-            sys.exit("FASE_GATE: nenhum comentario com link no dump. Confirme que leu o "
-                     "doc certo (os assets moram nos links dos comentarios).")
-        print(f"  evidencia: {len(dados)} comentarios, {len(com_ancora)} com ancora, "
+            sys.exit("FASE_GATE: nenhum comentário com link no dump. Confirme que leu o "
+                     "doc certo (os assets moram nos links dos comentários).")
+        print(f"  evidência: {len(dados)} comentários, {len(com_ancora)} com âncora, "
               f"{len(com_link)} com link")
         cleans = _parse_pairs(opts.get("--clean", []), "--clean")
         faltam = set(st["ads"]) - set(cleans)
         if faltam:
-            sys.exit(f"FASE_GATE: fase0 sem audio clean dos ads {sorted(faltam)}")
+            sys.exit(f"FASE_GATE: fase0 sem áudio clean dos ads {sorted(faltam)}")
         st["fase0"] = {"comentarios": com, "clean": cleans,
                        "em": datetime.now().isoformat(timespec="seconds")}
     elif fase == "fase1":
         if not st.get("fase0"):
-            sys.exit("FASE_GATE: fase1 antes da fase0. Ordem e ordem.")
+            sys.exit("FASE_GATE: o registro da fase1 usa o áudio limpo da fase0 como referência de duração: "
+                     "registre a fase0 antes (ou deixe os dois para o gate de entrada, que mede sem registro).")
         avatares = _parse_pairs(opts.get("--avatar", []), "--avatar")
         faltam = set(st["ads"]) - set(avatares)
         if faltam:
@@ -119,79 +135,65 @@ def cmd_marcar(leva, fase, opts):
             d_av, d_cl = _dur(av), _dur(st["fase0"]["clean"][ad])
             if abs(d_av - d_cl) > TOL_DUR:
                 sys.exit(f"FASE_GATE: AD{ad} avatar {d_av:.1f}s vs clean {d_cl:.1f}s "
-                         f"(tolerancia {TOL_DUR}s). Avatar gerado do audio errado? Regerar.")
+                         f"(tolerância {TOL_DUR}s). Avatar gerado do áudio errado? Regerar.")
         st["fase1"] = {"avatar": avatares, "em": datetime.now().isoformat(timespec="seconds")}
     else:
         sys.exit(f"FASE_GATE: fase desconhecida '{fase}' (fase0|fase1)")
     _save(leva, st)
-    print(f"OK {fase} da leva {leva} registrada com evidencia")
-
-
-# Um plano de edicao so e um plano se responder a estas perguntas. Sem isso o
-# "plano aprovado" vira carimbo num arquivo vazio.
-SECOES_PLANO = {
-    "mapa de inserts": ("insert", "asset"),
-    "hook": ("hook",),
-    "lettering": ("lettering",),
-    "densidade": ("densidade",),
-    "referencias": ("referenc",),
-    "efeitos": ("efeito", "som"),
-}
+    print(f"OK {fase} da leva {leva} registrada com evidência (contabilidade: não bloqueia o build)")
 
 
 def cmd_aprovar_plano(leva, plano):
+    """Registra o ok do diretor ao plano de edição da leva. Não exige fase0 nem fase1 (uma verdade só: o que
+    essas fases comprovam o gate de entrada mede). Confere CONTEÚDO, não só existência: as 6 seções e o tamanho
+    (plano.escrever_md), e guarda o sha256 do plano para a aprovação vencer se ele mudar."""
     st = _load(leva)
-    if not st.get("fase1"):
-        sys.exit("FASE_GATE: aprovar plano antes da fase1? Nao. Avatares primeiro.")
     p = Path(plano).expanduser()
     if not p.exists():
-        sys.exit(f"FASE_GATE: plano nao existe: {p}")
-    # CONTEUDO, nao so existencia (antes um arquivo vazio era aprovavel).
-    import unicodedata
-    bruto = p.read_text()
-    txt = "".join(c for c in unicodedata.normalize("NFKD", bruto.lower())
-                  if not unicodedata.combining(c))
-    faltando = [nome for nome, chaves in SECOES_PLANO.items()
-                if not any(k in txt for k in chaves)]
+        sys.exit(f"FASE_GATE: plano não existe: {p}")
+    bruto = p.read_text(encoding="utf-8")
+    faltando = escrever_md.secoes_ausentes(bruto)
     if faltando:
-        sys.exit(f"FASE_GATE: plano incompleto, faltam secoes: {faltando}. "
-                 "Um plano sem essas respostas nao guia edicao nenhuma.")
-    if len(bruto) < 800:
-        sys.exit(f"FASE_GATE: plano com {len(bruto)} chars e curto demais pra ser plano.")
-    st["plano"] = {"arquivo": str(p), "chars": len(bruto),
+        sys.exit(f"FASE_GATE: plano incompleto, faltam seções: {faltando}. "
+                 "Um plano sem essas respostas não guia edição nenhuma.")
+    if len(bruto) < escrever_md.TAMANHO_MIN:
+        sys.exit(f"FASE_GATE: plano com {len(bruto)} chars é curto demais pra ser plano "
+                 f"(mínimo {escrever_md.TAMANHO_MIN}).")
+    st["plano"] = {"arquivo": os.path.abspath(str(p)), "chars": len(bruto),
+                   "sha256": _aprovacao.sha256_arquivo(p),
                    "aprovado_em": datetime.now().isoformat(timespec="seconds")}
     _save(leva, st)
     print(f"OK plano da leva {leva} marcado como APROVADO ({len(bruto)} chars, "
-          f"{len(SECOES_PLANO)} secoes presentes).")
-    print("  (Este comando so pode ser rodado DEPOIS do ok explicito do Julio no chat.)")
+          f"{len(escrever_md.SECOES)} seções presentes, sha256 {st['plano']['sha256'][:12]}).")
+    print("  (Este comando só pode ser rodado DEPOIS do ok do diretor no chat.)")
 
 
 def cmd_registrar_nota(leva, ad, nota, evidencia):
-    """Nota da auditoria 0-10. Abaixo de 9 o ad nao pode ser entregue."""
+    """Nota da auditoria 0-10. Abaixo de NOTA_MINIMA o ad não pode ser entregue."""
     st = _load(leva)
     ad = ad.zfill(2)
     if ad not in st["ads"]:
-        sys.exit(f"FASE_GATE: ad '{ad}' nao pertence a leva {leva}")
+        sys.exit(f"FASE_GATE: ad '{ad}' não pertence à leva {leva}")
     ev = Path(evidencia).expanduser()
     if not ev.exists():
-        sys.exit(f"FASE_GATE: evidencia da auditoria nao existe: {ev}. "
-                 "Nota sem relatorio e opiniao, nao auditoria.")
+        sys.exit(f"FASE_GATE: evidência da auditoria não existe: {ev}. "
+                 "Nota sem relatório é opinião, não auditoria.")
     st.setdefault("notas", {})[ad] = {
         "nota": float(nota), "evidencia": str(ev),
         "em": datetime.now().isoformat(timespec="seconds")}
     _save(leva, st)
-    print(f"OK nota {nota} registrada pro AD{ad} (evidencia: {ev.name})")
+    print(f"OK nota {nota} registrada pro AD{ad} (evidência: {ev.name})")
 
 
-# NOTA MINIMA 8, UMA RODADA SO (01/09/2026, ordem do Julio). A regra anterior era 9
+# NOTA MÍNIMA 8, UMA RODADA SÓ (01/09/2026, ordem do diretor). A regra anterior era 9
 # com ciclo "abaixo de 9 refaz", e o ciclo virou o problema: rodadas de auditoria
-# completas se empilhando por horas, e ele revisando tudo no fim de qualquer jeito
-# ("nao ta adiantando nada ter 14913921 auditorias, eu sempre acabo revisando").
-# O dado que sustenta a troca: na semana de 25-31/08 o ciclo de nota nao rodou NENHUMA
-# vez (11 builds do jh13, nota null) e quem pegou defeito real foram os gates MEDIDOS
-# e o proprio Julio. Auditoria LLM vira UMA passada: audita, corrige o que ela apontou,
-# registra a nota e entrega. Reprovou (<8)? Corrige os achados e reconfere OS MESMOS
-# achados, nunca uma varredura completa nova. Os gates medidos continuam intocados.
+# completas se empilhando por horas, e o diretor revisando tudo no fim de qualquer jeito
+# ("não tá adiantando nada ter 14913921 auditorias, eu sempre acabo revisando").
+# O dado que sustenta a troca: na semana de 25-31/08 o ciclo de nota não rodou NENHUMA
+# vez (11 builds do anúncio de referência, nota null) e quem pegou defeito real foram os
+# gates MEDIDOS e o próprio diretor. Auditoria LLM vira UMA passada: audita, corrige o que
+# ela apontou, registra a nota e entrega. Reprovou (<8)? Corrige os achados e reconfere OS
+# MESMOS achados, nunca uma varredura completa nova. Os gates medidos continuam intocados.
 NOTA_MINIMA = 8
 
 
@@ -205,22 +207,22 @@ def cmd_check_entrega(ad):
             if not n:
                 sys.exit(f"ENTREGA BLOQUEADA: AD{ad} sem nota de auditoria registrada. "
                          f"Rode: fase_gate.py registrar-nota {st['leva']} {ad} "
-                         "--nota N --evidencia <relatorio>")
+                         "--nota N --evidencia <relatório>")
             if n["nota"] < NOTA_MINIMA:
                 sys.exit(f"ENTREGA BLOQUEADA: AD{ad} com nota {n['nota']} "
-                         f"(minimo {NOTA_MINIMA}). Corrija os achados DESSA auditoria "
-                         "e reconfira os mesmos pontos; varredura nova, nao.")
+                         f"(mínimo {NOTA_MINIMA}). Corrija os achados DESSA auditoria "
+                         "e reconfira os mesmos pontos; varredura nova, não.")
             print(f"OK AD{ad}: nota {n['nota']}, entrega liberada")
             return
-    sys.exit(f"ENTREGA BLOQUEADA: AD{ad} nao pertence a nenhuma leva registrada.")
+    sys.exit(f"ENTREGA BLOQUEADA: AD{ad} não pertence a nenhuma leva registrada.")
 
 
 def cmd_registrar_edicao(leva, ad, tecnicas, fundo):
-    """Registra o mix de tecnicas e o fundo, e recusa repetir o do ad anterior."""
+    """Registra o mix de técnicas e o fundo, e recusa repetir o do ad anterior."""
     st = _load(leva)
     ad = ad.zfill(2)
     if ad not in st["ads"]:
-        sys.exit(f"FASE_GATE: ad '{ad}' nao pertence a leva {leva}")
+        sys.exit(f"FASE_GATE: ad '{ad}' não pertence à leva {leva}")
     tec = sorted({t.strip() for t in tecnicas.split(",") if t.strip()})
     if not tec:
         sys.exit("FASE_GATE: --tecnicas vazio")
@@ -229,12 +231,31 @@ def cmd_registrar_edicao(leva, ad, tecnicas, fundo):
     for a, v in anteriores:
         if sorted(v["tecnicas"]) == tec and v.get("fundo") == fundo:
             sys.exit(f"FASE_GATE: AD{ad} usaria o MESMO mix e o MESMO fundo do AD{a} "
-                     f"({tec}, {fundo}). Dois ads iguais na mesma leva e o que a skill "
-                     "existe pra evitar. Varie pelo banco de referencias.")
+                     f"({tec}, {fundo}). Dois ads iguais na mesma leva é o que a skill "
+                     "existe pra evitar. Varie pelo banco de referências.")
     reg[ad] = {"tecnicas": tec, "fundo": fundo,
                "em": datetime.now().isoformat(timespec="seconds")}
     _save(leva, st)
-    print(f"OK edicao do AD{ad} registrada: {tec} | fundo {fundo}")
+    print(f"OK edição do AD{ad} registrada: {tec} | fundo {fundo}")
+
+
+def _conferir_plano_aprovado(st, ad):
+    """Plano aprovado por esta versão do comando guarda o sha256: se o arquivo mudou (ou sumiu) depois do ok, a
+    aprovação venceu. Aprovação registrada antes da amarração (sem sha256) segue valendo, com aviso."""
+    plano = st["plano"]
+    arquivo, sha = plano.get("arquivo"), plano.get("sha256")
+    if not (arquivo and sha):
+        print(f"AVISO AD{ad}: a aprovação do plano está sem sha256 (registrada antes da amarração): "
+              f"reaprove com aprovar-plano {st['leva']} depois do ok do diretor no chat para amarrar o plano.")
+        return
+    p = Path(arquivo)
+    if not p.is_file():
+        sys.exit(f"FASE_GATE: AD{ad} (leva {st['leva']}) aprovação vencida: o plano aprovado ({arquivo}) sumiu. "
+                 f"Refaça o plano e rode aprovar-plano {st['leva']} --plano <md> DEPOIS do novo ok do diretor no chat.")
+    if _aprovacao.sha256_arquivo(p) != sha:
+        sys.exit(f"FASE_GATE: AD{ad} (leva {st['leva']}) aprovação vencida: o plano {p.name} mudou depois do ok. "
+                 f"Mostre o plano novo ao diretor e rode aprovar-plano {st['leva']} --plano {arquivo} "
+                 "DEPOIS do novo ok dele no chat.")
 
 
 def cmd_check_build(ad):
@@ -242,28 +263,28 @@ def cmd_check_build(ad):
     for p in sorted(V2L.glob("_fase_status_*.json")):
         st = json.loads(p.read_text())
         if ad in st.get("ads", []):
-            # DUAS CERIMONIAS, NAO CINCO (01/09/2026, ordem do Julio: "a skill ta
-            # burocratica?"). Este check exigia fase0 e fase1 REGISTRADAS a mao, e o
-            # criterio de burocracia excessiva e o fluxo real contornar o oficial: na
+            # DUAS CERIMÔNIAS, NÃO CINCO (01/09/2026, ordem do diretor: "a skill tá
+            # burocrática?"). Este check exigia fase0 e fase1 REGISTRADAS à mão, e o
+            # critério de burocracia excessiva é o fluxo real contornar o oficial: na
             # semana de 25-31/08 foram 11 builds e nenhum registro novo, porque o
-            # gate_entrada do produzir_ad ja MEDE a mesma evidencia direto do disco
-            # (clean existe, respiro por energia, duracao do avatar vs clean por
-            # ffprobe), e medir e mais forte que registrar. Cerimonia humana que sobra:
-            # `aprovar-plano` (o ok do Julio, aqui) e `check-entrega` (nota minima 8).
+            # gate_entrada do produzir_ad já MEDE a mesma evidência direto do disco
+            # (clean existe, respiro por energia, duração do avatar vs clean por
+            # ffprobe), e medir é mais forte que registrar. Cerimônia humana que sobra:
+            # `aprovar-plano` (o ok do diretor, aqui) e `check-entrega` (nota mínima 8).
             # Os comandos `marcar`/`registrar-edicao` continuam existindo como
-            # contabilidade opcional, mas nao bloqueiam mais.
+            # contabilidade opcional, mas não bloqueiam mais.
             if not st.get("plano"):
                 sys.exit(f"FASE_GATE: AD{ad} (leva {st['leva']}) bloqueado: plano de "
-                         "edicao sem o OK do Julio. Rode fase_gate.py aprovar-plano "
-                         "DEPOIS do ok explicito dele no chat; sem isso nao se monta.")
+                         "edição sem o ok do diretor no chat. Rode fase_gate.py aprovar-plano "
+                         "DEPOIS do ok explícito dele no chat; sem isso não se monta.")
+            _conferir_plano_aprovado(st, ad)
             print(f"OK AD{ad}: plano da leva {st['leva']} aprovado, build liberado "
-                  "(fase0/fase1 sao medidas pelo gate de entrada do build)")
+                  "(fase0/fase1 são medidas pelo gate de entrada do build)")
             return
-    import os
     if os.environ.get("FASE_GATE_LEGADO") == "1":
         print(f"AVISO AD{ad}: fora de qualquer leva registrada, liberado por FASE_GATE_LEGADO=1")
         return
-    sys.exit(f"FASE_GATE: AD{ad} nao pertence a nenhuma leva registrada. "
+    sys.exit(f"FASE_GATE: AD{ad} não pertence a nenhuma leva registrada. "
              "Leva nova: fase_gate.py iniciar. Rebuild de ad antigo: FASE_GATE_LEGADO=1.")
 
 
