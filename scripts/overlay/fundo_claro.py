@@ -19,6 +19,7 @@ POR INSTANTE, NÃO POR ARQUIVO. Classificar o insert inteiro por UM quadro apare
 ESCURA sobre fundo ESCURO (tinta 0,005 e fundo 0,000): gravação de tela que abre numa página branca
 rola para uma área escura no meio do mesmo insert. A decisão sai no instante de cada grupo.
 """
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -117,19 +118,39 @@ def fundo_claro(src, start=0.0):
     return val
 
 
-def marcar_grupos_claros(groups, ad, look, mapa_insert):
+def a0_da_footage(ritmo_json):
+    """O a0 da footage (início do 1º plano, no relógio do avatar) lido do `_ritmo.json` que ela gravou; None se o
+    arquivo não existe ou não serve."""
+    try:
+        segs = json.loads(Path(ritmo_json).read_text(encoding="utf-8")).get("segs") or []
+        return float(segs[0]["s"])
+    except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError):
+        return None
+
+
+def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
     """Marca `claro` nos grupos de legenda sobre fundo claro, no instante em que cada um está na tela.
 
     Caminho bom: mede a footage renderizada, na faixa exata da classe do grupo. Primeira rodada de um
     anúncio novo (sem footage): cai no arquivo-fonte, no meio do grupo, com o tempo da fonte
     convertido por start e velocidade do insert. É aproximado (o painel mostra um recorte do asset),
     e o build seguinte converge para o caminho de cima.
+
+    O RELÓGIO DA FOOTAGE (W3.X M4). O overlay é deslocado de -a0 no composite: o instante t do grupo é o instante
+    t - a0 da footage. Amostrar em t media outro quadro (0,62 s depois no fixture). O `a0` vem do chamador (a
+    timeline) ou do `_ritmo.json` que a footage gravou ao lado do mp4; sem nenhum dos dois a footage NÃO é medida
+    (seria no relógio errado) e o caminho é o do arquivo-fonte.
     """
     _fmp4 = V1 / "output" / f"{ad}_{look}_footage_1x.mp4"
-    if _fmp4.exists():
+    if _fmp4.exists() and a0 is None:
+        a0 = a0_da_footage(_fmp4.with_name(_fmp4.stem + "_ritmo.json"))
+        if a0 is None:
+            print(f"   [fundo claro] footage {_fmp4.name} sem a0 conhecido (nem timeline nem _ritmo.json): "
+                  "medindo no arquivo-fonte, nao no relogio errado", flush=True)
+    if _fmp4.exists() and a0 is not None:
         n = 0
         for g in groups:
-            _r = fundo_claro_footage(_fmp4, g["start"], g["end"], classe_do_grupo(g))
+            _r = fundo_claro_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g))
             if _r:
                 g["claro"] = True
                 n += 1

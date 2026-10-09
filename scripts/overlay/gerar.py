@@ -47,12 +47,13 @@ def _preparar_pasta(out, tmpl):
 
 
 def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert, letts,
-                     lett_windows, medir_rosto=None, medir_fundo=True):
+                     lett_windows, medir_rosto=None, medir_fundo=True, a0=None):
     """Os grupos de legenda finais, na ordem do original: corpo, texto próprio, look fechado,
     fronteira de split, costura, tinta invertida, guarda pós-split, fechamento e letterings.
 
     `medir_rosto` (padrão: a medição do `medir_rosto`) e `medir_fundo` existem para a timeline montar as
-    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida)."""
+    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida). `a0` é o
+    início da footage no relógio do overlay (a timeline sabe): o fundo claro mede a footage em t - a0."""
     groups = legendas.agrupar(words)
     groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
     layout_texto.descer_para_rodape_em_texto(groups, janelas_texto)
@@ -61,7 +62,7 @@ def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas
         groups = layout_texto.cortar_na_fronteira(groups, janelas_split)
         layout_texto.marcar_costura(groups, janelas_split)
     if medir_fundo:
-        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert)
+        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert, a0=a0)
     layout_texto.empurrar_pos_split(groups, janelas_split)
     groups = legendas.fechar_grupos(groups, logo_start)
     return legendas.aparar_nos_letterings(groups, letts, lett_windows)
@@ -145,7 +146,7 @@ def main(cfg_path):
     lead = cta_m.logo_lead(blocks)
     logo_start = cta_m.logo_start(cta_start, lead)
     groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert,
-                              letts, lett_windows)
+                              letts, lett_windows, a0=tl["relogio"]["a0"] if tl else None)
     caps_html = legendas.html(groups)
     letts_html = letterings_m.html(letts)
     cta_s, logo_s = cta_m.janela(cta_start, lead)
