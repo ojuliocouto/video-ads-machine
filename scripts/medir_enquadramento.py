@@ -36,6 +36,14 @@ AMOSTRAS = 5          # quadros ao longo do video: pessoa se mexe, um frame so e
 # Agora: linha com pessoa = faixa central DIFERE da lateral (para mais ou para menos).
 LIMIAR_DIF = 12       # diferenca minima de luminancia entre faixa central e lateral
 CORRIDA_MIN = 0.012   # fracao da altura que a diferenca precisa durar, mata ruido pontual
+# A LUZ DO FUNDO (W3.X, 09/10/2026). "Linha com pessoa = faixa central difere da lateral" supunha um fundo que
+# nao muda da lateral pro meio. O avatar do fixture da paridade tem luz central (vinheta): a faixa do meio do
+# FUNDO e 15 a 18 niveis mais clara que as laterais, acima do LIMIAR_DIF de 12. Toda linha "tinha pessoa", o topo
+# saia 0,0 e a base 0,998, e a bolinha recortava y 0 a 720 com 55% do rosto (boca e queixo fora). Agora a diferenca
+# do proprio fundo e MEDIDA nas linhas que com certeza sao fundo e descontada: as que ficam mais de
+# FUNDO_ACIMA_DO_ROSTO alturas de rosto acima do topo da caixa do rosto (o cabelo sobe ate ~0,4 altura de rosto
+# acima da caixa do Haar no fixture; 0,8 deixa folga). Sem rosto ou sem linhas suficientes, nada e descontado.
+FUNDO_ACIMA_DO_ROSTO = 0.8
 LIMIAR_REL = 0.45     # mantido so para compatibilidade de chamadas antigas
 PERDA_MAX = 0.22      # acima disso, preencher descarta conteudo demais: melhor encaixar
 
@@ -56,12 +64,32 @@ def _frames(video, n=AMOSTRAS):
     return saidas, d
 
 
+def _linhas_de_fundo(h, rosto, alt_fonte=1920):
+    """Quantas linhas do topo do quadro (de altura `h`) sao fundo com certeza: acima do topo da caixa do rosto
+    menos FUNDO_ACIMA_DO_ROSTO alturas de rosto. 0 sem rosto."""
+    if not rosto:
+        return 0
+    y, alt = rosto
+    limite = (y - FUNDO_ACIMA_DO_ROSTO * alt) / float(alt_fonte)
+    return max(0, int(limite * h))
+
+
+def _diferenca_do_fundo(dif_com_sinal, n_fundo, n_corrida):
+    """Mediana da diferenca centro x lateral nas linhas de fundo (a luz do proprio cenario). 0 quando nao ha
+    linhas de fundo suficientes para medir: nada a descontar."""
+    if n_fundo < n_corrida:
+        return 0.0
+    amostra = sorted(dif_com_sinal[:n_fundo])
+    return amostra[len(amostra) // 2]
+
+
 def medir_avatar(video):
     """Devolve (topo, base) da pessoa em fracao da altura, e o bias sugerido."""
     from PIL import Image
     quadros, d = _frames(video)
     if not quadros:
         sys.exit("MEDICAO: nao consegui extrair quadro do avatar")
+    rosto = _caixa_do_rosto(video)
     topos, bases = [], []
     for p in quadros:
         im = Image.open(p).convert("L")
@@ -77,11 +105,13 @@ def medir_avatar(video):
                   [px[x, y] for x in range(int(w * 0.88), w, 2)])
             centro.append(sum(c) / len(c))
             lateral.append(sum(lt) / len(lt) if lt else 0.0)
-        dif = [abs(centro[y] - lateral[y]) for y in range(h)]
-        limiar = max(LIMIAR_DIF, 0.15 * max(dif)) if max(dif) else LIMIAR_DIF
         # CORRIDA: exige N linhas seguidas acima do limiar antes de declarar a pessoa.
         # Sem isso um degrade de luz ou uma sombra isolada vira "topo da cabeca".
         n_corrida = max(3, int(h * CORRIDA_MIN))
+        com_sinal = [centro[y] - lateral[y] for y in range(h)]
+        luz_do_fundo = _diferenca_do_fundo(com_sinal, _linhas_de_fundo(h, rosto), n_corrida)
+        dif = [abs(v - luz_do_fundo) for v in com_sinal]
+        limiar = max(LIMIAR_DIF, 0.15 * max(dif)) if max(dif) else LIMIAR_DIF
         acima = [d >= limiar for d in dif]
         topo_y = base_y = None
         corr = 0
@@ -109,16 +139,25 @@ def medir_avatar(video):
 
 
 _VIDEO_ATUAL = []       # preenchido pelo main; o bias precisa do arquivo pra achar o rosto
+_ROSTO = {}             # video -> (topo, altura) do rosto ou None: medido UMA vez por processo
+
+
+def _caixa_do_rosto(video):
+    """(topo, altura) do rosto no avatar, em pixel da fonte (1920 de altura). None se nao achar."""
+    if video not in _ROSTO:
+        try:
+            import medir_rosto
+            c = medir_rosto.caixa_rosto(video)
+            _ROSTO[video] = (int(c[0]), int(c[1])) if c else None
+        except Exception:
+            _ROSTO[video] = None
+    return _ROSTO[video]
 
 
 def _centro_do_rosto(video):
     """Centro vertical do rosto no avatar, em pixel da fonte. None se nao achar."""
-    try:
-        import medir_rosto
-        c = medir_rosto.caixa_rosto(video)
-        return (c[0] + c[1] // 2) if c else None
-    except Exception:
-        return None
+    c = _caixa_do_rosto(video)
+    return (c[0] + c[1] // 2) if c else None
 
 
 def bias_para_painel(topo, base, src_y, src_h, alt_fonte, alt_painel):
@@ -252,6 +291,10 @@ def main():
                 "pessoa_topo": round(topo, 3), "pessoa_base": round(base, 3),
                 "topo_px": int(topo * ALT_FONTE), "base_px": int(base * ALT_FONTE),
                 "VAM_SPLIT_BIAS": round(bias, 3)}
+        # o rosto entra no JSON: a bolinha do pip ancora nele (footage/enquadramento.pip_crop)
+        rosto = _caixa_do_rosto(alvo)
+        if rosto:
+            info["rosto_y"], info["rosto_h"] = rosto
         if como_json:
             print(json.dumps(info, ensure_ascii=False, indent=2))
         else:

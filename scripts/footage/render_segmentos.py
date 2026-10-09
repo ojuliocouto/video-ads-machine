@@ -52,7 +52,7 @@ from .filtros_avatar import FPS, H, W, nframes
 
 # VERSAO do render por segmento (cache). Mude sempre que qualquer r_orig/r_insert/r_split_tela
 # mudar o filtro de vídeo, senão o build próximo reaproveita cache velho (pixel errado).
-VERSAO_RENDER = "v1"
+VERSAO_RENDER = "v2"      # v2 (W3.X B1): a bolinha do pip ancora no rosto medido e a medição degenerada sai
 
 _IMAGENS = (".jpg", ".jpeg", ".png", ".webp")
 _ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p"]

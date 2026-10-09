@@ -431,7 +431,7 @@ def test_fixture_a_bolinha_e_o_painel_do_split_mostram_o_rosto():
     assert dados["topo_px"] > 0 and not (dados["pessoa_topo"] <= 0.0 and dados["pessoa_base"] > 0.99), dados
 
     caixa, por_quadro = _caixas_do_rosto_com_x(avatar)
-    lado, x, _cx, y0 = [int(v) for v in ENQ.pip_crop(avatar).split(":")]
+    lado, _alt, x, y0 = [int(v) for v in ENQ.pip_crop(avatar).split(":")]       # crop=w:h:x:y
     fracao = _fracao_no_circulo(caixa, x + lado / 2, y0 + lado / 2, lado / 2)
     assert fracao >= 0.90, f"a bolinha {ENQ.pip_crop(avatar)} mostra {fracao:.0%} do rosto {caixa}"
 
