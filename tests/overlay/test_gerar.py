@@ -131,7 +131,7 @@ PALAVRAS = ("Minha skill de criação de páginas transformou meu Claude em um w
             "Sabe qual é o melhor? "
             "Se eu usar um conector que é disponibilizado gratuitamente dentro do Claude, "
             "eu consigo não só produzir as páginas").split()
-VERSAO_DO_HARNESS = 1       # sobe quando o jeito de montar/normalizar o cenario muda
+VERSAO_DO_HARNESS = 2       # sobe quando o jeito de montar/normalizar o cenario muda
 AVATAR = "apresentador de frente para a câmera"
 LETT = "apresentador + lettering"
 LOGO = "apresentador + lettering + logo"
@@ -253,7 +253,11 @@ def executar(motor_raiz, midia, cen):
             C._rodar(sb, [sys.executable, Path(C.__file__).resolve(), "--strip", sb.scripts, workdir / "index.html"],
                      cwd=sb.raiz)
             for nome in ("index.html", "index_overlay.html", "prancha.json", "janelas_split.json"):
-                res[nome] = _normalizar_saida((workdir / nome).read_text(encoding="utf-8"), sb)
+                texto = _normalizar_saida((workdir / nome).read_text(encoding="utf-8"), sb)
+                if nome.endswith(".html"):
+                    # comentario CSS/JS nao e comportamento: o do hook punch foi reescrito sem nome de cliente
+                    texto = re.sub(r"/\*.*?\*/", "/*c*/", texto, flags=re.S)
+                res[nome] = texto
             res["brolls"] = sorted(p.name for p in workdir.glob("broll*.mp4"))
         bruto = sb.log.read_text(encoding="utf-8") if sb.log.exists() else ""
         res["argv"] = N.serializar_jsonl(
@@ -416,7 +420,7 @@ def _resultado_base(midia, motor_base, cen):
 
 def _diferencas(base, novo):
     out = []
-    for chave in sorted(set(base) | set(novo)):
+    for chave in sorted((set(base) | set(novo)) - {"_chave"}):
         if base.get(chave) != novo.get(chave):
             a, b = str(base.get(chave)), str(novo.get(chave))
             i = next((k for k in range(min(len(a), len(b))) if a[k] != b[k]), min(len(a), len(b)))

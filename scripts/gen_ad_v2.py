@@ -23,37 +23,14 @@ from caminhos import V2  # noqa: E402
 from caminhos import achar_logo, achar_meta, RENDER_MODELO as ESTADO_RENDER  # noqa: E402
 from material_local import exigir  # noqa: E402
 import cache_transcricao  # noqa: E402
-def _sem_emoji(t):
-    """Remove pictogramas do texto de tela (19/08/2026, Jheni: "esses emojis deixam
-    ainda mais com cara de pobre"). A COPY do doc nao muda: o strip e so na
-    renderizacao do overlay (hook, lettering, chip)."""
-    out = []
-    for ch in str(t):
-        if ord(ch) >= 0x1F000 or (0x2600 <= ord(ch) <= 0x27BF) or ch in "\u2b50\ufe0f\u200d":
-            continue
-        out.append(ch)
-    return " ".join("".join(out).split())
+from overlay import hook as hook_mod, html_injecao, spans as spans_mod, transcricao  # noqa: E402
+from overlay.html_injecao import sem_emoji as _sem_emoji  # noqa: E402
+from overlay.hook import HOOK_END  # noqa: E402
+from overlay.transcricao import HF, norm, run, vdur  # noqa: E402
+import build_timeline  # noqa: E402
+from parser_roteiro import parse as parse_v1  # noqa: E402
 
-
-TEMPLATE = V2 / "templates" / "reel-editorial" / "index.html"
-HF = str(V2 / "node_modules" / ".bin" / "hyperframes")
-
-# (migracao 26/08/2026) codigo agora vizinho; import direto resolve
-# (migracao 26/08/2026) codigo agora vizinho; import direto resolve
-import build_timeline
-from parser_roteiro import parse as parse_v1
-
-SPEED = 1.15         # aceleracao global do video (v1 fazia 1.2x); pre-acelera o avatar
-HOOK_END = round(2.5 / SPEED, 3)   # 2.174s: hook encolhe junto com a fala acelerada
 XFADE_GAP = 0.6      # brolls a menos de isso um do outro = mesmo grupo (sem wipe entre eles)
-TAIL_PAD = 0.65      # folga de cauda: garante root/audio >= duracao real do audio (sem corte)
-
-
-def run(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
-    if r.returncode != 0:
-        sys.exit(f"ERRO: {' '.join(str(c) for c in cmd)}\n{r.stderr[-800:]}")
-    return r
 
 
 # LIMIAR DE FUNDO CLARO, RESOLVIDO NA CONTA, NAO CHUTADO (28/08/2026).
@@ -170,18 +147,6 @@ def fundo_claro(src, start=0.0):
     return val
 
 
-def vdur(f):
-    o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                        "-of", "default=nw=1:nk=1", str(f)], capture_output=True, text=True).stdout.strip()
-    return float(o) if o else 0.0
-
-
-def norm(w):
-    w = unicodedata.normalize("NFKD", w)
-    w = "".join(c for c in w if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", w.lower())
-
-
 def main(cfg_path):
     cfg = json.loads(Path(cfg_path).read_text())
     ad, look = cfg["ad"], cfg["look"]
@@ -193,27 +158,9 @@ def main(cfg_path):
     tmpl = V2 / "templates" / ("reel-editorial-1x1" if fmt == "1x1" else "reel-editorial") / "index.html"
 
     # ---------- assets base ----------
-    # Aceleracao (D6): pre-acelera o avatar (video setpts + audio atempo, pitch preservado)
-    # ANTES de transcrever, entao TUDO (spans, brolls, legendas, letterings, wipes, CTA)
-    # nasce em tempo 1.15x sozinho. Nao regera avatar no HeyGen: e so re-timing local.
     avatar_src = Path(cfg["avatar"])
-    speed = float(cfg.get("speed", SPEED))
-    dst = out / "avatar.mp4"
-    target = round(vdur(avatar_src) / speed, 2)
-    if not dst.exists() or abs(vdur(dst) - target) > 0.05:
-        # ao (re)acelerar, invalida derivados que dependem do avatar (transcript + brolls)
-        for old in [out / "transcript.json", *out.glob("broll*.mp4")]:
-            old.unlink(missing_ok=True)
-        if abs(speed - 1.0) < 1e-3:
-            shutil.copy(avatar_src, dst)
-        else:
-            run(["ffmpeg", "-y", "-i", str(avatar_src),
-                 "-filter_complex", f"[0:v]setpts=PTS/{speed}[v];[0:a]atempo={speed}[a]",
-                 "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p",
-                 "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-                 "-c:a", "aac", "-b:a", "192k", str(dst)])
-    _real = vdur(dst)
-    total = math.ceil((_real + TAIL_PAD) * 100) / 100   # D5: cauda nunca cortada
+    speed = float(cfg.get("speed", transcricao.SPEED))
+    dst, total = transcricao.preparar_avatar(avatar_src, out, speed)
     if not (out / "fonts").exists():
         shutil.copytree(tmpl.parent / "fonts", out / "fonts")
     # Logo e meta.json sao do SEU anuncio (_local/render-reel-editorial/). Falta vira uma
@@ -224,87 +171,25 @@ def main(cfg_path):
     shutil.copy(_meta, out / "meta.json")
 
     # ---------- transcript ----------
-    # Cache entre builds (31/08/2026): 8 builds do mesmo ad no mesmo dia rodaram o
-    # parakeet 8 vezes pro MESMO avatar.mp4, ~2,5 min cada, porque cada build cai num
-    # out_dir novo e a checagem acima (transcript.json local) nunca acerta entre eles.
-    # A chave e do CONTEUDO do avatar.mp4, entao qualquer out_dir com o mesmo audio
-    # reaproveita sem chamar o parakeet de novo.
-    _pasta_cache_transcricao = V1 / "output" / "_cache" / "transcricao"
-    if not (out / "transcript.json").exists():
-        _cache_hit = cache_transcricao.obter(dst, _pasta_cache_transcricao)
-        if _cache_hit is not None:
-            shutil.copy(_cache_hit, out / "transcript.json")
-            print(f"   [cache] transcricao reaproveitada ({cache_transcricao.chave(dst)})")
-        else:
-            run([HF, "transcribe", "avatar.mp4", "--engine", "parakeet", "--json", "-d", "."], cwd=out)
-            cache_transcricao.guardar(dst, out / "transcript.json", _pasta_cache_transcricao)
-    transcript = json.loads((out / "transcript.json").read_text())
+    transcript = transcricao.transcrever(dst, out)
 
     # ---------- roteiro v1: blocos + narracao ----------
     _leva = exigir(V1 / "inputs" / f"{ad}_leva.txt", "o roteiro anotado deste anúncio")
     _ins = exigir(V1 / "inputs" / f"{ad}_inserts.json", "o mapa de inserções deste anúncio")
     blocks = parse_v1(str(_leva))
     inserts_map = json.loads(_ins.read_text())
-    narr_words = []
-    for b in blocks:
-        narr_words += b["narr"].split()
-    words = build_timeline.align_words(narr_words, transcript)
+    words = transcricao.alinhar_palavras(blocks, transcript)
+    transcricao.marcar_kw(words, cfg.get("kw_phrases", []))
 
-    # kw por frase (autoria por ad)
-    joined = " ".join(w["text"] for w in words)
-    for phrase in cfg.get("kw_phrases", []):
-        p_norm = [norm(t) for t in phrase.split()]
-        w_norm = [norm(w["text"]) for w in words]
-        for i in range(len(w_norm) - len(p_norm) + 1):
-            if w_norm[i:i + len(p_norm)] == p_norm:
-                for k in range(len(p_norm)):
-                    words[i + k]["kw"] = True
+    spans = spans_mod.calcular_spans(blocks, words)
 
-    # spans por bloco (CONTIGUOS: fronteira = 1a palavra do proximo bloco)
-    idx = 0
-    starts = []
-    for b in blocks:
-        n = len(b["narr"].split())
-        starts.append(words[idx]["start"] if n else (words[idx - 1]["end"] if idx else 0.0))
-        idx += n
-    bounds = [starts[0]]
-    for s in starts[1:]:
-        bounds.append(max(s, bounds[-1] + 0.3))
-    bounds.append(max(words[-1]["end"], bounds[-1] + 0.3))
-    spans = [(bounds[i], bounds[i + 1]) for i in range(len(blocks))]
-
-    # ---------- timing do hook (fica ~4s na tela: pedido do Julio) ----------
-    # Opening em insert: o hook cobre o insert inteiro e dissolve no retorno do avatar.
-    # Opening no avatar: segura o hook ~4s por cima. Minimo 4s de tela sempre.
-    opening_insert = blocks[0]["type"] == "insert" and len(spans) > 1
-    # o hook cobre o OPENING INSERT inteiro e dissolve no RETORNO DO AVATAR (sem invadir o
-    # rosto). Retorno do avatar = primeiro bloco NAO-insert, nao spans[1] (spans[1] so e o
-    # avatar quando o bloco 1 ja e avatar). Com 2+ inserts de abertura seguidos (ad03/ad04),
-    # usar spans[1] fazia o hook sumir cedo demais e deixava zona morta (hook foi, rosto
-    # ainda coberto por b-roll) = sensacao de corte. Segurar ate o rosto voltar mata isso.
-    first_avatar_i = next((i for i, b in enumerate(blocks) if b["type"] != "insert"), 1)
-    ref = spans[first_avatar_i][0] if opening_insert and first_avatar_i < len(spans) else (spans[1][0] if len(spans) > 1 else spans[0][1])
-    # ...mas com TETO. Com 3 inserts de abertura seguidos (ad02v2) "segurar ate o rosto
-    # voltar" deu 15.5s de hook congelado: ele tapava justamente o payoff dos inserts E,
-    # como o cap_gate acompanha o hook, o anuncio ficava 15s SEM LEGENDA NENHUMA (fatal
-    # em Reels com som desligado). O pedido original do Julio era hook de ~4s; o teto
-    # restaura isso sem quebrar o caso de 1 insert curto, onde ref ja cai antes de 5s.
-    # 5.0s deixava 4s sem legenda na abertura (o gate reprova acima de 2.5s de vao).
-    # 3.2s mantem o gancho legivel e libera a legenda quase junto com a fala.
-    HOOK_MAX = 3.2
-    hook_gone = round(min(ref + 0.1, HOOK_MAX), 2) if opening_insert else 3.0
-    hook_fade = round(hook_gone - 0.4, 2)   # comeca a dissolver
-    hook_dur = round(hook_gone + 0.1, 2)    # janela do clip cobre ate depois do fade
-    # sem legenda enquanto o hook esta na tela
-    cap_gate = round(hook_gone - 0.05, 2) if opening_insert else hook_gone
+    # ---------- timing do hook ----------
+    h = hook_mod.calcular_hook(blocks, spans)
+    hook_dur, cap_gate = h.hook_dur, h.cap_gate
 
     # ---------- brolls (blocos insert) ----------
     def find_insert_cfg(instr):
-        s = instr.lower()
-        for k, v in inserts_map.items():
-            if k in s:
-                return k, v
-        return None, None
+        return spans_mod.achar_insert_cfg(instr, inserts_map)
 
     brolls = []
     # Janelas por TIPO de insert, pra deconflitar o texto de tela mais adiante. Sem isso o
@@ -314,25 +199,7 @@ def main(cfg_path):
     #           ele mora na metade de baixo e o lettering e centrado no quadro inteiro.
     #   texto   AD15 aos 36,8s: a legenda "vendendo" caiu em cima do paragrafo do card de
     #           depoimento do Marco Aurelio, e os dois ficaram dificeis de ler.
-    # PLANO DE RITMO, o mesmo que a footage usa (ritmo.py). Aqui ele serve pra saber em
-    # que instante a imagem esta em insert e em que instante ela volta pro avatar: sem
-    # isso o texto e posicionado como se o bloco inteiro fosse insert.
-    # (migracao 26/08/2026) codigo agora vizinho; import direto resolve
-    import ritmo as _R
-    _entrada_ritmo = []
-    for _i, (_b, (_s, _e)) in enumerate(zip(blocks, spans)):
-        _k, _c = find_insert_cfg(_b["instr"]) if _b["type"] == "insert" else (None, None)
-        _entrada_ritmo.append({"tipo": "insert" if _b["type"] == "insert" else "orig",
-                               "s": _s, "e": _e,
-                               "crop": (_c or {}).get("crop"),
-                               "dur_max": (_c or {}).get("dur_max"),
-                               "texto": _b.get("narr", "")})
-    _plano_ritmo = _R.plano_de_ritmo(_entrada_ritmo)
-    _res_ritmo = _R.resumo(_plano_ritmo, spans[-1][1])
-    print(f"   [ritmo] {len(_plano_ritmo)} planos | {_res_ritmo['cortes_min']:.1f} "
-          f"cortes/min | plano medio {_res_ritmo['plano_medio']:.2f}s", flush=True)
-    # trechos em que a imagem NAO esta no insert, ainda que o bloco seja de insert
-    _trechos_avatar = [(x["s"], x["e"]) for x in _plano_ritmo if x["tipo"] != "insert"]
+    _plano_ritmo, _res_ritmo = spans_mod.plano_de_ritmo(blocks, spans, inserts_map)
 
     janelas_split, janelas_texto = [], []
     # janela de insert -> fonte, pra medir o fundo NO INSTANTE de cada legenda
@@ -1107,9 +974,7 @@ def main(cfg_path):
             f"antes de renderizar.")
 
     # ---------- montar html ----------
-    html = tmpl.read_text()
-    html = html.replace("<!-- INJECT:captions -->", caps_html)
-    html = html.replace("<!-- INJECT:letterings -->", letts_html)
+    html = html_injecao.injetar_marcadores(tmpl.read_text(encoding="utf-8"), caps_html, letts_html)
 
     # ---------- CHIPS flutuantes (18/08/2026, item 3 do brief) ----------
     # Vao longo de avatar sem insert e sem lettering = trecho parado. O chip poe um
@@ -1181,75 +1046,16 @@ def main(cfg_path):
         f'data-duration="2.6" data-track-index="{58 + k}">'
         f'<span class="dot"></span>{c["kw"]}</div>'
         for k, c in enumerate(chips))
-    html = html.replace("<!-- INJECT:chips -->", chips_html)
-    html = re.sub(r"<!--\s*INJECT:preset:[a-z-]+\s*-->", "", html)
+    html = html_injecao.injetar_chips(html, chips_html)
 
-    # durações
-    html = html.replace('data-start="0" data-duration="55.36"', f'data-start="0" data-duration="{total}"')
+    # duracoes
+    html = html_injecao.fixar_duracao(html, total)
 
     # hook: fica ~4s na tela (hook_dur/hook_fade/hook_gone ja calculados apos os spans)
-    hk = {k: _sem_emoji(v) for k, v in cfg["hook"].items()}
-    html = html.replace('id="hook" class="clip" data-start="0" data-duration="2.5"',
-                        f'id="hook" class="clip" data-start="0" data-duration="{hook_dur}"')
-    html = html.replace('<div data-hf-id="hf-bc1a" class="eyebrow">uma skill de</div>', f'<div data-hf-id="hf-bc1a" class="eyebrow">{hk["eyebrow"]}</div>')
-    html = html.replace('<div data-hf-id="hf-8q5w" class="l1">criação de</div>', f'<div data-hf-id="hf-8q5w" class="l1">{hk["l1"]}</div>')
-    html = html.replace('<div data-hf-id="hf-ons9" class="accent">páginas</div>', f'<div data-hf-id="hf-ons9" class="accent">{hk["accent"]}</div>')
-    html = html.replace('#hook .l1 { font-family:"Inter"; font-weight:300; color:#fff;',
-                        '#hook .l1 { font-family:"Inter"; font-weight:300; color:#fff; text-align:center;')
-    html = html.replace('#hook .accent { font-family:"Playfair Display", serif; font-weight:600; font-style:italic;',
-                        '#hook .accent { font-family:"Playfair Display", serif; font-weight:600; font-style:italic; text-align:center;')
-
-    # HOOK "PUNCH" (17/08/2026, pedido da Jheni: "esse primeiro lettering deveria ser
-    # mais chamativo", com a ref instagram.com/p/DZ-GKJ7u54z). Referencia: sans
-    # condensado PESADO, tudo em caixa alta, entrelinha apertada, palavra de enfase bem
-    # maior e sombra dura. O serif elegante do padrao e o oposto disso.
-    # E VARIANTE, nao troca global: os ads 01 a 21 continuam no estilo editorial.
-    if (cfg.get("hook") or {}).get("style") == "punch":
-        html = html.replace("</style>", """
-      /* variante PUNCH do hook: ver comentario em gen_ad_v2.py */
-      /* justify-content:flex-start + margin-top pequeno sobe o bloco pro TERCO
-         SUPERIOR. No bloco de tela dividida o padrao (centro, margin-top 150px)
-         caia exatamente em cima do rosto do Thales no painel de baixo. */
-      /* SCRIM PROPRIO: com o painel de cima PREENCHIDO, o texto da propria pagina
-         colidia com o hook e os dois ficavam ilegiveis. Faixa escura atras do bloco
-         resolve sem escurecer o quadro inteiro. */
-      /* 70px punha a linha 3 do gancho ("COM CARA DE I.A") ate x993, dentro da
-         coluna de curtir/comentar do Reels, nos 2,4s que decidem o scroll. Eu tinha
-         subido o padding no TEMPLATE e nao vi que este `!important` inline vence:
-         dois lugares definem o hook, e eu emendei o que a busca achou primeiro. */
-      #hook.punch { padding:0 140px; justify-content:flex-start !important;
-        /* scrim mais leve: medido, o AD13 abria 57% e o AD16 59% mais escuros
-           que o resto do anuncio, e o quadro 0 e o poster no feed. O texto e caixa alta
-           pesada com sombra tripla, entao aguenta bem menos fundo. */
-        background:linear-gradient(180deg, rgba(4,5,10,0) 0%, rgba(4,5,10,.26) 12%,
-          rgba(4,5,10,.56) 24%, rgba(4,5,10,.56) 44%,
-          rgba(4,5,10,0) 66%) !important; }
-      #hook.punch .hook-inner { align-items:center !important; gap:0 !important;
-        margin-top:310px !important; }
-      #hook.punch .eyebrow { font-family:"Inter"; font-weight:800; font-size:46px;
-        letter-spacing:1px; margin-bottom:6px; color:#fff;
-        text-shadow:0 4px 0 rgba(0,0,0,.55), 0 8px 30px rgba(0,0,0,.95); }
-      #hook.punch .l1 { font-family:"Inter"; font-weight:800; font-size:64px;
-        text-transform:uppercase; line-height:.98; letter-spacing:-1px; color:#fff;
-        text-shadow:0 4px 0 rgba(0,0,0,.55), 0 8px 30px rgba(0,0,0,.95); }
-      #hook.punch .accent { font-family:"Inter", sans-serif !important;
-        font-style:normal !important; font-weight:900 !important; font-size:104px !important;
-        text-transform:uppercase; line-height:.96 !important; letter-spacing:-2.5px !important;
-        color:#fff; text-shadow:0 5px 0 rgba(0,0,0,.6), 0 10px 36px rgba(0,0,0,.95) !important; }
-    </style>""")
-        html = html.replace('id="hook" class="clip"', 'id="hook" class="clip punch"')
-    html = html.replace(
-        'tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);',
-        'tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);\n'
-        f'      tl.to("#hook", {{ opacity: 0, duration: 0.4, ease: "power1.in" }}, {hook_fade});')
+    html = hook_mod.aplicar_html(html, cfg["hook"], h)
 
     # grade quente 50% (calibrada pro cenario colorido; validada no piloto)
-    html = html.replace(
-        "radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.16), rgba(255,150,80,0.05) 45%, transparent 72%)",
-        "radial-gradient(130% 100% at 50% 22%, rgba(255,193,128,0.08), rgba(255,150,80,0.025) 45%, transparent 72%)")
-    html = html.replace(
-        "linear-gradient(180deg, rgba(255,168,92,0.06) 0%, transparent 38%, rgba(28,14,4,0.16) 100%)",
-        "linear-gradient(180deg, rgba(255,168,92,0.03) 0%, transparent 38%, rgba(28,14,4,0.16) 100%)")
+    html = html_injecao.suavizar_grade(html)
 
     # brolls html + js
     bh, bj = [], []
@@ -1307,8 +1113,7 @@ def main(cfg_path):
     html = html.replace('}, 46.9);', f'}}, {logo_s + 0.2:.2f});')
 
     # beat P&B fora
-    html = re.sub(r'// ===== BEAT PRETO E BRANCO.*?tl\.to\("#a-roll", \{ "--bw": 0[^;]*;\n',
-                  "// (beat P&B do reelC nao usado)\n", html, flags=re.S)
+    html = html_injecao.remover_beat_pb(html)
 
     # grid-wipes nas fronteiras de grupos de brolls
     grupos = []
@@ -1325,25 +1130,7 @@ def main(cfg_path):
     for gs, ge in grupos:
         if gs > 0.34 and abs(gs - HOOK_END) > 0.3:
             wipes.append(round(gs - 0.34, 2))
-    # WIPE DE GRADE DESLIGADO (19/08/2026). Medido no arquivo entregue, varrendo a cor
-    # da celula quadro a quadro: pico de cobertura de 98,5% a 99,5%, com 5 a 7 quadros
-    # acima de 70% em CADA um dos 4 surtos. Sao 0,17 a 0,23s de tela praticamente
-    # apagada, e um dos surtos cai aos 7,2s, dentro do hook, partindo o lettering no
-    # meio. O Julio descreveu como "zero evolucao" e a peca le como arquivo corrompido.
-    #
-    # Duas tentativas minhas de salvar o efeito falharam e estao registradas pra nao
-    # repetir: (1) antecipar a saida de t+0,9 pra t+0,45 nao resolve, porque a entrada
-    # so fecha em t+0,68 (duration 0,4 + stagger 0,28) e sobra janela de cobertura
-    # total; (2) tingir a celula de #191129 em vez de #05060a so trocou a cor do
-    # apagao. O comentario antigo afirmava "a grade NUNCA cobre 100%": era falso.
-    #
-    # A maquinaria fica no lugar (template e agrupamento) porque a decupagem das
-    # referencias ainda vai dizer se algum wipe tem lugar na gramatica. Se voltar,
-    # precisa das TRES mudancas juntas: z-index abaixo de lettering e legenda (hoje 60,
-    # acima de tudo), saida em t+0,25 e stagger.amount 0,45, com o gate de cobertura
-    # chapada barrando qualquer quadro acima de 70%.
-    wipe_js = ""
-    html = html.replace("/* INJECT:wipes */", wipe_js)
+    html = html_injecao.remover_wipes(html)
 
     # ---------- prancha.json: a linha do tempo em dados, pro diretor de arte ----------
     # Tudo em tempo de AUDIO (1x). O arquivo entregue roda ACCEL mais rapido, entao a

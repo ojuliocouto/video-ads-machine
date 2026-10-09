@@ -30,8 +30,8 @@ def test_spans_sao_contiguos_e_a_fronteira_e_a_primeira_palavra_do_proximo():
 def test_bloco_nunca_tem_menos_de_0_3s():
     words = palavras(("a", 1.0, 1.05), ("b", 1.1, 1.15), ("c", 1.2, 1.25))
     sp = S.calcular_spans(blocos("a", "b", "c"), words)
-    esperado = [(1.0, 1.3), (1.3, 1.6), (1.6, 1.9)]
-    assert sp == pytest.approx(esperado)
+    plano = [x for par in sp for x in par]
+    assert plano == pytest.approx([1.0, 1.3, 1.3, 1.6, 1.6, 1.9])
     # o ultimo bloco termina em max(fim da ultima palavra, inicio + 0,3)
     assert sp[-1][1] == pytest.approx(1.9)
 
