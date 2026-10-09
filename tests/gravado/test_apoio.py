@@ -29,26 +29,12 @@ def w(texto, ini, fim):
     return {"text": texto, "start": ini, "end": fim}
 
 
-ADS = {
-    "A1": {"nome": "Primeiro", "tema": "primeiro",
-           "corpo": [["T1", 0.0, 3.5]],
-           "cta_normal": [["T1", 4.0, 5.0]],
-           "cta_desconto": [["T1", 4.2, 5.0]]},
-    "B2": {"nome": "Segundo", "corpo": [["T2", 0.5, 2.0]], "cta_normal": [["T1", 4.0, 5.0]]},
-}
+ADS = sx.ADS_DE_TESTE
 
 
 def _projeto(tmp_path, ads=None, com_limpo=True):
     """Projeto com um take limpo de 5,0 s: tom 0-1, pausa 1,5 s, tom 2,5-3,5, pausa 0,5, tom 4-5."""
-    base = tmp_path / "leva"
-    sx.projeto_minimo(base, ads if ads is not None else ADS)
-    if com_limpo:
-        audio = sx.audio_por_blocos(tmp_path / "t.wav", [(1.0, -12.0), (1.5, None), (1.0, -12.0),
-                                                         (0.5, None), (1.0, -12.0)])
-        (base / "limpo").mkdir(parents=True, exist_ok=True)
-        for take in ("T1", "T2"):                    # wav: mp3 mexe 20 a 40 ms nas bordas
-            shutil.copy(str(audio), str(base / "limpo" / (take + ".wav")))
-    return gp.carregar(base)
+    return sx.projeto_de_teste(tmp_path, ads, com_limpo)
 
 
 # --- projeto -------------------------------------------------------------------------------
@@ -697,3 +683,73 @@ def test_conferir_buracos_le_a_mesma_janela_do_bruto_e_do_limpo(tmp_path):
     assert (bruto, limpo) == ("texto do bruto", "texto do limpo")
     assert Path(leitor.chamadas[0][0]).parent.name == "wav" and Path(leitor.chamadas[1][0]).parent.name == "limpo"
     assert leitor.chamadas[0][1:] == (0.0, 3.5)                  # janela de 2,0 s de margem de cada lado
+
+
+# --- a entrega de ponta a ponta, com os 11 gates reais -------------------------------------
+
+ADS_UM = {"A1": {"corpo": [["T1", 0.0, 3.5]], "cta_normal": [["T1", 4.0, 5.0]]}}
+TEXTO_DA_PECA = "você perde três horas por dia nisso e com uma automação isso roda sozinho"
+
+
+def _pronto_para_entregar(tmp_path):
+    """Projeto de uma peça, com tudo o que o pipeline gera, consistente: wav = limpo, a montada,
+    a legenda gerada e a legendada (a montada com a faixa da legenda desenhada)."""
+    p = sx.projeto_de_teste(tmp_path, ads=ADS_UM)
+    p.garantir("wav")
+    p.wav("T1").write_bytes(p.limpo("T1").read_bytes())
+    p.garantir("montados")
+    fx.testsrc_com_audio(p.montado("A1_normal"), dur=3.0)
+    palavras = [w("palavra%d" % i, i * 0.5, i * 0.5 + 0.45) for i in range(6)]
+    legendar.gerar(palavras, p.legenda_ass("A1_normal"))
+    p.garantir("legendado")
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-nostdin", "-i", str(p.montado("A1_normal")), "-vf",
+                        "drawbox=x=0:y=ih*0.62:w=iw:h=ih*0.08:color=white:t=fill", "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20", "-c:a", "copy",
+                        str(p.legendado("A1_normal"))], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return p
+
+
+def _leitor_da_entrega():
+    limpas = [w("a", 0.0, 0.9), w("b", 1.15, 1.9), w("c", 2.1, 2.9)]          # nenhuma palavra atravessa as emendas
+    return sx.LeitorFalso(textos=sx.textos_em_sequencia(), palavras_da_peca=limpas, texto_peca=TEXTO_DA_PECA)
+
+
+def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_e_copia(tmp_path):
+    p = _pronto_para_entregar(tmp_path)
+    r = entregar.entregar(p, leitor=_leitor_da_entrega())
+    assert r.entregue, r.resumo()
+    assert [n for n, _, _ in r.gates] == ["gate_envelope", "gate_fala", "gate_voz_distante", "gate_retomada",
+                                          "gate_emendas", "gate_redundancia", "gate_ar_morto", "gate_legenda",
+                                          "gate_sincronia", "gate_repeticao", "gate_offscript"]
+    assert {e for _, e, _ in r.gates} == {"ok"}
+    assert (p.pasta("ENTREGA") / "A1_normal.mp4").read_bytes() == p.legendado("A1_normal").read_bytes()
+    assert json.loads(p.falas_json.read_text(encoding="utf-8")) == {"A1_normal": TEXTO_DA_PECA}
+
+
+def test_entregar_com_a_legendada_de_outra_peca_trava_no_gate_de_sincronia(tmp_path):
+    p = _pronto_para_entregar(tmp_path)
+    fx.video_cores(p.legendado("A1_normal"), cores=("red", "green", "blue"), dur_cada=1.0, tamanho="320x568", fps=25)
+    r = entregar.entregar(p, leitor=_leitor_da_entrega())
+    assert r.entregue is False and r.codigo == 1
+    estados = {n: e for n, e, _ in r.gates}
+    assert estados["gate_sincronia"] == "defeito"
+    assert not list(p.pasta("ENTREGA").glob("*"))
+
+
+def test_entregar_com_fala_de_direcao_na_peca_trava_no_gate_offscript(tmp_path):
+    p = _pronto_para_entregar(tmp_path)
+    leitor = _leitor_da_entrega()
+    leitor.texto_peca = lambda arquivo: ("tá bom" if Path(arquivo).parent.name == "legendado" else TEXTO_DA_PECA)
+    r = entregar.entregar(p, leitor=leitor)
+    assert r.entregue is False
+    assert {n: e for n, e, _ in r.gates}["gate_offscript"] == "defeito"
+    assert not list(p.pasta("ENTREGA").glob("*"))
+
+
+def test_entregar_com_asr_que_falhou_nao_copia_e_sai_com_2(tmp_path):
+    from gravado.nucleo import asr
+    p = _pronto_para_entregar(tmp_path)
+    r = entregar.entregar(p, leitor=sx.LeitorFalso(falhar=asr.ErroDeASR("sem rede")))
+    assert r.entregue is False and r.codigo == 2
+    assert not list(p.pasta("ENTREGA").glob("*"))

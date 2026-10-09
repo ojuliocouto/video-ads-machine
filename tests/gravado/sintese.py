@@ -78,16 +78,19 @@ class LeitorFalso(object):
     arredondados a 2 casas). `palavras_da_peca`: lista devolvida por `palavras()`.
     """
 
-    def __init__(self, textos=None, palavras_da_peca=None, falhar=None):
+    def __init__(self, textos=None, palavras_da_peca=None, falhar=None, texto_peca=None):
         self.textos = textos
         self.palavras_da_peca = palavras_da_peca or []
         self.falhar = falhar
+        self.texto_peca = texto_peca
         self.chamadas = []
 
     def texto(self, audio, ini, fim, margem=0.1):
         self.chamadas.append((str(audio), round(ini, 2), round(fim, 2)))
         if self.falhar is not None:
             raise self.falhar
+        if callable(self.textos):
+            return self.textos(audio, ini, fim)
         if isinstance(self.textos, dict):
             return self.textos.get((round(ini, 2), round(fim, 2)), "")
         if isinstance(self.textos, list):
@@ -104,7 +107,15 @@ class LeitorFalso(object):
         self.chamadas.append((str(arquivo), "peca"))
         if self.falhar is not None:
             raise self.falhar
+        if self.texto_peca is not None:
+            return self.texto_peca(arquivo) if callable(self.texto_peca) else self.texto_peca
         return str(self.textos or "")
+
+    def fala_ou_falha(self, arquivo):
+        try:
+            return self.texto_da_peca(arquivo)
+        except Exception as e:                  # o contrato real devolve o marcador, nunca levanta
+            return "FALHA: %s" % e
 
 
 def projeto_minimo(base, ads, brutos=None, ignorar=()):
@@ -116,3 +127,42 @@ def projeto_minimo(base, ads, brutos=None, ignorar=()):
     (base / "plano_gravado.json").write_text(json.dumps(plano, ensure_ascii=False, indent=2),
                                              encoding="utf-8")
     return plano
+
+
+ADS_DE_TESTE = {
+    "A1": {"nome": "Primeiro", "tema": "primeiro",
+           "corpo": [["T1", 0.0, 3.5]],
+           "cta_normal": [["T1", 4.0, 5.0]],
+           "cta_desconto": [["T1", 4.2, 5.0]]},
+    "B2": {"nome": "Segundo", "corpo": [["T2", 0.5, 2.0]], "cta_normal": [["T1", 4.0, 5.0]]},
+}
+BLOCOS_DO_TAKE = [(1.0, -12.0), (1.5, None), (1.0, -12.0), (0.5, None), (1.0, -12.0)]   # 5,0 s
+
+FRASES_DISTINTAS = [
+    "você perde três horas por dia nisso", "com uma automação isso roda sozinho",
+    "a proposta atrasa e o cliente esfria", "monte o seu fluxo em uma tarde",
+    "toque em saiba mais para começar", "ninguém precisa de planilha para isso",
+    "quem testa não volta atrás", "o resultado aparece na primeira semana"]
+
+
+def textos_em_sequencia(frases=FRASES_DISTINTAS):
+    """Função para LeitorFalso(textos=...): uma frase diferente a cada chamada, em ordem."""
+    contador = {"n": 0}
+
+    def proxima(audio, ini, fim):
+        contador["n"] += 1
+        return frases[(contador["n"] - 1) % len(frases)]
+    return proxima
+
+
+def projeto_de_teste(tmp_path, ads=None, com_limpo=True, estado=None):
+    """Projeto de take gravado com o plano `ads` e o take limpo `BLOCOS_DO_TAKE` em T1 e T2."""
+    from gravado import projeto as gp
+    base = Path(tmp_path) / "leva"
+    projeto_minimo(base, ads if ads is not None else ADS_DE_TESTE)
+    if com_limpo:
+        audio = audio_por_blocos(Path(tmp_path) / "t.wav", BLOCOS_DO_TAKE)
+        (base / "limpo").mkdir(parents=True, exist_ok=True)
+        for take in ("T1", "T2"):                   # wav: mp3 mexe 20 a 40 ms nas bordas
+            (base / "limpo" / (take + ".wav")).write_bytes(audio.read_bytes())
+    return gp.carregar(base, estado=estado)

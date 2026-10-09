@@ -634,3 +634,83 @@ def test_voz_distante_take_sem_bloco_nenhum_e_insumo_invalido(tmp_path):
     mudo = sx.audio_por_blocos(tmp_path / "m.wav", [(2.0, None)])
     with pytest.raises(InsumoInvalido):
         m.verificar([("A1", "T1", 0.0, 1.0)], {"T1": m.blocos_do_take(mudo)})
+
+
+# --- as CLIs que leem o projeto: 0 e 1 (o 2 já está no protocolo acima) ---------------------
+
+def _com_leitor(monkeypatch, leitor):
+    """A CLI monta o leitor do projeto: aqui ele é o falso, sem ASR."""
+    from gravado import projeto as gp
+    monkeypatch.setattr(gp.Projeto, "leitor", lambda self, backend=None, amb=None: leitor)
+
+
+def test_voz_distante_cli_sai_0_e_1(tmp_path):
+    m = _modulo("gate_voz_distante")
+    blocos = [(1.0, -10.0), (0.3, None), (1.0, -10.0), (0.3, None), (1.0, -10.0), (0.3, None),
+              (0.4, -20.0), (0.3, None), (1.0, -10.0)]
+
+    def projeto(nome, cta):
+        base = tmp_path / nome
+        sx.projeto_minimo(base, {"A1": {"corpo": [["T1", 0.0, 3.0]], "cta_normal": [cta]}})
+        sx.audio_por_blocos(base / "limpo" / "T1.wav", blocos)
+        return str(base)
+    assert m.main(["--projeto", projeto("limpa", ["T1", 0.0, 1.0])]) == 0
+    assert m.main(["--projeto", projeto("suja", ["T1", 3.5, 5.5])]) == 1
+
+
+def test_retomada_cli_sai_0_e_1(tmp_path, monkeypatch):
+    m = _modulo("gate_retomada")
+    p = sx.projeto_de_teste(tmp_path)
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos=sx.textos_em_sequencia()))
+    assert m.main(["--projeto", str(p.base)]) == 0
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos="e sabe o que aconteceu aqui hoje"))
+    assert m.main(["--projeto", str(p.base)]) == 1
+
+
+def test_emendas_cli_sai_0_e_1(tmp_path, monkeypatch):
+    m = _modulo("gate_emendas")
+    p = sx.projeto_de_teste(tmp_path)
+    p.garantir("montados")
+    p.montado("A1_normal").write_bytes(b"x")
+    limpas = [w("a", 0.0, 0.9), w("b", 1.15, 1.9), w("c", 2.1, 2.9)]          # emendas em 1,01 s e 2,02 s
+    _com_leitor(monkeypatch, sx.LeitorFalso(palavras_da_peca=limpas))
+    assert m.main(["A1_normal", "--projeto", str(p.base)]) == 0
+    cortada = [w("a", 0.0, 0.4), w("longa", 0.5, 1.6), w("c", 2.1, 2.9)]       # 'longa' atravessa 1,01 s
+    _com_leitor(monkeypatch, sx.LeitorFalso(palavras_da_peca=cortada))
+    assert m.main(["A1_normal", "--projeto", str(p.base)]) == 1
+
+
+def test_redundancia_cli_sai_0_e_1(tmp_path, monkeypatch):
+    m = _modulo("gate_redundancia")
+    p = sx.projeto_de_teste(tmp_path)
+    p.garantir("montados")
+    p.montado("A1_normal").write_bytes(b"x")
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos=sx.textos_em_sequencia()))
+    assert m.main(["A1_normal", "--projeto", str(p.base)]) == 0
+    _com_leitor(monkeypatch, sx.LeitorFalso(textos="agora a planilha de vendas e a agenda"))
+    assert m.main(["A1_normal", "--projeto", str(p.base)]) == 1
+
+
+def test_fala_cli_sai_0_e_1(tmp_path, monkeypatch):
+    m = _modulo("gate_fala")
+    p = sx.projeto_de_teste(tmp_path)
+    for take in ("T1", "T2"):
+        p.garantir("wav")
+        p.wav(take).write_bytes(p.limpo(take).read_bytes())
+    inteiro = _texto(100)
+    sem_dez = " ".join("palavra%d" % i for i in range(100) if i % 10 != 3)
+
+    def por_pasta(limpo):
+        return lambda arquivo: limpo if Path(arquivo).parent.name == "limpo" else inteiro
+    _com_leitor(monkeypatch, sx.LeitorFalso(texto_peca=por_pasta(inteiro)))
+    assert m.main(["--projeto", str(p.base)]) == 0
+    _com_leitor(monkeypatch, sx.LeitorFalso(texto_peca=por_pasta(sem_dez)))
+    assert m.main(["--projeto", str(p.base)]) == 1
+
+
+def test_asr_que_falha_numa_cli_de_projeto_sai_com_2_nunca_com_1(tmp_path, monkeypatch):
+    from gravado.nucleo import asr
+    m = _modulo("gate_retomada")
+    p = sx.projeto_de_teste(tmp_path)
+    _com_leitor(monkeypatch, sx.LeitorFalso(falhar=asr.ErroDeASR("sem rede")))
+    assert m.main(["--projeto", str(p.base)]) == 2
