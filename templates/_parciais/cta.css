@@ -1,0 +1,28 @@
+      /* ===== cta.css: o CTA final (pílula com seta) e o logo =====
+         Posição medida: CTA e logo são posicionados juntos, pelo mesmo raciocínio (queixo medido, teto da UI do
+         app em y 1690). Mexer num sem conferir o outro já empilhou os dois. As posições (bottom, largura) e a
+         variante de tela dividida moram no index.html de cada formato. */
+      /* o logo leva sombra dupla: o wordmark é claro e some sobre roupa clara */
+      #ev-logo { position:absolute; left:50%; height:auto; z-index:48;
+        filter:drop-shadow(0 4px 10px rgba(0,0,0,.95)) drop-shadow(0 8px 30px rgba(0,0,0,.7)); }
+      #cta { position:absolute; left:0; right:0; z-index:46;
+        display:flex; flex-direction:column; align-items:center; gap:30px; }
+      /* scrim do CTA: radial que chega a transparente bem antes da borda (senão vira retângulo visível) */
+      #cta::before { content:''; position:absolute; left:-40px; right:-40px;
+        top:-140px; bottom:-160px; z-index:-1; pointer-events:none;
+        background:radial-gradient(64% 48% at 50% 58%, rgba(4,5,10,.80) 0%, rgba(4,5,10,.46) 56%, rgba(4,5,10,0) 84%); }
+      #cta .lead { font-family:"Inter"; font-weight:500; letter-spacing:6px;
+        color:rgba(255,255,255,.92); text-transform:uppercase;
+        text-shadow:0 2px 6px rgba(0,0,0,.95), 0 4px 18px rgba(0,0,0,.8); }
+      #cta .pill { display:flex; align-items:center; gap:22px;
+        padding:26px 64px; border-radius:100px;
+        background:rgba(10,11,16,.72); border:1.5px solid rgba(255,255,255,.55); color:#fff;
+        font-family:"Inter"; font-weight:600; letter-spacing:1px;
+        text-transform:none; backdrop-filter:blur(6px); box-shadow:0 16px 44px rgba(0,0,0,.4); }
+      /* SETA DO CTA (C9, elemento de atenção): triângulo por borda, em CSS puro (o glifo ▼ não vem nos subsets
+         de fonte). É pseudo-elemento da pílula, não um filho: assim o texto da pílula é só o rótulo e o
+         `overlay.cta` troca o rótulo nos dois formatos. O GSAP mexe a seta pela variável --arw-y; sem a
+         variável não há transform nenhum (a seta parada fica idêntica à de antes). */
+      #cta .pill::after { content:""; width:0; height:0; border-left:26px solid transparent;
+        border-right:26px solid transparent; border-top:30px solid rgba(255,255,255,.92);
+        transform:translate3d(0px, var(--arw-y), 0px); }

@@ -8,8 +8,75 @@ de trocar a duração, por exemplo).
 O template é do usuário e tem marcadores fixos (`<!-- INJECT:captions -->`, `/* INJECT:wipes */`,
 `data-duration="55.36"`). Marcador que falta no template não é erro: o `replace` não acha nada e
 o resto segue. É o caso do `<!-- INJECT:chips -->` no template quadrado.
+
+PARCIAIS (W4.D). Os dois templates guardam só a geometria do formato e incluem o visual e a timeline
+compartilhados por marcador: `/* PARCIAL:<arquivo> */`, dentro do `<style>` (CSS) e do `<script>` (o
+`timeline.js`, o MESMO nos dois formatos). `resolver_parciais` troca cada marcador pelo arquivo de
+`templates/_parciais/` e é o primeiro passo de `injetar_marcadores`: todas as trocas de texto que vêm
+depois (hook, CTA, b-rolls, grade) enxergam o template inteiro, como antes. O GSAP sai da cópia local
+(`templates/_vendor/gsap.min.js`, guardada pelo setup) quando ela existe, embutido no HTML; sem ela, ou com
+`VAM_GSAP=cdn`, fica a tag da CDN (defeito 18: render dependia de rede).
 """
+import hashlib
+import os
 import re
+from pathlib import Path
+
+TEMPLATES = Path(__file__).resolve().parents[2] / "templates"
+PARCIAIS = TEMPLATES / "_parciais"
+VENDOR_GSAP = TEMPLATES / "_vendor" / "gsap.min.js"
+TAG_GSAP_CDN = '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>'
+GSAP_MIN_BYTES = 10_000       # menos que isso não é o gsap.min.js (página de erro, download cortado)
+_MARCA_PARCIAL = re.compile(r"/\* PARCIAL:([a-z0-9_]+\.(?:css|js)) \*/")
+
+
+def _gsap_local(vendor):
+    """O conteúdo da cópia local do GSAP, ou None (ausente, truncada ou VAM_GSAP=cdn)."""
+    if os.environ.get("VAM_GSAP", "").strip().lower() == "cdn" or vendor is None:
+        return None
+    vendor = Path(vendor)
+    if not vendor.is_file() or vendor.stat().st_size < GSAP_MIN_BYTES:
+        return None
+    texto = vendor.read_text(encoding="utf-8")
+    return None if "</script" in texto.lower() else texto
+
+
+def resolver_parciais(html, pasta=PARCIAIS, vendor=VENDOR_GSAP):
+    """Troca cada `/* PARCIAL:<arquivo> */` pelo arquivo de `pasta` e a tag da CDN do GSAP pela cópia local.
+
+    Parcial que falta é erro que nomeia o arquivo (FileNotFoundError): template quebrado não pode virar
+    overlay sem CSS. HTML sem marcador passa intacto (idempotente)."""
+    pasta = Path(pasta)
+
+    def _parcial(m):
+        arq = pasta / m.group(1)
+        if not arq.is_file():
+            raise FileNotFoundError("parcial do template ausente: %s (procurado em %s)" % (m.group(1), pasta))
+        return arq.read_text(encoding="utf-8").rstrip("\n").lstrip(" ")
+
+    html = _MARCA_PARCIAL.sub(_parcial, html)
+    local = _gsap_local(vendor)
+    if local is not None and TAG_GSAP_CDN in html:
+        html = html.replace(TAG_GSAP_CDN, "<script>\n" + local.rstrip("\n") + "\n</script>", 1)
+    return html
+
+
+def ler_template(caminho, pasta=PARCIAIS, vendor=VENDOR_GSAP):
+    """O `index.html` de um template com os parciais resolvidos (o que o gerador de fato usa)."""
+    return resolver_parciais(Path(caminho).read_text(encoding="utf-8"), pasta=pasta, vendor=vendor)
+
+
+def assinatura_template(caminho, pasta=PARCIAIS):
+    """sha256 do template E de cada parcial que ele inclui, na ordem: o gate "template mudou no meio do
+    build" (build_composite) precisa enxergar a mudança num parcial, não só no index.html."""
+    h = hashlib.sha256()
+    bruto = Path(caminho).read_bytes()
+    h.update(bruto)
+    for nome in _MARCA_PARCIAL.findall(bruto.decode("utf-8")):
+        arq = Path(pasta) / nome
+        h.update(nome.encode("utf-8"))
+        h.update(arq.read_bytes() if arq.is_file() else b"<ausente>")
+    return h.hexdigest()
 
 
 def sem_emoji(t):
@@ -28,7 +95,8 @@ def sem_emoji(t):
 
 
 def injetar_marcadores(html, caps_html, letts_html):
-    """Legendas e letterings entram nos marcadores do template."""
+    """Legendas e letterings entram nos marcadores do template, depois dos parciais resolvidos."""
+    html = resolver_parciais(html)
     html = html.replace("<!-- INJECT:captions -->", caps_html)
     html = html.replace("<!-- INJECT:letterings -->", letts_html)
     return html

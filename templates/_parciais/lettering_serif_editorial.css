@@ -1,0 +1,29 @@
+      /* ===== lettering_serif_editorial.css (gerado por scripts/cinema/lettering_estilos.py: não editar) =====
+         O lettering de pico padrão: LEAD em Inter caixa alta, KEY em Playfair itálico, a tela inteira
+         esmaecida atrás (o pico é o único foco). É a classe `.lett` sem modificador. Os recuos e corpos por
+         formato (e as variantes split, baixo e pilha) moram no index.html. */
+      /* dim de tela cheia a .55 (abaixo de alfa 190: nem o gate de texto nem o de colisão contam como tinta);
+         o radial localizado virava mancha órfã longe do texto. */
+      .lett { position:absolute; inset:0; z-index:34; pointer-events:none;
+        display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+        gap:6px; background:rgba(2,3,6,.55); }
+      /* PILHA: lista que acumula. Sans e alinhada à esquerda (item de lista centralizado não lê como lista),
+         com o marcador de negação desenhado em tipografia (o emoji foi reprovado). */
+      .lett.lett-pilha { align-items:flex-start; }
+      .lett.lett-pilha .key { font-family:"Inter"; font-style:normal; font-weight:600;
+        text-align:left; letter-spacing:-.2px;
+        text-shadow:0 4px 22px rgba(0,0,0,.85);
+        padding-left:44px; position:relative; }
+      .lett.lett-pilha .key::before { content:""; position:absolute; left:0; top:26px;
+        width:26px; height:5px; border-radius:3px; background:#ff5a4d;
+        box-shadow:0 2px 10px rgba(0,0,0,.7); }
+      .lett .lead { font-family:"Inter"; font-weight:700; letter-spacing:6px;
+        color:rgba(255,255,255,.92); text-transform:uppercase;
+        text-shadow:0 2px 16px rgba(0,0,0,.95); }
+      /* peso 700 + corpo grande + tela esmaecida: o lettering é o pico e não pode pesar menos que a legenda */
+      .lett .key { font-family:"Playfair Display", serif; font-variant-numeric:lining-nums; font-feature-settings:"lnum" 1; font-weight:700; font-style:italic;
+        letter-spacing:-.5px; text-align:center; color:#fff;
+        text-shadow:0 6px 30px rgba(0,0,0,.55); }
+      /* logo DENTRO do lettering (bloco marcado com logo): assinatura, menor que o logo do CTA */
+      .lett .lett-logo { display:block; width:240px; margin:18px auto 0;
+        filter:drop-shadow(0 4px 10px rgba(0,0,0,.95)) drop-shadow(0 8px 30px rgba(0,0,0,.7)); }
