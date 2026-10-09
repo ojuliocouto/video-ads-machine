@@ -1,0 +1,706 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "relogio": {
+    "base": "footage_1x",
+    "fps": 30,
+    "aceleracao": 1.35,
+    "cauda_s": 0.45,
+    "a0": 0.0
+  },
+  "duracao_s": 27.5,
+  "formato": "9x16",
+  "fontes": {
+    "avatar": "avatar/avatar.mp4",
+    "avatar_sha256": "0d5ad25ddbcfd700d5d30a5b7727afbdf1069ce341f58cb9b6cc886562899bb0",
+    "alinhamento": "render/alinhamento.json",
+    "alinhamento_sha256": "e8296e424b257c144eec092ee9fd4a254b1c3c7ab6946b554fa5c0371927d336"
+  },
+  "blocos": [
+    {
+      "i": 0,
+      "tipo": "insert",
+      "insert": "painel",
+      "s": 0.0,
+      "e": 3.1
+    },
+    {
+      "i": 1,
+      "tipo": "apresentador",
+      "insert": null,
+      "s": 3.1,
+      "e": 6.4
+    },
+    {
+      "i": 2,
+      "tipo": "apresentador",
+      "insert": null,
+      "s": 6.4,
+      "e": 9.2
+    },
+    {
+      "i": 3,
+      "tipo": "insert",
+      "insert": "planilha",
+      "s": 9.2,
+      "e": 13.6
+    },
+    {
+      "i": 4,
+      "tipo": "lista",
+      "insert": null,
+      "s": 13.6,
+      "e": 18.9
+    },
+    {
+      "i": 5,
+      "tipo": "insert",
+      "insert": "automacao",
+      "s": 18.9,
+      "e": 24.0
+    },
+    {
+      "i": 6,
+      "tipo": "cta",
+      "insert": null,
+      "s": 24.0,
+      "e": 27.5
+    }
+  ],
+  "segmentos": [
+    {
+      "bloco": 0,
+      "tipo": "insert",
+      "s": 0.0,
+      "e": 3.1,
+      "sub": 0,
+      "de": 1,
+      "layout": "cheio",
+      "fonte_off": 0.0
+    },
+    {
+      "bloco": 1,
+      "tipo": "apresentador",
+      "s": 3.1,
+      "e": 6.4,
+      "sub": 0,
+      "de": 1,
+      "base": 1.0
+    },
+    {
+      "bloco": 2,
+      "tipo": "apresentador",
+      "s": 6.4,
+      "e": 9.2,
+      "sub": 0,
+      "de": 1,
+      "base": 1.0
+    },
+    {
+      "bloco": 3,
+      "tipo": "insert",
+      "s": 9.2,
+      "e": 13.6,
+      "sub": 0,
+      "de": 1,
+      "layout": "split",
+      "fonte_off": 0.0
+    },
+    {
+      "bloco": 4,
+      "tipo": "apresentador",
+      "s": 13.6,
+      "e": 16.3,
+      "sub": 0,
+      "de": 2,
+      "base": 1.0
+    },
+    {
+      "bloco": 4,
+      "tipo": "apresentador",
+      "s": 16.3,
+      "e": 18.9,
+      "sub": 1,
+      "de": 2,
+      "base": 1.06,
+      "punch": true
+    },
+    {
+      "bloco": 5,
+      "tipo": "insert",
+      "s": 18.9,
+      "e": 22.5,
+      "sub": 0,
+      "de": 2,
+      "layout": "cheio",
+      "fonte_off": 0.0
+    },
+    {
+      "bloco": 5,
+      "tipo": "apresentador",
+      "s": 22.9,
+      "e": 24.0,
+      "sub": 1,
+      "de": 2,
+      "base": 1.06
+    },
+    {
+      "bloco": 6,
+      "tipo": "apresentador",
+      "s": 24.0,
+      "e": 27.5,
+      "sub": 0,
+      "de": 1,
+      "base": 1.0
+    }
+  ],
+  "janelas_split": [
+    {
+      "s": 9.2,
+      "e": 13.6
+    }
+  ],
+  "legendas": [
+    {
+      "s": 3.1,
+      "e": 4.8,
+      "texto": "E eu sei porque eu fazia igual,",
+      "palavras": [
+        {
+          "t": "E",
+          "s": 3.1,
+          "e": 3.323
+        },
+        {
+          "t": "eu",
+          "s": 3.343,
+          "e": 3.566
+        },
+        {
+          "t": "sei",
+          "s": 3.586,
+          "e": 3.809
+        },
+        {
+          "t": "porque",
+          "s": 3.829,
+          "e": 4.051
+        },
+        {
+          "t": "eu",
+          "s": 4.071,
+          "e": 4.294
+        },
+        {
+          "t": "fazia",
+          "s": 4.314,
+          "e": 4.537
+        },
+        {
+          "t": "igual,",
+          "s": 4.557,
+          "e": 4.78
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": false
+    },
+    {
+      "s": 4.8,
+      "e": 6.4,
+      "texto": "todo santo dia.",
+      "palavras": [
+        {
+          "t": "todo",
+          "s": 4.8,
+          "e": 5.313
+        },
+        {
+          "t": "santo",
+          "s": 5.333,
+          "e": 5.847
+        },
+        {
+          "t": "dia.",
+          "s": 5.867,
+          "e": 6.38
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": false
+    },
+    {
+      "s": 6.4,
+      "e": 9.2,
+      "texto": "O problema não é falta de tempo.",
+      "palavras": [
+        {
+          "t": "O",
+          "s": 6.4,
+          "e": 6.78
+        },
+        {
+          "t": "problema",
+          "s": 6.8,
+          "e": 7.18
+        },
+        {
+          "t": "não",
+          "s": 7.2,
+          "e": 7.58
+        },
+        {
+          "t": "é",
+          "s": 7.6,
+          "e": 7.98
+        },
+        {
+          "t": "falta",
+          "s": 8.0,
+          "e": 8.38
+        },
+        {
+          "t": "de",
+          "s": 8.4,
+          "e": 8.78
+        },
+        {
+          "t": "tempo.",
+          "s": 8.8,
+          "e": 9.18
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": true
+    },
+    {
+      "s": 9.2,
+      "e": 11.4,
+      "texto": "É que cada tarefa repetida",
+      "palavras": [
+        {
+          "t": "É",
+          "s": 9.2,
+          "e": 9.62
+        },
+        {
+          "t": "que",
+          "s": 9.64,
+          "e": 10.06
+        },
+        {
+          "t": "cada",
+          "s": 10.08,
+          "e": 10.5
+        },
+        {
+          "t": "tarefa",
+          "s": 10.52,
+          "e": 10.94
+        },
+        {
+          "t": "repetida",
+          "s": 10.96,
+          "e": 11.38
+        }
+      ],
+      "posicao": "costura",
+      "suprimida": false
+    },
+    {
+      "s": 11.4,
+      "e": 13.6,
+      "texto": "come um pedaço da sua agenda.",
+      "palavras": [
+        {
+          "t": "come",
+          "s": 11.4,
+          "e": 11.747
+        },
+        {
+          "t": "um",
+          "s": 11.767,
+          "e": 12.113
+        },
+        {
+          "t": "pedaço",
+          "s": 12.133,
+          "e": 12.48
+        },
+        {
+          "t": "da",
+          "s": 12.5,
+          "e": 12.847
+        },
+        {
+          "t": "sua",
+          "s": 12.867,
+          "e": 13.213
+        },
+        {
+          "t": "agenda.",
+          "s": 13.233,
+          "e": 13.58
+        }
+      ],
+      "posicao": "costura",
+      "suprimida": false
+    },
+    {
+      "s": 13.6,
+      "e": 18.9,
+      "texto": "Enquanto isso: a proposta atrasa, o cliente esfria e você perde a venda.",
+      "palavras": [
+        {
+          "t": "Enquanto",
+          "s": 13.6,
+          "e": 13.988
+        },
+        {
+          "t": "isso:",
+          "s": 14.008,
+          "e": 14.395
+        },
+        {
+          "t": "a",
+          "s": 14.415,
+          "e": 14.803
+        },
+        {
+          "t": "proposta",
+          "s": 14.823,
+          "e": 15.211
+        },
+        {
+          "t": "atrasa,",
+          "s": 15.231,
+          "e": 15.618
+        },
+        {
+          "t": "o",
+          "s": 15.638,
+          "e": 16.026
+        },
+        {
+          "t": "cliente",
+          "s": 16.046,
+          "e": 16.434
+        },
+        {
+          "t": "esfria",
+          "s": 16.454,
+          "e": 16.842
+        },
+        {
+          "t": "e",
+          "s": 16.862,
+          "e": 17.249
+        },
+        {
+          "t": "você",
+          "s": 17.269,
+          "e": 17.657
+        },
+        {
+          "t": "perde",
+          "s": 17.677,
+          "e": 18.065
+        },
+        {
+          "t": "a",
+          "s": 18.085,
+          "e": 18.472
+        },
+        {
+          "t": "venda.",
+          "s": 18.492,
+          "e": 18.88
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": true
+    },
+    {
+      "s": 18.9,
+      "e": 21.3,
+      "texto": "Com uma automação simples,",
+      "palavras": [
+        {
+          "t": "Com",
+          "s": 18.9,
+          "e": 19.48
+        },
+        {
+          "t": "uma",
+          "s": 19.5,
+          "e": 20.08
+        },
+        {
+          "t": "automação",
+          "s": 20.1,
+          "e": 20.68
+        },
+        {
+          "t": "simples,",
+          "s": 20.7,
+          "e": 21.28
+        }
+      ],
+      "posicao": "rodape",
+      "suprimida": false
+    },
+    {
+      "s": 21.3,
+      "e": 24.0,
+      "texto": "isso roda sozinho enquanto você atende.",
+      "palavras": [
+        {
+          "t": "isso",
+          "s": 21.3,
+          "e": 21.73
+        },
+        {
+          "t": "roda",
+          "s": 21.75,
+          "e": 22.18
+        },
+        {
+          "t": "sozinho",
+          "s": 22.2,
+          "e": 22.63
+        },
+        {
+          "t": "enquanto",
+          "s": 22.65,
+          "e": 23.08
+        },
+        {
+          "t": "você",
+          "s": 23.1,
+          "e": 23.53
+        },
+        {
+          "t": "atende.",
+          "s": 23.55,
+          "e": 23.98
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": false
+    },
+    {
+      "s": 24.0,
+      "e": 27.5,
+      "texto": "Toque em saiba mais e veja como montar a sua.",
+      "palavras": [
+        {
+          "t": "Toque",
+          "s": 24.0,
+          "e": 24.33
+        },
+        {
+          "t": "em",
+          "s": 24.35,
+          "e": 24.68
+        },
+        {
+          "t": "saiba",
+          "s": 24.7,
+          "e": 25.03
+        },
+        {
+          "t": "mais",
+          "s": 25.05,
+          "e": 25.38
+        },
+        {
+          "t": "e",
+          "s": 25.4,
+          "e": 25.73
+        },
+        {
+          "t": "veja",
+          "s": 25.75,
+          "e": 26.08
+        },
+        {
+          "t": "como",
+          "s": 26.1,
+          "e": 26.43
+        },
+        {
+          "t": "montar",
+          "s": 26.45,
+          "e": 26.78
+        },
+        {
+          "t": "a",
+          "s": 26.8,
+          "e": 27.13
+        },
+        {
+          "t": "sua.",
+          "s": 27.15,
+          "e": 27.48
+        }
+      ],
+      "posicao": "padrao",
+      "suprimida": true
+    }
+  ],
+  "letterings": [
+    {
+      "id": "l0",
+      "bloco": 2,
+      "lead": "o problema não é",
+      "key": "FALTA DE TEMPO",
+      "s": 6.4,
+      "d": 2.2,
+      "estilo": "caixa_nativa",
+      "split": false,
+      "baixo": false,
+      "pilha": null,
+      "cta": false
+    },
+    {
+      "id": "l1",
+      "bloco": 4,
+      "lead": "enquanto isso",
+      "key": "a proposta atrasa",
+      "s": 14.6,
+      "d": 4.3,
+      "estilo": "caixa_nativa",
+      "split": false,
+      "baixo": false,
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "id": "l2",
+      "bloco": 4,
+      "lead": null,
+      "key": "o cliente esfria",
+      "s": 15.9,
+      "d": 3.0,
+      "estilo": "caixa_nativa",
+      "split": false,
+      "baixo": false,
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "id": "l3",
+      "bloco": 4,
+      "lead": null,
+      "key": "você perde a venda",
+      "s": 17.1,
+      "d": 1.8,
+      "estilo": "caixa_nativa",
+      "split": false,
+      "baixo": false,
+      "pilha": "b4",
+      "cta": false
+    },
+    {
+      "id": "l4",
+      "bloco": 6,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "s": 24.2,
+      "d": 3.3,
+      "estilo": "seta_cta",
+      "split": false,
+      "baixo": false,
+      "pilha": null,
+      "cta": true
+    }
+  ],
+  "hook": {
+    "s": 0.0,
+    "e": 3.1,
+    "eyebrow": "VOCÊ PERDE",
+    "linha": "3 horas por dia",
+    "destaque": "NISSO AQUI",
+    "estilo": "punch"
+  },
+  "cta": {
+    "inicio": 24.0,
+    "logo": 24.2,
+    "label": "saiba mais",
+    "sem_lead": false
+  },
+  "camera": [
+    {
+      "t": 3.1,
+      "tipo": "zoom",
+      "de": 1.0,
+      "para": 1.16,
+      "dur": 3.3
+    },
+    {
+      "t": 6.8,
+      "tipo": "punch",
+      "de": 1.0,
+      "para": 1.22,
+      "dur": 0.28,
+      "segura": 2.4
+    },
+    {
+      "t": 9.2,
+      "tipo": "push_in",
+      "de": 1.0,
+      "para": 1.12,
+      "dur": 4.4
+    },
+    {
+      "t": 13.6,
+      "tipo": "respiro",
+      "de": 1.1,
+      "para": 1.0,
+      "dur": 1.0
+    }
+  ],
+  "sfx": [
+    {
+      "t": 14.6,
+      "efeito": "tick",
+      "funcao": "pilha",
+      "nivel_dbfs": -35.0
+    },
+    {
+      "t": 15.9,
+      "efeito": "tick",
+      "funcao": "pilha",
+      "nivel_dbfs": -35.0
+    },
+    {
+      "t": 17.1,
+      "efeito": "tick",
+      "funcao": "pilha",
+      "nivel_dbfs": -35.0
+    },
+    {
+      "t": 22.65,
+      "efeito": "riser",
+      "funcao": "cta",
+      "nivel_dbfs": -33.0
+    }
+  ],
+  "ducking": {
+    "cama_fala": 0.055,
+    "cama_pausa": 0.42,
+    "rampa_ms": 150,
+    "fade_in_s": 1.2,
+    "fade_out_s": 2.2,
+    "pausas": [
+      {
+        "s": 8.7,
+        "e": 9.25
+      },
+      {
+        "s": 13.05,
+        "e": 13.6
+      }
+    ]
+  }
+}

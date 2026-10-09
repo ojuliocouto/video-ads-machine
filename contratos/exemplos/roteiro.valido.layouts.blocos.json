@@ -1,0 +1,83 @@
+{
+  "livre": false,
+  "blocos": [
+    {
+      "tipo": "insert",
+      "insert": "planilha",
+      "layout": "split",
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "É que cada tarefa repetida come um pedaço da sua agenda."
+    },
+    {
+      "tipo": "insert",
+      "insert": "pedidos",
+      "layout": "cheio",
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Olha o tamanho da fila de pedidos."
+    },
+    {
+      "tipo": "insert",
+      "insert": "tutorial",
+      "layout": "pip",
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "E aqui eu te mostro o passo a passo, sem pressa."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Parece muito, mas cabe numa tarde."
+    },
+    {
+      "tipo": "insert",
+      "insert": "planilha",
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Repara que é a mesma planilha, agora rodando sozinha."
+    },
+    {
+      "tipo": "cta",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": "SAIBA MAIS",
+      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "logo": true,
+      "itens": [],
+      "enfase": [],
+      "fala": "Toque em saiba mais."
+    }
+  ]
+}

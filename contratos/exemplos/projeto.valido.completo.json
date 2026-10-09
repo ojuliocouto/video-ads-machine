@@ -1,0 +1,21 @@
+{
+  "versao": 1,
+  "slug": "tres-horas",
+  "modo": "avatar",
+  "formato": "9x16",
+  "look": "laranja",
+  "aceleracao": 1.35,
+  "cta": {"label": "saiba mais", "sem_lead": false},
+  "trilha": {"arquivo": "leve-corporativa.mp3"},
+  "estilo": {"grade": "quente-suave", "hook": "punch", "lettering": "caixa_nativa", "texto_atras": false},
+  "inserts": {
+    "painel": {"inicio": 0, "velocidade": 1.0, "rotulo": "painel de tarefas"},
+    "planilha": {"inicio": 2.5, "velocidade": 1.2, "recorte": "1280:720:0:0", "exposicao": 0.1, "texto_proprio": true},
+    "automacao": {"velocidade": 1.5, "zoom": 1.2, "dur_max": 4.0}
+  },
+  "excecoes": [
+    {"regra": "densidade", "motivo": "o bloco de prova social é a pessoa falando e precisa do rosto"}
+  ],
+  "origem": {"tipo": "chat"},
+  "criado_em": "2026-10-08T21:40:00-03:00"
+}

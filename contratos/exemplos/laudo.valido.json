@@ -1,0 +1,329 @@
+{
+  "versao": 1,
+  "projeto": "tres-horas",
+  "modo": "avatar",
+  "arquivo": "entrega/final_9x16.mp4",
+  "sha256": "1223a18fad1ce6bb50cba63c7cebdf3075817e41ddafbfe747f30a261b0d1279",
+  "gerado_em": "2026-10-08T23:05:00-03:00",
+  "medidas": {
+    "duracao_s": 20.82,
+    "largura": 1080,
+    "altura": 1920,
+    "fps": 30,
+    "lufs": -14.2,
+    "true_peak_dbtp": -1.7,
+    "taxa_amostragem": 48000,
+    "cor": {
+      "primarias": "bt709",
+      "transferencia": "bt709",
+      "matriz": "bt709"
+    }
+  },
+  "previa": {
+    "arquivo": "entrega/final_whatsapp.mp4",
+    "sha256": "be38938415d5ee15077213346074a1645d7b725fa8ce9dd3bf526b36ed2545b4"
+  },
+  "gates": [
+    {
+      "nome": "gate_aprovacao",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_fidelidade_roteiro",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_fala_roteiro",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_entrada",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_look",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_geometria",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_safezone",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_lettering",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_congelamento",
+      "etapa": "antes",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_template",
+      "etapa": "durante",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_tela_vazia",
+      "etapa": "durante",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_relogio",
+      "etapa": "durante",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate-ad",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "medir_ritmo",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0,
+      "medido": {
+        "cortes_min": 23.1,
+        "frac_acima_6s": 0.0,
+        "maior_plano_s": 3.3
+      },
+      "limiar": {
+        "cortes_min_min": 16,
+        "cortes_min_max": 32,
+        "frac_acima_6s_max": 0.4,
+        "maior_plano_s_max": 14
+      }
+    },
+    {
+      "nome": "gate-colisao-texto",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate-contraste-legenda",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "auditar_ad",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_hook_visual",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_camera",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_cor",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_mix",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0,
+      "medido": {
+        "lufs": -14.2,
+        "true_peak_dbtp": -1.7,
+        "subida_nas_pausas_db": 4.1
+      }
+    },
+    {
+      "nome": "gate_sfx",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_insert",
+      "etapa": "depois",
+      "resultado": "PASS",
+      "saida": 0,
+      "duracao_s": 1.0
+    },
+    {
+      "nome": "gate_texto_atras",
+      "etapa": "depois",
+      "resultado": "PULADO",
+      "saida": 0,
+      "duracao_s": 1.0,
+      "motivo": "texto atrás da pessoa desligado no projeto"
+    }
+  ],
+  "capacidades": {
+    "C1": {
+      "status": "PASS",
+      "gates": [
+        "gate_hook_visual",
+        "gate-ad"
+      ]
+    },
+    "C2": {
+      "status": "PASS",
+      "gates": [
+        "medir_ritmo"
+      ]
+    },
+    "C3": {
+      "status": "PASS",
+      "gates": [
+        "gate_camera"
+      ]
+    },
+    "C4": {
+      "status": "PASS",
+      "gates": [
+        "auditar_ad",
+        "gate-ad"
+      ]
+    },
+    "C5": {
+      "status": "PASS",
+      "gates": [
+        "gate_cor"
+      ]
+    },
+    "C6": {
+      "status": "PASS",
+      "gates": [
+        "gate-ad",
+        "gate-contraste-legenda",
+        "gate-colisao-texto",
+        "gate_safezone"
+      ]
+    },
+    "C7": {
+      "status": "PASS",
+      "gates": [
+        "gate_lettering"
+      ]
+    },
+    "C8": {
+      "status": "PASS",
+      "gates": [
+        "gate_insert",
+        "gate_congelamento"
+      ]
+    },
+    "C9": {
+      "status": "PASS",
+      "gates": [
+        "gate_lettering"
+      ]
+    },
+    "C10": {
+      "status": "PASS",
+      "gates": [
+        "gate_mix"
+      ]
+    },
+    "C11": {
+      "status": "PASS",
+      "gates": [
+        "gate_sfx"
+      ]
+    },
+    "C12": {
+      "status": "PASS",
+      "gates": [
+        "gate-ad",
+        "gate_mix"
+      ]
+    },
+    "C13": {
+      "status": "DESLIGADA",
+      "gates": [
+        "gate_texto_atras"
+      ],
+      "motivo": "opcional; o projeto não ligou texto atrás da pessoa"
+    },
+    "C14": {
+      "status": "PASS",
+      "gates": [
+        "gate_relogio"
+      ]
+    }
+  },
+  "excecoes": [],
+  "custo": {
+    "heygen": {
+      "saldo_antes_usd": 41.2,
+      "saldo_depois_usd": 37.6,
+      "delta_usd": 3.6,
+      "minutos": 0.95,
+      "usd_por_minuto": 3.79
+    }
+  },
+  "tempos": {
+    "setup_s": 312.0,
+    "build_s": 1260.0
+  },
+  "ambiente": {
+    "plataforma": "darwin-arm64",
+    "python": "3.9.6",
+    "ffmpeg": "7.1",
+    "node": "22.11.0",
+    "hyperframes": "0.7.56"
+  },
+  "veredito": "PASS"
+}

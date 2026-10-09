@@ -1,0 +1,7 @@
+{
+  "versao": 1,
+  "slug": "um-take-so",
+  "modo": "oneshot",
+  "trilha": {"arquivo": "piano-leve.m4a"},
+  "origem": {"tipo": "arquivo"}
+}

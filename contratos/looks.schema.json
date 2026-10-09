@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "looks.json",
+  "description": "Looks do HeyGen do aluno, em _local/looks.json. Só entra look vertical. Look aprovado carrega o sha256 do arquivo de conferência; se o arquivo mudar, a aprovação vence (quem confere é projeto/looks). Caminhos relativos a _local/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "looks"],
+  "properties": {
+    "versao": {"const": 1},
+    "looks": {
+      "type": "object",
+      "description": "Mapa nome do look -> look. O nome é o que o projeto.json usa em 'look'.",
+      "propertyNames": {"$ref": "#/$defs/slug"},
+      "additionalProperties": {"$ref": "#/$defs/look"}
+    }
+  },
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "instante": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "caminho": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$"},
+    "look": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avatar_id", "orientacao", "plano", "aprovado"],
+      "properties": {
+        "avatar_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{6,128}$", "description": "Id do look na conta HeyGen do aluno."},
+        "orientacao": {"const": "vertical", "description": "Look horizontal entra com tarja e o rosto fica pequeno: não é aceito."},
+        "plano": {"enum": ["fechado", "medio", "aberto"], "description": "Enquadramento do look. Fechado exige conferência da boca."},
+        "aprovado": {"type": "boolean"},
+        "conferencia": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arquivo", "sha256"],
+          "properties": {
+            "arquivo": {"$ref": "#/$defs/caminho", "description": "Arquivo da conferência (avatar/conferencia.json de um projeto), relativo a _local/."},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "aprovado_em": {"$ref": "#/$defs/instante"},
+        "nota": {"type": "string", "maxLength": 300}
+      },
+      "if": {"properties": {"aprovado": {"const": true}}, "required": ["aprovado"]},
+      "then": {"required": ["conferencia", "aprovado_em"]}
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "versao": 1,
+  "slug": "tres-horas",
+  "modo": "gravado",
+  "trilha": {"arquivo": "leve-corporativa.mp3"},
+  "origem": {"tipo": "doc_google"}
+}

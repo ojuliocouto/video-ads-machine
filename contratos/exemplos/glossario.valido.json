@@ -1,0 +1,13 @@
+{
+  "versao": 1,
+  "termos": [
+    {"grafia": "Fluxa", "variantes": ["Flucha", "Fluxá", "Flux a"], "tipo": "marca"},
+    {"grafia": "Agenda Pro", "variantes": ["agenda pró"], "tipo": "produto"},
+    {"grafia": "WhatsApp", "variantes": ["whats app"], "tipo": "termo"},
+    {"grafia": "Marina", "tipo": "nome"}
+  ],
+  "equivalencias": [
+    {"roteiro": "vamos embora", "fala": "vambora"},
+    {"roteiro": "para", "fala": "pra"}
+  ]
+}

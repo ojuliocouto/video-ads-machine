@@ -1,0 +1,8 @@
+{
+  "versao": 1,
+  "slug": "quanto-custa",
+  "modo": "gravado",
+  "aceleracao": 1.2,
+  "trilha": {"desligada": true, "motivo": "o take já tem som ambiente bom"},
+  "origem": {"tipo": "doc_google", "doc_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"}
+}

@@ -1,0 +1,46 @@
+{
+  "versao": 1,
+  "projeto": "quanto-custa",
+  "modo": "gravado",
+  "gerado_em": "2026-10-08T22:40:00-03:00",
+  "fonte": {
+    "roteiro_sha256": "9bffa1f3d4c1af67ac7279e3aafb72e249c0735cd28edddc450aa86170e43506",
+    "projeto_sha256": "f34e2fd61634e65e32ffec91d29ac81a504e1409bed03a5ff36860202b103cd3"
+  },
+  "blocos": [
+    {"i": 0, "tipo": "apresentador", "fala": "Quanto custa por mês ter isso rodando?", "s": 0.0, "e": 4.7},
+    {"i": 1, "tipo": "apresentador", "fala": "Com cem reais você já começa.", "s": 4.7, "e": 15.85},
+    {"i": 2, "tipo": "cta", "fala": "Toque em saiba mais.", "s": 15.85, "e": 17.59}
+  ],
+  "mapa_inserts": [],
+  "hook": {"eyebrow": "QUANTO CUSTA", "linha": "por mês", "destaque": "PRA TER ISSO?", "estilo": "editorial", "fim_s": 3.0, "evento_visual": "corte"},
+  "letterings": [
+    {"bloco": 2, "lead": null, "key": "SAIBA MAIS", "ancora": {"palavra": "Toque", "n": 1}, "s": 15.85, "d": 1.74, "estilo": "seta_cta", "pilha": null, "cta": true}
+  ],
+  "densidade": {"fracao_insert": 0.0, "alvo_min": 0.45, "alvo_max": 0.55, "piso": 0.4, "teto": 0.65, "propostas": [
+    {"bloco": 1, "fala": "Com cem reais você já começa.", "opcoes": ["gravação de tela do painel de custos", "print da fatura do mês"]}
+  ]},
+  "referencias": [],
+  "efeitos": {"sfx": [{"t": 14.5, "efeito": "riser", "funcao": "cta"}], "camera": [{"bloco": 1, "tipo": "push_in"}]},
+  "ritmo": {"cortes_min": 17.0, "frac_acima_6s": 0.63, "maior_plano_s": 11.15},
+  "checklist": {
+    "efeito_por_insert": {"status": "nao_se_aplica", "motivo": "sem insert neste take"},
+    "elemento_atras": {"status": "nao_se_aplica"},
+    "atencao": {"status": "atendido", "como": "seta no CTA"},
+    "split_dominante": {"status": "nao_se_aplica", "motivo": "sem insert neste take"},
+    "degrade_emenda": {"status": "nao_se_aplica", "motivo": "sem split"},
+    "lettering_legenda": {"status": "atendido"},
+    "variacao_contexto": {"status": "pendente", "motivo": "falta material de tela; propostas na densidade"},
+    "edicao_por_insert": {"status": "nao_se_aplica", "motivo": "sem insert neste take"},
+    "ritmo": {"status": "pendente", "motivo": "17 cortes/min abaixo da faixa; depende das propostas de insert"}
+  },
+  "trechos": {
+    "corpo": [
+      {"take": "IMG_0001", "inicio": 9.3, "fim": 14.0},
+      {"take": "IMG_0001", "inicio": 17.85, "fim": 29.0}
+    ],
+    "cta": [
+      {"take": "IMG_0001", "inicio": 52.16, "fim": 53.9}
+    ]
+  }
+}

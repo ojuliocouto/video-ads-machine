@@ -1,0 +1,57 @@
+{
+  "livre": false,
+  "blocos": [
+    {
+      "tipo": "insert",
+      "insert": "agenda",
+      "layout": null,
+      "hook": {"eyebrow": "SUA AGENDA", "linha": "cheia de tarefa", "destaque": "QUE NÃO PAGA"},
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Sua agenda está cheia de tarefa que não paga as contas."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "Eu chamo isso de \"trabalho invisível\"."
+    },
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": "TODO DIA",
+      "ancora": {"palavra": "É", "n": 1, "explicita": false},
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "É o e-mail que você responde 'rapidinho', todo dia."
+    },
+    {
+      "tipo": "cta",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "logo": true,
+      "itens": [],
+      "enfase": [],
+      "fala": "Toque em saiba mais."
+    }
+  ]
+}

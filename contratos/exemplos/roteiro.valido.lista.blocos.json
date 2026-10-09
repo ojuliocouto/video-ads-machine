@@ -1,0 +1,65 @@
+{
+  "livre": false,
+  "blocos": [
+    {
+      "tipo": "apresentador",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "o dia passa",
+      "key": "E NADA ANDA",
+      "ancora": {"palavra": "O", "n": 1, "explicita": false},
+      "logo": false,
+      "itens": [],
+      "enfase": [],
+      "fala": "O dia passa e nada anda."
+    },
+    {
+      "tipo": "lista",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "enquanto isso",
+      "key": null,
+      "ancora": {"palavra": "Enquanto", "n": 1, "explicita": false},
+      "logo": false,
+      "itens": [
+        {"texto": "a proposta atrasa", "marcador": "❌"},
+        {"texto": "o cliente esfria", "marcador": "❌"},
+        {"texto": "e você perde a venda", "marcador": "❌"}
+      ],
+      "enfase": [],
+      "fala": "Enquanto isso: a proposta atrasa o cliente esfria e você perde a venda."
+    },
+    {
+      "tipo": "lista",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": null,
+      "key": null,
+      "ancora": null,
+      "logo": false,
+      "itens": [
+        {"texto": "a proposta sai na hora", "marcador": null},
+        {"texto": "o cliente recebe resposta", "marcador": null},
+        {"texto": "a venda fecha", "marcador": null}
+      ],
+      "enfase": [],
+      "fala": "Com a automação: a proposta sai na hora, o cliente recebe resposta e a venda fecha."
+    },
+    {
+      "tipo": "cta",
+      "insert": null,
+      "layout": null,
+      "hook": null,
+      "lead": "toque em",
+      "key": "SAIBA MAIS",
+      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "logo": true,
+      "itens": [],
+      "enfase": [],
+      "fala": "Toque em saiba mais."
+    }
+  ]
+}

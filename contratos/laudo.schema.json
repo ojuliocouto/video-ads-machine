@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "laudo.json",
+  "description": "Laudo da entrega, em entrega/laudo.json, escrito pelo orquestrador depois dos gates de saída. Amarrado ao sha256 do arquivo final. Cada gate aparece com resultado e saída; cada uma das 14 capacidades aponta os gates que a provam. veredito PASS só quando nenhum gate reprovou ou morreu e nenhuma capacidade reprovou. Gate que morre (ERRO) nunca aprova.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "projeto", "modo", "arquivo", "sha256", "gerado_em", "medidas", "gates", "capacidades", "veredito"],
+  "properties": {
+    "versao": {"const": 1},
+    "projeto": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"},
+    "modo": {"enum": ["avatar", "gravado", "oneshot"]},
+    "arquivo": {"$ref": "#/$defs/caminho"},
+    "sha256": {"$ref": "#/$defs/sha256"},
+    "gerado_em": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "medidas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duracao_s", "largura", "altura", "lufs", "true_peak_dbtp"],
+      "description": "Medido no arquivo entregue (ffprobe e loudnorm), nunca copiado do plano.",
+      "properties": {
+        "duracao_s": {"type": "number", "exclusiveMinimum": 0},
+        "largura": {"type": "integer", "minimum": 1},
+        "altura": {"type": "integer", "minimum": 1},
+        "fps": {"type": "number", "exclusiveMinimum": 0},
+        "lufs": {"type": "number", "maximum": 0},
+        "true_peak_dbtp": {"type": "number", "maximum": 3},
+        "taxa_amostragem": {"type": "integer", "minimum": 8000},
+        "cor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primarias": {"type": "string"},
+            "transferencia": {"type": "string"},
+            "matriz": {"type": "string"}
+          }
+        }
+      }
+    },
+    "previa": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arquivo", "sha256"],
+      "description": "A versão leve (_whatsapp) que sai antes dos gates de saída.",
+      "properties": {
+        "arquivo": {"$ref": "#/$defs/caminho"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/gate"}
+    },
+    "capacidades": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "As 14 capacidades cinematográficas (C1 a C14 do plano). Todas presentes; C13 costuma vir DESLIGADA.",
+      "required": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"],
+      "properties": {
+        "C1": {"$ref": "#/$defs/capacidade"},
+        "C2": {"$ref": "#/$defs/capacidade"},
+        "C3": {"$ref": "#/$defs/capacidade"},
+        "C4": {"$ref": "#/$defs/capacidade"},
+        "C5": {"$ref": "#/$defs/capacidade"},
+        "C6": {"$ref": "#/$defs/capacidade"},
+        "C7": {"$ref": "#/$defs/capacidade"},
+        "C8": {"$ref": "#/$defs/capacidade"},
+        "C9": {"$ref": "#/$defs/capacidade"},
+        "C10": {"$ref": "#/$defs/capacidade"},
+        "C11": {"$ref": "#/$defs/capacidade"},
+        "C12": {"$ref": "#/$defs/capacidade"},
+        "C13": {"$ref": "#/$defs/capacidade"},
+        "C14": {"$ref": "#/$defs/capacidade"}
+      }
+    },
+    "excecoes": {
+      "type": "array",
+      "description": "Cópia das exceções do projeto.json que algum gate usou.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["regra", "motivo"],
+        "properties": {
+          "regra": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$"},
+          "motivo": {"type": "string", "minLength": 5}
+        }
+      }
+    },
+    "custo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "heygen": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["saldo_antes_usd", "saldo_depois_usd", "delta_usd"],
+          "description": "Saldo lido antes e depois do job (GET /v3/users/me).",
+          "properties": {
+            "saldo_antes_usd": {"type": "number"},
+            "saldo_depois_usd": {"type": "number"},
+            "delta_usd": {"type": "number", "minimum": 0},
+            "minutos": {"type": "number", "minimum": 0},
+            "usd_por_minuto": {"type": "number", "minimum": 0}
+          }
+        }
+      }
+    },
+    "tempos": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "setup_s": {"type": "number", "minimum": 0},
+        "build_s": {"type": "number", "minimum": 0},
+        "render_s": {"type": "number", "minimum": 0}
+      }
+    },
+    "ambiente": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plataforma": {"type": "string"},
+        "python": {"type": "string"},
+        "ffmpeg": {"type": "string"},
+        "node": {"type": "string"},
+        "hyperframes": {"type": "string"},
+        "hf_home": {"type": "string", "description": "Declarado quando o cache do modelo de transcrição veio de fora do clone."}
+      }
+    },
+    "veredito": {"enum": ["PASS", "REPROVA"]}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "caminho": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$"},
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nome", "etapa", "resultado", "saida"],
+      "properties": {
+        "nome": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$"},
+        "etapa": {"enum": ["antes", "durante", "depois", "entrega"], "description": "Posição na ordem de gates do vam montar."},
+        "resultado": {"enum": ["PASS", "REPROVA", "ERRO", "PULADO"], "description": "ERRO: o gate morreu (falha de ferramenta, não de material). PULADO: só com motivo."},
+        "saida": {"type": "integer", "description": "Código de saída do processo do gate."},
+        "medido": {"type": "object", "description": "O que o gate mediu (forma livre por gate)."},
+        "limiar": {"type": "object", "description": "Os limiares usados, derivados das constantes do passo fiscalizado."},
+        "motivo": {"type": "string", "minLength": 3},
+        "duracao_s": {"type": "number", "minimum": 0}
+      },
+      "if": {"properties": {"resultado": {"const": "PASS"}}, "required": ["resultado"]},
+      "else": {"required": ["motivo"]}
+    },
+    "capacidade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gates"],
+      "properties": {
+        "status": {"enum": ["PASS", "REPROVA", "DESLIGADA", "NAO_SE_APLICA"]},
+        "gates": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$"}},
+        "motivo": {"type": "string", "minLength": 3}
+      },
+      "if": {"properties": {"status": {"const": "PASS"}}, "required": ["status"]},
+      "else": {"required": ["motivo"]}
+    }
+  }
+}
