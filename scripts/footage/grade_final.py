@@ -11,27 +11,34 @@ bt2020nc/arib-std-b67 (HDR/HLG) mesmo com o conteúdo SDR normal. As flags `-col
 `fast=1` só re-marca a tag (a fonte JÁ é bt709, só estava sem tag), sem conversão de pixel. Player
 que respeita a tag (WhatsApp, iPhone) decodifica com a curva errada e o vídeo sai avermelhado e quente.
 
-A grade é a que o motor sempre aplicou: grão 7 (temporal + uniforme), contraste 1,03, saturação 0,97 e
-vinheta PI/5,5.
+## A grade vem do `cinema.grade` (W4.C)
+
+O filtro não mora mais aqui: é pedido ao `cinema.grade` pelo nome do preset (`estilo.grade` do
+projeto.json). Sem preset vale o PADRÃO, `quente-suave`, que é a grade que o motor sempre aplicou
+(grão 7, contraste 1,03, saturação 0,97, vinheta PI/5,5) e gera a MESMA string de antes: a paridade
+com a fixture do dono continua caractere a caractere. As tags bt709 fecham a cadeia de todo preset.
+`FILTRO_GRADE` fica como o filtro do preset padrão, por compatibilidade.
 """
+from cinema import grade
+
 from .cadeia import run
 
-FILTRO_GRADE = ("[0:v]noise=alls=7:allf=t+u,eq=contrast=1.03:saturation=0.97,vignette=PI/5.5,"
-                "colorspace=all=bt709:iall=bt709:fast=1[v]")
+FILTRO_GRADE = grade.filtro(grade.PADRAO)
 
 
-def cmd_grade_final(vchain, a0, total, avatar, out):
+def cmd_grade_final(vchain, a0, total, avatar, out, preset=None):
     """Comando do mux final. `a0` é o início do 1º span no avatar e `total - a0` a janela de áudio
-    (a soma das durações dos spans)."""
+    (a soma das durações dos spans). `preset` é o nome do preset de grade (`None` = padrão);
+    nome desconhecido levanta `cinema.grade.GradeDesconhecida` antes de qualquer ffmpeg."""
     audlen = total - a0
     return ["ffmpeg", "-y", "-i", vchain, "-ss", str(a0), "-t", str(audlen), "-i", avatar,
-            "-filter_complex", FILTRO_GRADE,
+            "-filter_complex", grade.filtro(preset),
             "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
             "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
             "-c:a", "aac", "-shortest", out]
 
 
-def aplicar(vchain, a0, total, avatar, out):
-    """Roda a grade final e devolve o caminho de saída."""
-    run(cmd_grade_final(vchain, a0, total, avatar, out))
+def aplicar(vchain, a0, total, avatar, out, preset=None):
+    """Roda a grade final e devolve o caminho de saída. `preset`: ver `cmd_grade_final`."""
+    run(cmd_grade_final(vchain, a0, total, avatar, out, preset))
     return out
