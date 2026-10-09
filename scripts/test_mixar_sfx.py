@@ -45,9 +45,9 @@ class TesteMixarSfx(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Tudo em tmp: o video base, o plano, a saida e ate a biblioteca de som (o mixador
-        # le os wav de DADOS/assets/som, entao o subprocesso roda com VAM_DADOS apontando
-        # pra um DADOS temporario que tem os efeitos gerados pela receita).
+        # Tudo em tmp: o vídeo base, o plano, a saída e até a biblioteca de som (o mixador
+        # lê os wav de DADOS/assets/som, então o subprocesso roda com VAM_DADOS apontando
+        # para um DADOS temporário que tem os efeitos gerados pela receita).
         SC = Path(tempfile.mkdtemp(prefix="vam_mixar_"))
         cls.addClassCleanup(shutil.rmtree, SC, True)
         dados = SIN.dados_com_som(SC / "dados")

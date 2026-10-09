@@ -28,7 +28,7 @@ class TesteFolhasContato(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # 6s: vermelho 0-2s, verde 2-4s, azul 4-6s. Dois cortes nitidos, em 2s e 4s.
+        # 6s: vermelho 0-2s, verde 2-4s, azul 4-6s. Dois cortes nítidos, em 2s e 4s.
         SC = Path(tempfile.mkdtemp(prefix="vam_folhas_"))
         cls.addClassCleanup(shutil.rmtree, SC, True)
         cls.video = SIN.video_cores(SC / "sintetico_6s.mp4", cores=("red", "green", "blue"),

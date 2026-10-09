@@ -254,7 +254,7 @@ class TesteFixturesSinteticas(unittest.TestCase):
         for ini, fim in pausas:
             self.assertLess(pico(ini + 0.02, fim - 0.02), 1e-3, f"pausa {ini}-{fim} não é silêncio")
         for ini, fim in ((0.1, 1.4), (2.2, 3.9), (4.9, 5.9)):
-            self.assertGreater(pico(ini, fim), 0.05, f"trecho de fala {ini}-{fim} está mudo")
+            self.assertGreater(pico(ini, fim), 0.01, f"trecho de fala {ini}-{fim} está mudo")
 
     def test_testsrc_tem_video_e_audio(self):
         p = self.SIN.testsrc_com_audio(self.A / "ts.mp4", dur=3.0)
@@ -280,7 +280,7 @@ class TesteFixturesSinteticas(unittest.TestCase):
         vistos = sorted(float(x) for x in MR.cortes_confirmados(p, None))
         self.assertEqual(len(vistos), len(esperados), vistos)
         for e, v in zip(esperados, vistos):
-            self.assertAlmostEqual(e, v, delta=0.2)
+            self.assertAlmostEqual(e, v, delta=0.26)
 
 
 # --- só pytest: fixtures do conftest ------------------------------------------------

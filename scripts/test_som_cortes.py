@@ -23,10 +23,10 @@ for _p in (str(RAIZ / "scripts"), str(RAIZ)):
         sys.path.insert(0, _p)
 from tests.fixtures import sinteticos as SIN  # noqa: E402
 
-# (migracao 26/08/2026) o teste tinha a PROPRIA copia do caminho da biblioteca e por isso
-# continuou apontando pro lugar errado depois da mudanca. Agora a biblioteca nao e lida de
-# lugar nenhum: o teste a GERA em tmp pela receita do modulo (som_cortes.EFEITOS), que e o
-# que o contrato fiscaliza. O clone limpo nao tem os wav que o setup produz.
+# (migração 26/08/2026) o teste tinha a PRÓPRIA cópia do caminho da biblioteca e por isso
+# continuou apontando para o lugar errado depois da mudança. Agora a biblioteca não é lida de
+# lugar nenhum: o teste a GERA em tmp pela receita do módulo (som_cortes.EFEITOS), que é o
+# que o contrato fiscaliza. O clone limpo não tem os wav que o setup produz.
 ESPERADO = {
     "whoosh.wav": (0.25, 0.80),
     "tick.wav": (0.03, 0.15),
