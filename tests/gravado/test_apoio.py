@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
+from audio import loudness
 from gravado import (area_ad_inteiro, auditar, compor_caixinha, conferir_buracos, cortes_render,
                      entregar, extrair_caixinha, extrair_wav, frases_do_take, gerar_plano_md,
                      isolar, janela, legendar, medir_audio, montar, queimar_legenda,
@@ -706,7 +707,8 @@ def _pronto_para_entregar(tmp_path):
     p.garantir("wav")
     p.wav("T1").write_bytes(p.limpo("T1").read_bytes())
     p.garantir("montados")
-    fx.testsrc_com_audio(p.montado("A1_normal"), dur=3.0)
+    cru = fx.testsrc_com_audio(Path(tmp_path) / "cru.mp4", dur=3.0, tamanho="1080x1920")
+    loudness.normalizar(cru, p.montado("A1_normal"))               # o técnico da entrega mede -14 LUFS
     palavras = [w("palavra%d" % i, i * 0.5, i * 0.5 + 0.45) for i in range(6)]
     legendar.legendar_pecas(p, ["A1_normal"], sx.LeitorFalso(palavras_da_peca=palavras))
     p.garantir("legendado")
@@ -725,13 +727,13 @@ def _leitor_da_entrega():
     return sx.LeitorFalso(textos=sx.textos_em_sequencia(), palavras_da_peca=limpas, texto_peca=TEXTO_DA_PECA)
 
 
-def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_mais_a_legenda_aprovada_e_copia(tmp_path):
+def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_mais_legenda_aprovada_e_tecnico_e_copia(tmp_path):
     p = _pronto_para_entregar(tmp_path)
     r = entregar.entregar(p, leitor=_leitor_da_entrega())
     assert r.entregue, r.resumo()
     assert [n for n, _, _ in r.gates] == ["gate_envelope", "gate_fala", "gate_voz_distante", "gate_retomada",
                                           "gate_emendas", "gate_redundancia", "gate_ar_morto", "gate_legenda",
-                                          "gate_sincronia", "gate_repeticao", "gate_offscript", "legenda_aprovada"]
+                                          "gate_sincronia", "gate_repeticao", "gate_offscript", "legenda_aprovada", "tecnico"]
     assert {e for _, e, _ in r.gates} == {"ok"}
     assert (p.pasta("ENTREGA") / "A1_normal.mp4").read_bytes() == p.legendado("A1_normal").read_bytes()
     assert json.loads(p.falas_json.read_text(encoding="utf-8")) == {"A1_normal": TEXTO_DA_PECA}

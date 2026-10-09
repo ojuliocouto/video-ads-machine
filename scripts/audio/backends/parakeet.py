@@ -67,6 +67,7 @@ def palavras_da_saida(dados):
         for t in tokens:
             texto = str(t.get("text", ""))
             if not texto.strip():
+                abrir = True              # o espaço solto (o parakeet o emite antes de número) abre a próxima palavra
                 continue
             if abrir or texto[0].isspace() or not brutas:
                 brutas.append({"text": texto.strip(), "start": float(t["start"]),

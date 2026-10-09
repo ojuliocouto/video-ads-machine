@@ -36,6 +36,7 @@ import ar_morto
 from audio import loudness
 from cinema import grade as _grade
 from gravado import auditar, gate_ar_morto, gate_fala
+from gravado import montar as gravado_montar
 from gravado.nucleo import asr, energia
 from gravado.veredito import InsumoInvalido
 from oneshot import enquadrar, luz
@@ -210,7 +211,7 @@ def renderizar(pj, plano, caixa_png=None):
             if r.returncode != 0:
                 raise InsumoInvalido("o ffmpeg falhou no render: %s" % r.stderr.strip()[-600:])
             try:
-                loudness.normalizar(sem_loud, pj.final_9x16)
+                gravado_montar.normalizar_para_entrega(sem_loud, pj.final_9x16)
             except loudness.ErroDeLoudness as e:
                 raise InsumoInvalido(str(e))
         finally:

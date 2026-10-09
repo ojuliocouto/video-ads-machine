@@ -9,7 +9,8 @@ aparece primeiro.
 `legenda_aprovada` fecha a corrente da legenda (W5.D): o .ass tem a aprovação do diretor com o sha256
 dele (`legendar.aprovar`), a queima registrou esse mesmo sha256 (`queimar_legenda.registrar_queima`) e o
 arquivo de `legendado/` é o que saiu da queima. Quem editou o .ass depois do ok, ou trocou o arquivo
-legendado, trava aqui.
+legendado, trava aqui. `tecnico` mede o arquivo que vai ser entregue (resolução, 48 kHz, loudness e true
+peak): o 11 gates leem fala e imagem, e uma peça a -1,4 dBTP passaria por todos eles.
 
   Resultado.entregue   True só se os gates passaram e a cópia conferiu byte a byte (sha256)
   Resultado.codigo     0 entregue, 1 algum gate reprovou, 2 algum gate não mediu (ou sem peças)
@@ -119,9 +120,29 @@ def legenda_aprovada(proj):
     return True, "%d peça(s) queimada(s) do .ass que o diretor aprovou (sha256 conferido)" % len(bons)
 
 
+def tecnico_da_entrega(proj):
+    """(ok, motivo): o técnico MEDIDO de cada peça de `legendado/`, o que o espectador recebe: 1080x1920, 48 kHz,
+    -14 LUFS (+- 1,2) e true peak até -1,5 dBTP (`auditar.tecnico`). InsumoInvalido se não consegue medir."""
+    origem = proj.pasta("legendado")
+    pecas = sorted(origem.glob("*.mp4")) if origem.is_dir() else []
+    if not pecas:
+        raise InsumoInvalido("nenhuma peça legendada em %s: monte, legende e queime antes" % origem)
+    problemas, linhas = [], []
+    for mp4 in pecas:
+        t = auditar.tecnico(mp4)
+        resumo = "%s: %s, %s Hz, %.1fs, %.1f LUFS, pico %.1f dBTP" % (
+            mp4.stem, t["resolucao"], t["sample_rate"], t["duracao"], t["lufs"], t["true_peak"])
+        (linhas if t["ok"] else problemas).append(resumo if t["ok"] else "%s: %s" % (mp4.stem, t["motivo"]))
+    if problemas:
+        return False, "\n".join(problemas)
+    return True, "\n".join(linhas)
+
+
 def gates_da_entrega(proj, leitor):
-    """Os 11 gates do gravado mais a conferência da legenda aprovada, na ordem em que a entrega consulta."""
-    return gates_padrao(proj, leitor) + [("legenda_aprovada", lambda: legenda_aprovada(proj))]
+    """Os 11 gates do gravado, a conferência da legenda aprovada e o técnico do arquivo entregue, na ordem em que
+    a entrega consulta."""
+    return gates_padrao(proj, leitor) + [("legenda_aprovada", lambda: legenda_aprovada(proj)),
+                                         ("tecnico", lambda: tecnico_da_entrega(proj))]
 
 
 def rodar_gates(gates):

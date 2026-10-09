@@ -93,6 +93,22 @@ def test_sem_glossario_a_legenda_nao_troca_nada(tmp_path, estado_vazio):
     assert "Flucha" in p.legenda_ass("A1_normal").read_text(encoding="utf-8")
 
 
+def test_numero_nao_cola_na_palavra_da_frente_quando_o_parakeet_emite_o_espaco_solto():
+    """Defeito medido no A1: o parakeet emite o espaço como token próprio antes do número, e sem tratar isso a
+    legenda saía "com100 reais" (e o relatório fala x roteiro reprovava 4% de palavras "faltando")."""
+    from audio.backends import parakeet
+    dados = {"sentences": [{"tokens": [
+        {"text": " com", "start": 4.08, "end": 4.24}, {"text": " ", "start": 4.24, "end": 4.32},
+        {"text": "1", "start": 4.32, "end": 4.32}, {"text": "0", "start": 4.32, "end": 4.40},
+        {"text": "0", "start": 4.40, "end": 4.48}, {"text": " re", "start": 4.48, "end": 4.64},
+        {"text": "ais", "start": 4.64, "end": 4.80}]}]}
+    palavras = parakeet.palavras_da_saida(dados)
+    assert [p["text"] for p in palavras] == ["com", "100", "reais"]
+    texto, _ = legendar.ass_texto(palavras)
+    linha = [l for l in texto.splitlines() if l.startswith("Dialogue")][0]
+    assert legendar.sem_tags(linha.split(",", 9)[9]) == "com 100 reais"
+
+
 # --- 2. relatório fala x roteiro -----------------------------------------------------------------
 
 def test_relatorio_passa_quando_a_legenda_diz_o_que_o_roteiro_pede():

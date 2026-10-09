@@ -177,6 +177,31 @@ def comando_render(proj, segs, saida, entradas=None, hdr=None):
             "-color_range", "tv", "-c:a", "aac", "-b:a", "192k", str(saida)]
 
 
+TENTATIVAS_DE_LOUDNESS = 3
+FOLGA_DO_AAC_DB = 0.1
+
+
+def normalizar_para_entrega(entrada, saida):
+    """Normaliza o loudness de `entrada` para `saida` e CONFERE o arquivo gravado: o AAC do segundo passe
+    estoura o true peak em até 0,1 dB acima do alvo do loudnorm (medido no A1: mirou -1,5 e saiu -1,4, fora da
+    régua da entrega). Se a medida passa do teto, repete o passe com o teto do loudnorm menor pelo excesso
+    medido mais `FOLGA_DO_AAC_DB`; desiste com erro claro depois de `TENTATIVAS_DE_LOUDNESS` passes.
+    Devolve a Medicao final."""
+    tp = loudness.TP_ALVO
+    medida = None
+    for _ in range(TENTATIVAS_DE_LOUDNESS):
+        loudness.normalizar(entrada, saida, tp=tp)
+        medida = loudness.medir(saida)
+        if loudness.dentro_da_faixa(medida):
+            return medida
+        tp -= max(0.0, medida.true_peak_dbtp - loudness.TP_ALVO) + FOLGA_DO_AAC_DB
+    raise loudness.ErroDeLoudness(
+        "o loudness de %s não coube na régua da entrega (%.0f +- %.1f LUFS, pico até %.1f dBTP) depois de %d passes: "
+        "último %.1f LUFS e pico %.1f dBTP" % (Path(str(saida)).name, loudness.LUFS_ALVO, loudness.TOLERANCIA_LUFS,
+                                               loudness.TP_ALVO, TENTATIVAS_DE_LOUDNESS, medida.integrado_lufs,
+                                               medida.true_peak_dbtp))
+
+
 def render(proj, cod, segs, desconto=False):
     """Renderiza `segs` em `montados/<peça>.mp4`. Devolve o Path."""
     entradas = _entradas(proj, segs)
@@ -192,7 +217,7 @@ def render(proj, cod, segs, desconto=False):
         try:
             _rodar(comando_render(proj, segs, sem_loud, entradas, hdr))
             try:
-                loudness.normalizar(sem_loud, proj.montado(nome))
+                normalizar_para_entrega(sem_loud, proj.montado(nome))
             except loudness.ErroDeLoudness as e:
                 raise ErroDeRender(str(e))
         finally:

@@ -4,7 +4,8 @@ O pipeline de origem copiava `legendado/` para `ENTREGA/` sem consultar gate nen
 
   - roda os 11 gates do gravado, mais a conferência "legenda aprovada" (o sha256 do .ass que foi
     queimado é o do .ass que o diretor aprovou, e o arquivo da pasta `legendado/` é o que saiu da
-    queima), e não copia NADA se qualquer um sai com defeito (1) ou sem conseguir medir (2);
+    queima) e o técnico do arquivo entregue (1080x1920, 48 kHz, -14 LUFS com 1,2 de tolerância e true peak
+    até -1,5 dBTP), e não copia NADA se qualquer um sai com defeito (1) ou sem conseguir medir (2);
   - confere a cópia byte a byte (sha256) e deixa o `ENTREGA/entrega.json`: o que foi entregue, com o
     hash de cada peça e o veredito de cada gate;
   - pela CLI (`vam gravado <slug> entregar`) sai 0 (entregou), 1 (algum gate reprovou) ou 2 (algum
@@ -109,11 +110,37 @@ def test_entrega_que_falhou_nao_deixa_manifesto(tmp_path, estado_vazio):
 
 # --- a legenda entregue é a aprovada -------------------------------------------------------------
 
-def test_gates_da_entrega_sao_os_onze_mais_a_legenda_aprovada_no_fim(tmp_path, estado_vazio):
+def test_gates_da_entrega_sao_os_onze_mais_a_legenda_aprovada_e_o_tecnico_no_fim(tmp_path, estado_vazio):
     p = _projeto(tmp_path, estado_vazio)
     nomes = [n for n, _ in entregar.gates_da_entrega(p, sx.LeitorFalso(textos="x"))]
-    assert len(nomes) == 12 and nomes[:11] == [n for n, _ in entregar.gates_padrao(p, sx.LeitorFalso(textos="x"))]
-    assert nomes[-1] == "legenda_aprovada"
+    assert len(nomes) == 13 and nomes[:11] == [n for n, _ in entregar.gates_padrao(p, sx.LeitorFalso(textos="x"))]
+    assert nomes[11:] == ["legenda_aprovada", "tecnico"]
+
+
+def _tecnico_falso(ok, motivo="", lufs=-14.1, pico=-1.7):
+    return lambda arquivo: {"ok": ok, "motivo": motivo, "resolucao": "1080x1920", "sample_rate": "48000",
+                            "duracao": 23.0, "lufs": lufs, "true_peak": pico}
+
+
+def test_tecnico_da_entrega_reprova_loudness_fora_da_faixa_e_cita_a_peca_e_o_numero(tmp_path, estado_vazio, monkeypatch):
+    p = _projeto(tmp_path, estado_vazio)
+    monkeypatch.setattr(entregar.auditar, "tecnico", _tecnico_falso(
+        False, "loudness -14.5 LUFS e pico -1.4 dBTP (faixa: -14 +- 1.2 LUFS, pico até -1.5)", -14.5, -1.4))
+    ok, motivo = entregar.tecnico_da_entrega(p)
+    assert not ok and "A1_normal" in motivo and "-1.4" in motivo
+
+
+def test_tecnico_da_entrega_passa_quando_todas_as_pecas_estao_na_faixa(tmp_path, estado_vazio, monkeypatch):
+    p = _projeto(tmp_path, estado_vazio)
+    monkeypatch.setattr(entregar.auditar, "tecnico", _tecnico_falso(True))
+    ok, motivo = entregar.tecnico_da_entrega(p)
+    assert ok and "A1_normal" in motivo and "-14.1 LUFS" in motivo
+
+
+def test_tecnico_sem_conseguir_medir_e_insumo_invalido(tmp_path, estado_vazio):
+    p = _projeto(tmp_path, estado_vazio)               # a "peça" é lixo: o ffprobe não lê
+    with pytest.raises(InsumoInvalido):
+        entregar.tecnico_da_entrega(p)
 
 
 def test_peca_sem_legenda_aprovada_e_defeito_e_diz_como_aprovar(tmp_path, estado_vazio):
@@ -169,9 +196,10 @@ def test_entregar_padrao_sem_legenda_aprovada_nao_copia_nada(tmp_path, estado_va
     p = _projeto(tmp_path, estado_vazio)
     monkeypatch.setattr(entregar, "gates_padrao",
                         lambda proj, leitor: [("gate_a", _gate(True)), ("gate_b", _gate(True))])
+    monkeypatch.setattr(entregar, "tecnico_da_entrega", lambda proj: (True, "técnico ok"))
     r = entregar.entregar(p, leitor=sx.LeitorFalso(textos="x"))
     assert (r.entregue, r.codigo) == (False, 1)
-    assert [(n, e) for n, e, _ in r.gates][-1] == ("legenda_aprovada", "defeito")
+    assert [(n, e) for n, e, _ in r.gates][-2] == ("legenda_aprovada", "defeito")
     assert _nada_entregue(p)
     _legenda_aprovada_e_queimada(p)
     r2 = entregar.entregar(p, leitor=sx.LeitorFalso(textos="x"))

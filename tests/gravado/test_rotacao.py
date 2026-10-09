@@ -98,6 +98,41 @@ def test_o_comando_marca_a_saida_bt709_em_tv(tmp_path):
     assert cmd[-1] == "/x/saida.mp4"
 
 
+# --- o loudness da peça montada (o AAC passa do teto) --------------------------------------------
+
+def test_normalizar_para_entrega_passa_direto_quando_a_primeira_medida_ja_cabe(monkeypatch):
+    from audio import loudness
+    chamadas = []
+    monkeypatch.setattr(montar.loudness, "normalizar", lambda e, s, alvo=-14.0, tp=-1.5, lra=11.0:
+                        chamadas.append(tp) or s)
+    monkeypatch.setattr(montar.loudness, "medir", lambda arq: loudness.Medicao(-14.1, -1.8, 5.0))
+    m = montar.normalizar_para_entrega("in.mp4", "out.mp4")
+    assert chamadas == [loudness.TP_ALVO] and loudness.dentro_da_faixa(m)
+
+
+def test_normalizar_para_entrega_aperta_o_alvo_do_passe_quando_o_aac_estoura_o_teto(monkeypatch):
+    """Medido no A1: o loudnorm mirou -1,5 dBTP e a peça saiu a -1,4 depois do AAC. O teto do passe cai pelo
+    excesso medido mais uma folga, e o segundo passe cabe."""
+    from audio import loudness
+    chamadas = []
+    medidas = iter([loudness.Medicao(-14.4, -1.4, 5.0), loudness.Medicao(-14.6, -1.7, 5.0)])
+    monkeypatch.setattr(montar.loudness, "normalizar", lambda e, s, alvo=-14.0, tp=-1.5, lra=11.0:
+                        chamadas.append(tp) or s)
+    monkeypatch.setattr(montar.loudness, "medir", lambda arq: next(medidas))
+    m = montar.normalizar_para_entrega("in.mp4", "out.mp4")
+    assert chamadas[0] == loudness.TP_ALVO and chamadas[1] == pytest.approx(-1.7, abs=1e-6)
+    assert loudness.dentro_da_faixa(m)
+
+
+def test_normalizar_para_entrega_desiste_com_erro_claro_depois_de_3_passes(monkeypatch):
+    from audio import loudness
+    monkeypatch.setattr(montar.loudness, "normalizar", lambda e, s, alvo=-14.0, tp=-1.5, lra=11.0: s)
+    monkeypatch.setattr(montar.loudness, "medir", lambda arq: loudness.Medicao(-14.0, -0.5, 5.0))
+    with pytest.raises(loudness.ErroDeLoudness) as e:
+        montar.normalizar_para_entrega("in.mp4", "out.mp4")
+    assert "-0.5" in str(e.value) and "3" in str(e.value)
+
+
 # --- a rotação -90, medida no pixel --------------------------------------------------------------
 
 def _fonte_deitada(destino, dur=5.0):
