@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:linear-gradient(135deg,#0c1116,#131a22)}
+.win{width:min(1460px,92%);background:#0d1117;border-radius:14px;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden;border:1px solid #1f2830}
+.bar{height:44px;background:#161b22;display:flex;align-items:center;padding:0 18px;gap:8px}
+.dot{width:13px;height:13px;border-radius:50%}
+.tit{color:#8b949e;font-size:15px;margin-left:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.body{padding:26px 30px 30px;font:500 19px/1.95 "SF Mono","Menlo","Consolas","DejaVu Sans Mono",monospace;color:#c9d1d9;min-height:520px}
+.lin{opacity:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.g{display:inline-block;width:1.4em}
+.comando .g{color:#79c0ff}.ok .g{color:#7ee787}.passo .g{color:#8b949e}.passo{color:#8b949e}
+.o{color:#ffa657}
+.cur{display:inline-block;width:9px;height:18px;background:#58a6ff;vertical-align:-3px;margin-left:4px;opacity:0}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="win">
+ <div class="bar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><div class="tit">{{titulo_janela}}</div></div>
+ <div class="body">
+{{#cada linhas}}<div class="lin {{tipo}}"><span class="g">{{glifo}}</span>{{texto}}{{#se nota}} <span class="o">{{nota}}</span>{{/se}}</div>
+{{/cada}}<span class="cur" id="cur"></span>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var lin=document.querySelectorAll(".lin"), cur=document.getElementById("cur");
+  window.vamQuadro=function(t,DUR){
+    var n=lin.length, ini=0.15, passo=VAM.passo(n,ini,0.8,0.5), i;
+    for(i=0;i<n;i++) lin[i].style.opacity=(t>=ini+i*passo)?1:0;
+    var fim=ini+(n-1)*passo;
+    cur.style.opacity=(t>=fim&&(Math.floor(t*3)%2===0))?1:0;
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

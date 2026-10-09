@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face{font-family:"Inter";font-weight:400;font-style:normal;font-display:block;src:url("fonts/inter-400.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:600;font-style:normal;font-display:block;src:url("fonts/inter-600.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:700;font-style:normal;font-display:block;src:url("fonts/inter-700.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:500;font-style:normal;font-display:block;src:url("fonts/montserrat-500.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:600;font-style:normal;font-display:block;src:url("fonts/montserrat-600.woff2") format("woff2")}
+@font-face{font-family:"Archivo";font-weight:800;font-style:normal;font-display:block;src:url("fonts/archivo-800.woff2") format("woff2")}
+@font-face{font-family:"Playfair Display";font-weight:600;font-style:italic;font-display:block;src:url("fonts/playfair-italic-600.woff2") format("woff2")}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116;font-family:"Montserrat","Inter",sans-serif;font-weight:600}
+#root{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transform:scale(1.000000)}
+#zoom{position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+</style>
+<style>
+#root{background:radial-gradient(ellipse at 50% 42%,#1a2330 0%,#0c1116 70%)}
+.wrap{text-align:center;width:100%}
+.num{font-family:"Archivo","Inter",sans-serif;font-weight:800;line-height:1;color:#fff;letter-spacing:-.02em;white-space:nowrap}
+.mais{color:#4c8dff}
+.sub{font:italic 600 52px "Playfair Display",serif;color:#e8e2d6;margin-top:18px;padding:0 6%}
+.tra{width:0;height:6px;background:#4c8dff;margin:30px auto 0;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.0000" data-width="1920" data-height="1080">
+<div id="stage"><div id="zoom">
+<div class="wrap">
+ <div class="num" style="font-size:300px"><span class="mais">+</span><span id="n" data-v="6000.0" data-c="0" data-final="6.000">6.000</span></div>
+ <div class="sub">clientes atendidos até hoje</div>
+ <div class="tra" id="tr"></div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var n=document.getElementById("n"), tr=document.getElementById("tr");
+  var v=parseFloat(n.getAttribute("data-v")), c=parseInt(n.getAttribute("data-c"),10), fim=n.getAttribute("data-final");
+  window.vamQuadro=function(t,DUR){
+    var x=Math.min(1,t/Math.min(2.4,DUR*0.6)), p=1-Math.pow(1-Math.max(0,x),4);
+    n.textContent=(x>=1)?fim:VAM.fmt(v*p,c);
+    tr.style.width=(p*420).toFixed(1)+"px";
+  };
+})();
+</script>
+<script>
+(function(){
+  var raiz=document.getElementById("root");
+  var DUR=parseFloat(raiz.getAttribute("data-duration"));
+  function clamp(x){return x<0?0:(x>1?1:x)}
+  window.VAM={
+    clamp:clamp,
+    ease:function(x){x=clamp(x);return 1-Math.pow(1-x,3)},
+    passo:function(n,ini,fracao,maximo){return Math.min(maximo,(DUR*fracao-ini)/Math.max(1,n))},
+    fmt:function(v,c){
+      var s=Math.abs(v).toFixed(c).split("."),i=s[0],r="";
+      while(i.length>3){r="."+i.slice(-3)+r;i=i.slice(0,-3)}
+      r=i+r+(s.length>1?","+s[1]:"");
+      return (v<0&&/[1-9]/.test(r))?"-"+r:r;
+    }
+  };
+  function aplicar(t){
+    if(!(t>0))t=0; if(t>DUR)t=DUR;
+    var z=document.getElementById("zoom");
+    if(z)z.style.transform="scale("+(1+0.03*(t/DUR)).toFixed(5)+")";
+    if(window.vamQuadro)window.vamQuadro(t,DUR);
+  }
+  window.__vamSeek=aplicar;
+  var tl={_t:0,
+    seek:function(t){this._t=t;aplicar(t);return this},
+    time:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    totalTime:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    duration:function(){return DUR},
+    totalDuration:function(){return DUR},
+    progress:function(){return this._t/DUR},
+    pause:function(){return this},
+    play:function(){return this},
+    paused:function(){return true},
+    isActive:function(){return false},
+    getChildren:function(){return []},
+    eventCallback:function(){return this}
+  };
+  window.__timelines=window.__timelines||{};
+  window.__timelines["main"]=tl;
+  var q=new URLSearchParams(location.search);
+  aplicar(q.has("t")?parseFloat(q.get("t")):0);
+})();
+</script>
+</body>
+</html>

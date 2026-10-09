@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:#0c1116}
+.app{width:min(1560px,94%);height:min(880px,88%);background:#12181f;border-radius:14px;border:1px solid #212b35;box-shadow:0 40px 120px rgba(0,0,0,.65);padding:36px 44px;display:flex;flex-direction:column}
+h1{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:28px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.per{color:#8696a0;font-size:15px;margin-top:4px;min-height:18px}
+.kpis{display:flex;gap:16px;margin:26px 0}
+.kpi{flex:1;min-width:0;background:#1a222c;border:1px solid #26323e;border-radius:12px;padding:18px 22px}
+.kl{color:#8696a0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#fff;font-size:34px;margin-top:6px;white-space:nowrap}
+.kd{font-size:13.5px;margin-top:6px;color:#31c48d;min-height:17px}
+.graf{flex:1;min-height:180px;display:flex;flex-direction:column;background:#1a222c;border:1px solid #26323e;border-radius:12px;padding:22px}
+.gl{color:#8696a0;font-size:14px;margin-bottom:8px}
+svg{flex:1;width:100%;min-height:0;overflow:visible}
+.linha{fill:none;stroke:{{destaque}};stroke-width:4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.area{fill:url(#gr);opacity:.35}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="app">
+ <h1>{{titulo}}</h1><div class="per">{{periodo}}</div>
+ <div class="kpis">
+  {{#cada kpis}}<div class="kpi"><div class="kl">{{rotulo}}</div><div class="kv" data-pre="{{prefixo}}" data-suf="{{sufixo}}" data-v="{{v}}" data-c="{{c}}" data-final="{{final}}">{{final}}</div><div class="kd">{{nota}}</div></div>
+  {{/cada}}
+ </div>
+ <div class="graf"><div class="gl">{{grafico.titulo}}</div>
+  <svg id="sv" viewBox="0 0 1000 240" preserveAspectRatio="none" data-pontos="{{pontos_norm}}">
+   <defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{destaque}}"/><stop offset="1" stop-color="{{destaque}}" stop-opacity="0"/></linearGradient></defs>
+   <path class="area" id="ar"></path><path class="linha" id="ln"></path>
+  </svg>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var kv=document.querySelectorAll(".kv"), sv=document.getElementById("sv");
+  var pts=sv.getAttribute("data-pontos").split(",").map(parseFloat);
+  var ln=document.getElementById("ln"), ar=document.getElementById("ar");
+  window.vamQuadro=function(t,DUR){
+    var x=Math.min(1,t/Math.min(2.2,DUR*0.6)), p=VAM.ease(x), i;
+    for(i=0;i<kv.length;i++){
+      var e=kv[i];
+      e.textContent=(x>=1)?e.getAttribute("data-final"):e.getAttribute("data-pre")+VAM.fmt(parseFloat(e.getAttribute("data-v"))*p,parseInt(e.getAttribute("data-c"),10))+e.getAttribute("data-suf");
+    }
+    var d="", da="M 0 236", n=pts.length;
+    for(i=0;i<n;i++){
+      var px=i*1000/(n-1), py=236-pts[i]*200*p;
+      d+=(i?" L ":"M ")+px.toFixed(1)+" "+py.toFixed(1);
+      da+=" L "+px.toFixed(1)+" "+py.toFixed(1);
+    }
+    da+=" L 1000 236 Z";
+    ln.setAttribute("d",d); ar.setAttribute("d",da);
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{_largura}}, height={{_altura}}">
+<!--VAM:BASE-->
+<style>
+#root{background:#0c1116}
+.canvas{position:relative;width:{{cw}}px;height:{{ch}}px;background:#10161d;border:1px solid #1f2a35;border-radius:16px;background-image:radial-gradient(#1c2733 1.5px,transparent 1.5px);background-size:30px 30px;box-shadow:0 40px 120px rgba(0,0,0,.65);overflow:hidden}
+.tit{position:absolute;top:26px;left:32px;right:32px;font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+svg{position:absolute;left:0;top:0}
+.fio{stroke:#26323e;stroke-width:3;fill:none}
+.pulso{stroke:{{destaque}};stroke-width:3;fill:none;stroke-linecap:round;opacity:0}
+.no{position:absolute;background:#161e28;border:1.5px solid #26323e;border-radius:14px;padding:16px 12px;text-align:center;opacity:0;overflow:hidden}
+.ic{width:54px;height:54px;border-radius:12px;margin:0 auto 10px;display:grid;place-items:center;font-family:"Archivo","Inter",sans-serif;font-weight:800;font-size:24px;color:#fff}
+.nm{color:#e9edef;font-size:16px;line-height:1.25}
+.st{font-size:12.5px;color:#31c48d;margin-top:6px;opacity:0}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
+<div id="stage"><div id="zoom">
+<div class="canvas">
+ <div class="tit">{{titulo}}</div>
+ <svg width="{{cw}}" height="{{ch}}" viewBox="0 0 {{cw}} {{ch}}">
+  {{#cada conexoes}}<path class="fio" d="{{d}}"/><path class="pulso" data-e="{{etapa}}" d="{{d}}"/>
+  {{/cada}}
+ </svg>
+ {{#cada caixas}}<div class="no" data-e="{{etapa}}" style="left:{{x}}px;top:{{y}}px;width:{{w}}px;height:{{h}}px"><div class="ic" style="background:{{cor}}">{{icone}}</div><div class="nm">{{nome}}</div><div class="st">{{estado}}</div></div>
+ {{/cada}}
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var nos=document.querySelectorAll(".no"), pulsos=document.querySelectorAll(".pulso");
+  var E=0, i;
+  for(i=0;i<nos.length;i++) E=Math.max(E,parseInt(nos[i].getAttribute("data-e"),10)+1);
+  var comp=[];
+  for(i=0;i<pulsos.length;i++) comp.push(pulsos[i].getTotalLength());
+  window.vamQuadro=function(t,DUR){
+    var passo=VAM.passo(E,0.2,0.7,0.55), j;
+    for(j=0;j<nos.length;j++){
+      var e=parseInt(nos[j].getAttribute("data-e"),10), ini=0.2+e*passo;
+      var p=VAM.ease((t-ini)/0.45);
+      nos[j].style.opacity=p.toFixed(3);
+      nos[j].style.transform="translateY("+((1-p)*20).toFixed(2)+"px)";
+      nos[j].querySelector(".st").style.opacity=VAM.clamp((t-(ini+0.5))/0.2).toFixed(3);
+    }
+    for(j=0;j<pulsos.length;j++){
+      var e2=parseInt(pulsos[j].getAttribute("data-e"),10), comeca=0.2+e2*passo+0.35;
+      var L=comp[j], ciclo=L+160, pos=((t-comeca)*700)%ciclo;
+      pulsos[j].style.opacity=(t>=comeca)?1:0;
+      pulsos[j].style.strokeDasharray="26 "+(ciclo*2).toFixed(1);
+      pulsos[j].style.strokeDashoffset=(26-pos).toFixed(1);
+    }
+  };
+})();
+</script>
+<!--VAM:RUNTIME-->
+</body>
+</html>

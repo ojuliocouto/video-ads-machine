@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face{font-family:"Inter";font-weight:400;font-style:normal;font-display:block;src:url("fonts/inter-400.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:600;font-style:normal;font-display:block;src:url("fonts/inter-600.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:700;font-style:normal;font-display:block;src:url("fonts/inter-700.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:500;font-style:normal;font-display:block;src:url("fonts/montserrat-500.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:600;font-style:normal;font-display:block;src:url("fonts/montserrat-600.woff2") format("woff2")}
+@font-face{font-family:"Archivo";font-weight:800;font-style:normal;font-display:block;src:url("fonts/archivo-800.woff2") format("woff2")}
+@font-face{font-family:"Playfair Display";font-weight:600;font-style:italic;font-display:block;src:url("fonts/playfair-italic-600.woff2") format("woff2")}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116;font-family:"Montserrat","Inter",sans-serif;font-weight:600}
+#root{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transform:scale(1.000000)}
+#zoom{position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+</style>
+<style>
+#root{background:linear-gradient(135deg,#0c1116,#131a22)}
+.win{width:min(1460px,92%);background:#0d1117;border-radius:14px;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden;border:1px solid #1f2830}
+.bar{height:44px;background:#161b22;display:flex;align-items:center;padding:0 18px;gap:8px}
+.dot{width:13px;height:13px;border-radius:50%}
+.tit{color:#8b949e;font-size:15px;margin-left:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.body{padding:26px 30px 30px;font:500 19px/1.95 "SF Mono","Menlo","Consolas","DejaVu Sans Mono",monospace;color:#c9d1d9;min-height:520px}
+.lin{opacity:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.g{display:inline-block;width:1.4em}
+.comando .g{color:#79c0ff}.ok .g{color:#7ee787}.passo .g{color:#8b949e}.passo{color:#8b949e}
+.o{color:#ffa657}
+.cur{display:inline-block;width:9px;height:18px;background:#58a6ff;vertical-align:-3px;margin-left:4px;opacity:0}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.0000" data-width="1920" data-height="1080">
+<div id="stage"><div id="zoom">
+<div class="win">
+ <div class="bar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><div class="tit">agente de prospecção: rodando</div></div>
+ <div class="body">
+<div class="lin comando"><span class="g">$</span>agente prospectar --nicho &quot;clinicas&quot; --cidade &quot;Curitiba&quot;</div>
+<div class="lin ok"><span class="g">✓</span>38 empresas encontradas no mapa</div>
+<div class="lin passo"><span class="g">→</span>visitando o site da empresa</div>
+<div class="lin ok"><span class="g">✓</span>contato extraído</div>
+<div class="lin passo"><span class="g">→</span>lendo a página de serviços…</div>
+<div class="lin ok"><span class="g">✓</span>abordagem personalizada escrita <span class="o">(fisioterapia esportiva)</span></div>
+<div class="lin ok"><span class="g">✓</span>mensagem enviada e lead salvo no CRM</div>
+<div class="lin passo"><span class="g">→</span>próxima empresa (5 de 38)…</div>
+<span class="cur" id="cur"></span>
+ </div>
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var lin=document.querySelectorAll(".lin"), cur=document.getElementById("cur");
+  window.vamQuadro=function(t,DUR){
+    var n=lin.length, ini=0.15, passo=VAM.passo(n,ini,0.8,0.5), i;
+    for(i=0;i<n;i++) lin[i].style.opacity=(t>=ini+i*passo)?1:0;
+    var fim=ini+(n-1)*passo;
+    cur.style.opacity=(t>=fim&&(Math.floor(t*3)%2===0))?1:0;
+  };
+})();
+</script>
+<script>
+(function(){
+  var raiz=document.getElementById("root");
+  var DUR=parseFloat(raiz.getAttribute("data-duration"));
+  function clamp(x){return x<0?0:(x>1?1:x)}
+  window.VAM={
+    clamp:clamp,
+    ease:function(x){x=clamp(x);return 1-Math.pow(1-x,3)},
+    passo:function(n,ini,fracao,maximo){return Math.min(maximo,(DUR*fracao-ini)/Math.max(1,n))},
+    fmt:function(v,c){
+      var s=Math.abs(v).toFixed(c).split("."),i=s[0],r="";
+      while(i.length>3){r="."+i.slice(-3)+r;i=i.slice(0,-3)}
+      r=i+r+(s.length>1?","+s[1]:"");
+      return (v<0&&/[1-9]/.test(r))?"-"+r:r;
+    }
+  };
+  function aplicar(t){
+    if(!(t>0))t=0; if(t>DUR)t=DUR;
+    var z=document.getElementById("zoom");
+    if(z)z.style.transform="scale("+(1+0.03*(t/DUR)).toFixed(5)+")";
+    if(window.vamQuadro)window.vamQuadro(t,DUR);
+  }
+  window.__vamSeek=aplicar;
+  var tl={_t:0,
+    seek:function(t){this._t=t;aplicar(t);return this},
+    time:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    totalTime:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    duration:function(){return DUR},
+    totalDuration:function(){return DUR},
+    progress:function(){return this._t/DUR},
+    pause:function(){return this},
+    play:function(){return this},
+    paused:function(){return true},
+    isActive:function(){return false},
+    getChildren:function(){return []},
+    eventCallback:function(){return this}
+  };
+  window.__timelines=window.__timelines||{};
+  window.__timelines["main"]=tl;
+  var q=new URLSearchParams(location.search);
+  aplicar(q.has("t")?parseFloat(q.get("t")):0);
+})();
+</script>
+</body>
+</html>

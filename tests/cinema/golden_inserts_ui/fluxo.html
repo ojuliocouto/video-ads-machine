@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face{font-family:"Inter";font-weight:400;font-style:normal;font-display:block;src:url("fonts/inter-400.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:600;font-style:normal;font-display:block;src:url("fonts/inter-600.woff2") format("woff2")}
+@font-face{font-family:"Inter";font-weight:700;font-style:normal;font-display:block;src:url("fonts/inter-700.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:500;font-style:normal;font-display:block;src:url("fonts/montserrat-500.woff2") format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:600;font-style:normal;font-display:block;src:url("fonts/montserrat-600.woff2") format("woff2")}
+@font-face{font-family:"Archivo";font-weight:800;font-style:normal;font-display:block;src:url("fonts/archivo-800.woff2") format("woff2")}
+@font-face{font-family:"Playfair Display";font-weight:600;font-style:italic;font-display:block;src:url("fonts/playfair-italic-600.woff2") format("woff2")}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116;font-family:"Montserrat","Inter",sans-serif;font-weight:600}
+#root{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transform:scale(1.000000)}
+#zoom{position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+</style>
+<style>
+#root{background:#0c1116}
+.canvas{position:relative;width:1640px;height:760px;background:#10161d;border:1px solid #1f2a35;border-radius:16px;background-image:radial-gradient(#1c2733 1.5px,transparent 1.5px);background-size:30px 30px;box-shadow:0 40px 120px rgba(0,0,0,.65);overflow:hidden}
+.tit{position:absolute;top:26px;left:32px;right:32px;font-family:"Archivo","Inter",sans-serif;font-weight:800;color:#e9edef;font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+svg{position:absolute;left:0;top:0}
+.fio{stroke:#26323e;stroke-width:3;fill:none}
+.pulso{stroke:#4c8dff;stroke-width:3;fill:none;stroke-linecap:round;opacity:0}
+.no{position:absolute;background:#161e28;border:1.5px solid #26323e;border-radius:14px;padding:16px 12px;text-align:center;opacity:0;overflow:hidden}
+.ic{width:54px;height:54px;border-radius:12px;margin:0 auto 10px;display:grid;place-items:center;font-family:"Archivo","Inter",sans-serif;font-weight:800;font-size:24px;color:#fff}
+.nm{color:#e9edef;font-size:16px;line-height:1.25}
+.st{font-size:12.5px;color:#31c48d;margin-top:6px;opacity:0}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.0000" data-width="1920" data-height="1080">
+<div id="stage"><div id="zoom">
+<div class="canvas">
+ <div class="tit">Fluxo do agente: rodando</div>
+ <svg width="1640" height="760" viewBox="0 0 1640 760">
+  <path class="fio" d="M 260.0 380.0 C 373.3 380.0 373.3 240.0 486.7 240.0"/><path class="pulso" data-e="0" d="M 260.0 380.0 C 373.3 380.0 373.3 240.0 486.7 240.0"/>
+  <path class="fio" d="M 260.0 380.0 C 373.3 380.0 373.3 520.0 486.7 520.0"/><path class="pulso" data-e="0" d="M 260.0 380.0 C 373.3 380.0 373.3 520.0 486.7 520.0"/>
+  <path class="fio" d="M 706.7 240.0 C 820.0 240.0 820.0 380.0 933.3 380.0"/><path class="pulso" data-e="1" d="M 706.7 240.0 C 820.0 240.0 820.0 380.0 933.3 380.0"/>
+  <path class="fio" d="M 706.7 520.0 C 820.0 520.0 820.0 380.0 933.3 380.0"/><path class="pulso" data-e="1" d="M 706.7 520.0 C 820.0 520.0 820.0 380.0 933.3 380.0"/>
+  <path class="fio" d="M 1153.3 380.0 C 1266.7 380.0 1266.7 380.0 1380.0 380.0"/><path class="pulso" data-e="2" d="M 1153.3 380.0 C 1266.7 380.0 1266.7 380.0 1380.0 380.0"/>
+  
+ </svg>
+ <div class="no" data-e="0" style="left:40.0px;top:305.0px;width:220px;height:150px"><div class="ic" style="background:#4c8dff">1</div><div class="nm">Novo lead chegou</div><div class="st">disparado</div></div>
+ <div class="no" data-e="1" style="left:486.7px;top:165.0px;width:220px;height:150px"><div class="ic" style="background:#22c55e">2</div><div class="nm">Responde no chat</div><div class="st">enviado</div></div>
+ <div class="no" data-e="1" style="left:486.7px;top:445.0px;width:220px;height:150px"><div class="ic" style="background:#a855f7">3</div><div class="nm">Registra na planilha</div><div class="st">salvo</div></div>
+ <div class="no" data-e="2" style="left:933.3px;top:305.0px;width:220px;height:150px"><div class="ic" style="background:#f59e0b">4</div><div class="nm">Atualiza o CRM</div><div class="st">movido</div></div>
+ <div class="no" data-e="3" style="left:1380.0px;top:305.0px;width:220px;height:150px"><div class="ic" style="background:#ef4444">5</div><div class="nm">Avisa você</div><div class="st">resumo pronto</div></div>
+ 
+</div>
+</div></div>
+</div>
+<script>
+(function(){
+  var nos=document.querySelectorAll(".no"), pulsos=document.querySelectorAll(".pulso");
+  var E=0, i;
+  for(i=0;i<nos.length;i++) E=Math.max(E,parseInt(nos[i].getAttribute("data-e"),10)+1);
+  var comp=[];
+  for(i=0;i<pulsos.length;i++) comp.push(pulsos[i].getTotalLength());
+  window.vamQuadro=function(t,DUR){
+    var passo=VAM.passo(E,0.2,0.7,0.55), j;
+    for(j=0;j<nos.length;j++){
+      var e=parseInt(nos[j].getAttribute("data-e"),10), ini=0.2+e*passo;
+      var p=VAM.ease((t-ini)/0.45);
+      nos[j].style.opacity=p.toFixed(3);
+      nos[j].style.transform="translateY("+((1-p)*20).toFixed(2)+"px)";
+      nos[j].querySelector(".st").style.opacity=VAM.clamp((t-(ini+0.5))/0.2).toFixed(3);
+    }
+    for(j=0;j<pulsos.length;j++){
+      var e2=parseInt(pulsos[j].getAttribute("data-e"),10), comeca=0.2+e2*passo+0.35;
+      var L=comp[j], ciclo=L+160, pos=((t-comeca)*700)%ciclo;
+      pulsos[j].style.opacity=(t>=comeca)?1:0;
+      pulsos[j].style.strokeDasharray="26 "+(ciclo*2).toFixed(1);
+      pulsos[j].style.strokeDashoffset=(26-pos).toFixed(1);
+    }
+  };
+})();
+</script>
+<script>
+(function(){
+  var raiz=document.getElementById("root");
+  var DUR=parseFloat(raiz.getAttribute("data-duration"));
+  function clamp(x){return x<0?0:(x>1?1:x)}
+  window.VAM={
+    clamp:clamp,
+    ease:function(x){x=clamp(x);return 1-Math.pow(1-x,3)},
+    passo:function(n,ini,fracao,maximo){return Math.min(maximo,(DUR*fracao-ini)/Math.max(1,n))},
+    fmt:function(v,c){
+      var s=Math.abs(v).toFixed(c).split("."),i=s[0],r="";
+      while(i.length>3){r="."+i.slice(-3)+r;i=i.slice(0,-3)}
+      r=i+r+(s.length>1?","+s[1]:"");
+      return (v<0&&/[1-9]/.test(r))?"-"+r:r;
+    }
+  };
+  function aplicar(t){
+    if(!(t>0))t=0; if(t>DUR)t=DUR;
+    var z=document.getElementById("zoom");
+    if(z)z.style.transform="scale("+(1+0.03*(t/DUR)).toFixed(5)+")";
+    if(window.vamQuadro)window.vamQuadro(t,DUR);
+  }
+  window.__vamSeek=aplicar;
+  var tl={_t:0,
+    seek:function(t){this._t=t;aplicar(t);return this},
+    time:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    totalTime:function(t){if(t===undefined)return this._t;return this.seek(t)},
+    duration:function(){return DUR},
+    totalDuration:function(){return DUR},
+    progress:function(){return this._t/DUR},
+    pause:function(){return this},
+    play:function(){return this},
+    paused:function(){return true},
+    isActive:function(){return false},
+    getChildren:function(){return []},
+    eventCallback:function(){return this}
+  };
+  window.__timelines=window.__timelines||{};
+  window.__timelines["main"]=tl;
+  var q=new URLSearchParams(location.search);
+  aplicar(q.has("t")?parseFloat(q.get("t")):0);
+})();
+</script>
+</body>
+</html>
