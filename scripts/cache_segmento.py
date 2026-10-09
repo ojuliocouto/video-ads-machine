@@ -10,7 +10,7 @@ import hashlib
 import json
 
 
-def chave_segmento(tipo, narr, s, e, ee, base, layout, insert_cfg, fonte_stat, versao):
+def chave_segmento(tipo, narr, s, e, ee, base, layout, insert_cfg, fonte_stat, versao, punches=None):
     """Chave sha256 (16 hex) que identifica um segmento renderizavel.
 
     tipo: b["type"] do bloco ("orig", "insert", "logo", "lettering", "lettering_logo").
@@ -24,6 +24,9 @@ def chave_segmento(tipo, narr, s, e, ee, base, layout, insert_cfg, fonte_stat, v
         Se a fonte mudar de conteudo sem mudar de nome, o cache antigo nao serve.
     versao: constante VERSAO_RENDER do produzir_roteiro.py; sobe sempre que o
         filtro de render mudar, pra invalidar cache de builds anteriores.
+    punches: os eventos de câmera do plano (W5.X), relativos a ele. Entram na chave só quando existem: o plano
+        sem punch mantém a chave de antes (o cache dos builds anteriores continua valendo), e o plano com punch
+        nunca volta do cache de um render sem ele.
     """
     payload = {
         "tipo": tipo,
@@ -37,5 +40,7 @@ def chave_segmento(tipo, narr, s, e, ee, base, layout, insert_cfg, fonte_stat, v
         "fonte_stat": list(fonte_stat),
         "versao": versao,
     }
+    if punches:
+        payload["punches"] = json.dumps(punches, sort_keys=True, default=str)
     blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:16]

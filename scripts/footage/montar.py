@@ -32,6 +32,7 @@ fronteira em até 0,16 s no avatar do fixture.
 são do overlay (`gen_ad_v2`). Ignorar o valor em silêncio entregaria um vídeo sem o que o chamador
 pediu.
 """
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -127,6 +128,17 @@ def _blocos_spans_e_plano(cfg, blocks, inserts):
     return BL.aplicar_ritmo(blocks, spans, bwords, inserts)
 
 
+def _camera_da_timeline(cfg):
+    """O plano de câmera (`camera`) da timeline.json, ou [] sem timeline (W5.X: o punch chega ao render)."""
+    if not cfg.timeline:
+        return []
+    try:
+        with open(cfg.timeline, encoding="utf-8") as f:
+            return list(json.load(f).get("camera") or [])
+    except (OSError, ValueError):
+        return []
+
+
 def montar(cfg):
     """Monta a footage e devolve o caminho do mp4."""
     import ritmo as _R
@@ -151,7 +163,8 @@ def montar(cfg):
     ctx = RS.Contexto(avatar=cfg.avatar, tmp=cfg.tmp, tr=cfg.tr, inserts=inserts,
                       dir_molduras=str(caminhos.ESTADO / "molduras"),
                       dir_gerados=str(caminhos.ESTADO / "gerados"),
-                      logo=str(logo) if logo else None, cache=cfg.cache, paralelo=cfg.paralelo, split=cfg.split)
+                      logo=str(logo) if logo else None, cache=cfg.cache, paralelo=cfg.paralelo, split=cfg.split,
+                      camera=_camera_da_timeline(cfg))
     segs = RS.renderizar_todos(blocks, spans, ctx)
 
     durs = CA.medir_duracoes(segs)

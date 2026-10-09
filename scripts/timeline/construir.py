@@ -233,6 +233,15 @@ def _relativo(caminho, raiz, o_que):
                            "guarda caminho relativo, para a timeline valer em qualquer máquina")
 
 
+def com_camera(tl):
+    """A timeline com o plano de câmera (`cinema.camera.planejar`): zoom por plano de apresentador, respiro e o
+    punch da KEY em avatar cheio (W5.X, pendência b: a timeline do montar saía com `camera` vazia)."""
+    from cinema import camera
+    novo = dict(tl)
+    novo["camera"] = camera.planejar(tl)
+    return novo
+
+
 def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, raiz, fps=FPS,
               aceleracao=ACELERACAO_PADRAO, cauda_s=CAUDA_S, formato=None, projeto=None, punches=(), sfx=(),
               ducking=None, medir_rosto=None):

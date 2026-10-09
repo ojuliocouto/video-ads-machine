@@ -268,6 +268,7 @@ class Motor(object):
                               projeto=self.slug, ducking=ducking, medir_rosto=TC.medir_rosto_do_avatar(self.pj.avatar_mp4))
         except (AL.ErroAlinhamento, TC.ErroTimeline, musica.TrilhaInvalida) as e:
             raise ErroDoMotor("timeline", str(e))
+        tl = TC.com_camera(tl)                      # W5.X: o punch da KEY chega à footage
         tl["sfx"] = SP.plano_de_sfx(tl)
         erros = validar("timeline", tl)
         if erros:
