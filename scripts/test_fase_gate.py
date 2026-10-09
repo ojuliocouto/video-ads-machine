@@ -12,9 +12,11 @@ mora em plano/escrever_md.py, e a aprovacao guarda o sha256 do plano: plano edit
 vence ("aprovacao vencida").
 """
 import contextlib
+import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -26,6 +28,20 @@ import fase_gate
 from plano import checklist, escrever_md
 
 CODIGO = Path(__file__).resolve().parent
+
+# O repo não carrega os nomes que ele proíbe: a lista é de sha256 de palavras em minúsculas, como a varredura da
+# W6.D. Travessão também não aparece escrito aqui: os códigos são montados na hora.
+NOMES_PROIBIDOS = frozenset({
+    "901be86d450c504e8555ffeeeab1e06b926c8785fd99ef382c1310b7c66bc167",
+    "0f93ac79e8080a952e10e309d126ac2c6309d2a97811e3bc923221bdc63b4778",
+    "3dba2d2e96e3a37e36af293826144bf2fcf6e54b279558e8f571acf707881cef",
+    "e3a5e4f62a3add3d82bd6b1b2d354c01395b59d4dadebafe5df522736e0a380d"})
+TRAVESSOES = (chr(0x2014), chr(0x2013))
+
+
+def nomes_proibidos_em(texto):
+    palavras = set(re.findall(r"\w+", texto.lower()))
+    return sorted(p for p in palavras if hashlib.sha256(p.encode("utf-8")).hexdigest() in NOMES_PROIBIDOS)
 
 
 def plano_md(omitir=(), tamanho=900):
@@ -72,7 +88,7 @@ class TesteFaseGate(unittest.TestCase):
         self._leva(plano={"aprovado_em": "x"}, notas={"99": {"nota": 7, "evidencia": "r"}})
         with self.assertRaises(SystemExit) as cm:
             fase_gate.cmd_check_entrega("99")
-        self.assertIn("minimo 8", str(cm.exception))
+        self.assertIn("mínimo 8", str(cm.exception))
 
     def test_entrega_com_8_passa(self):
         self._leva(plano={"aprovado_em": "x"}, notas={"99": {"nota": 8, "evidencia": "r"}})
@@ -204,7 +220,7 @@ class TesteAprovarPlano(unittest.TestCase):
         self._iniciar()
         with self.assertRaises(SystemExit) as cm:
             fase_gate.cmd_aprovar_plano("teste", str(self.dir / "nao-existe.md"))
-        self.assertIn("nao existe", str(cm.exception))
+        self.assertIn("não existe", str(cm.exception))
 
     def test_sem_aprovacao_a_mensagem_pede_o_ok_do_diretor_no_chat(self):
         self._iniciar()
@@ -219,11 +235,9 @@ class TesteAprovarPlano(unittest.TestCase):
         self.assertIn("ok do diretor no chat", saida.getvalue())
 
     def test_fase_gate_nao_tem_nome_do_dono_em_lugar_nenhum(self):
-        fonte = (CODIGO / "fase_gate.py").read_text(encoding="utf-8").lower()
-        self.assertNotIn("julio", fonte)
-        self.assertNotIn("júlio", fonte)
-        self.assertNotIn("—", fonte)
-        self.assertNotIn("–", fonte)
+        fonte = (CODIGO / "fase_gate.py").read_text(encoding="utf-8")
+        self.assertEqual(nomes_proibidos_em(fonte), [])
+        self.assertEqual([t for t in TRAVESSOES if t in fonte], [])
 
     def test_fase_gate_nao_escreve_aprovacao_json(self):
         # quem escreve plano/aprovacao.json é só plano/aprovacao.py; o estado da leva é outro arquivo

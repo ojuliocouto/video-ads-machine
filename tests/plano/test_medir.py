@@ -11,6 +11,7 @@ de escrever_md, aprovacao e gate_aprovacao.
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,24 @@ EXEMPLOS = RAIZ / "contratos" / "exemplos"
 SLUG = "tres-horas"
 AGORA = "2026-10-09T10:00:00-03:00"
 ACEL = 1.35
+
+# O repo não carrega os nomes que ele proíbe: a lista é de sha256 de palavras em minúsculas, como a varredura da
+# W6.D. Travessão também não aparece escrito aqui: os códigos são montados na hora.
+NOMES_PROIBIDOS = frozenset({
+    "901be86d450c504e8555ffeeeab1e06b926c8785fd99ef382c1310b7c66bc167",
+    "0f93ac79e8080a952e10e309d126ac2c6309d2a97811e3bc923221bdc63b4778",
+    "3dba2d2e96e3a37e36af293826144bf2fcf6e54b279558e8f571acf707881cef",
+    "e3a5e4f62a3add3d82bd6b1b2d354c01395b59d4dadebafe5df522736e0a380d"})
+TRAVESSOES = (chr(0x2014), chr(0x2013))
+
+
+def nomes_proibidos_em(texto):
+    palavras = set(re.findall(r"\w+", texto.lower()))
+    return sorted(p for p in palavras if hashlib.sha256(p.encode("utf-8")).hexdigest() in NOMES_PROIBIDOS)
+
+
+def travessoes_em(texto):
+    return [t for t in TRAVESSOES if t in texto]
 
 ROTEIRO = (EXEMPLOS / "roteiro.valido.completo.md").read_text(encoding="utf-8")
 
@@ -562,6 +581,24 @@ def test_erro_de_grafia_do_asr_nao_atrapalha(tmp_path):
     assert len(plano["blocos"]) == 7
 
 
+def test_alinhamento_fora_do_formato_diz_o_que_falta(tmp_path):
+    pj = montar_projeto(tmp_path)
+    for ruim in ([{"text": "oi"}], [{"text": "oi", "start": "a", "end": 1}], ["oi"], [{"start": 0, "end": 1}]):
+        with pytest.raises(medir.PlanoNaoMedivel) as e:
+            medir.medir(pj, palavras=ruim, sondar=sondar_falso())
+        assert "text" in str(e.value) and "start" in str(e.value)
+
+
+def test_trechos_e_sugestoes_nao_sao_compartilhados_com_quem_chamou(tmp_path):
+    from tests.plano.test_medir import ROTEIRO_GRAVADO
+    pj = montar_projeto(tmp_path, roteiro=ROTEIRO_GRAVADO, modo="gravado", chaves=())
+    sug = {"trechos": copy.deepcopy(TRECHOS)}
+    plano = medir.medir(pj, palavras=palavras_sinteticas(ROTEIRO_GRAVADO), sondar=sondar_falso(), sugestoes=sug,
+                        agora=AGORA)
+    plano["trechos"]["corpo"][0]["take"] = "OUTRO"
+    assert sug["trechos"] == TRECHOS
+
+
 # --- ffprobe -----------------------------------------------------------------------------------------------
 
 def test_interpretar_ffprobe_video_horizontal():
@@ -670,7 +707,6 @@ def test_cli_pasta_que_nao_e_projeto_sai_com_2(tmp_path, capsys):
 
 
 def test_modulo_nao_tem_nome_do_dono():
-    texto = (RAIZ / "scripts" / "plano" / "medir.py").read_text(encoding="utf-8").lower()
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in texto
-    assert "—" not in texto and "–" not in texto
+    texto = (RAIZ / "scripts" / "plano" / "medir.py").read_text(encoding="utf-8")
+    assert nomes_proibidos_em(texto) == []
+    assert travessoes_em(texto) == []

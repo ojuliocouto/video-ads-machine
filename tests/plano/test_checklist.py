@@ -14,6 +14,7 @@ import pytest
 import medir_ritmo
 from contratos.validar import validar
 from plano import checklist
+from tests.plano.test_medir import nomes_proibidos_em, travessoes_em
 
 RAIZ = Path(__file__).resolve().parents[2]
 EXEMPLOS = RAIZ / "contratos" / "exemplos"
@@ -308,7 +309,6 @@ def test_avaliar_aceita_projeto_ausente(avatar):
 
 
 def test_modulo_nao_tem_nome_do_dono_nem_travessao():
-    texto = (RAIZ / "scripts" / "plano" / "checklist.py").read_text(encoding="utf-8").lower()
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in texto
-    assert "—" not in texto and "–" not in texto
+    texto = (RAIZ / "scripts" / "plano" / "checklist.py").read_text(encoding="utf-8")
+    assert nomes_proibidos_em(texto) == []
+    assert travessoes_em(texto) == []

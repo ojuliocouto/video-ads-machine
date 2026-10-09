@@ -8,7 +8,7 @@ import re
 import pytest
 
 from plano import checklist, escrever_md, medir
-from tests.plano.test_medir import SLUG, medir_exemplo, sha
+from tests.plano.test_medir import SLUG, medir_exemplo, nomes_proibidos_em, sha, travessoes_em
 
 
 @pytest.fixture
@@ -179,9 +179,8 @@ def test_instrucao_de_aprovacao_fala_do_ok_no_chat(pronto):
 def test_sem_travessao_sem_nome_do_dono_e_sem_marcador_de_ia(pronto):
     pj, _ = pronto
     md = texto(pj)
-    assert "—" not in md and "–" not in md
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in md.lower()
+    assert travessoes_em(md) == []
+    assert nomes_proibidos_em(md) == []
 
 
 def test_renderizar_aceita_plano_de_gravado(tmp_path):
@@ -196,7 +195,6 @@ def test_renderizar_aceita_plano_de_gravado(tmp_path):
 def test_modulo_nao_tem_nome_do_dono():
     from pathlib import Path
     fonte = (Path(__file__).resolve().parents[2] / "scripts" / "plano" / "escrever_md.py").read_text(
-        encoding="utf-8").lower()
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in fonte
-    assert "—" not in fonte and "–" not in fonte
+        encoding="utf-8")
+    assert nomes_proibidos_em(fonte) == []
+    assert travessoes_em(fonte) == []

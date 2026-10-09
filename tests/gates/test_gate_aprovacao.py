@@ -12,7 +12,7 @@ import pytest
 from gates import gate_aprovacao as G
 from plano import aprovacao, escrever_md, medir
 from projeto import status
-from tests.plano.test_medir import AGORA, SLUG, medir_exemplo
+from tests.plano.test_medir import AGORA, SLUG, medir_exemplo, nomes_proibidos_em, travessoes_em
 
 RAIZ = Path(__file__).resolve().parents[2]
 OK = "aprovado, pode montar"
@@ -149,7 +149,6 @@ def test_rodado_como_script(aprovado):
 
 def test_modulo_nao_tem_nome_do_dono_nem_escreve_a_aprovacao():
     fonte = (RAIZ / "scripts" / "gates" / "gate_aprovacao.py").read_text(encoding="utf-8")
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in fonte.lower()
-    assert "—" not in fonte and "–" not in fonte
-    assert "aprovacao.json" not in fonte or "write" not in fonte
+    assert nomes_proibidos_em(fonte) == []
+    assert travessoes_em(fonte) == []
+    assert "write" not in fonte and "escrever_json" not in fonte

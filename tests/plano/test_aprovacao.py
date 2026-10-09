@@ -19,7 +19,7 @@ from contratos.validar import validar
 from entrada import para_motor
 from plano import aprovacao, escrever_md, medir
 from projeto import pastas, status
-from tests.plano.test_medir import AGORA, SLUG, medir_exemplo, sha
+from tests.plano.test_medir import AGORA, SLUG, medir_exemplo, nomes_proibidos_em, sha, travessoes_em
 
 RAIZ = Path(__file__).resolve().parents[2]
 OK = "aprovado, pode montar. Se o gancho ficar escuro, me avisa."
@@ -296,16 +296,13 @@ def test_emissor_forjado_nao_vale(aprovado):
 
 
 def test_caminho_apontando_para_outro_arquivo_nao_vale(aprovado):
-    """sha256 batendo não basta: o caminho tem que ser o do arquivo que o montar de fato lê."""
+    """Os sha256 batem com os arquivos de hoje, mas a aprovação diz que aprovou OUTRO arquivo: incoerente, não vale."""
     pj, _ = aprovado
-    copia = pj.raiz / "roteiro_antigo.md"
-    copia.write_bytes(pj.roteiro.read_bytes())
     dados = json.loads(pj.aprovacao.read_text(encoding="utf-8"))
     dados["arquivos"]["roteiro"]["caminho"] = "roteiro_antigo.md"
     pj.aprovacao.write_text(json.dumps(dados), encoding="utf-8")
-    pj.roteiro.write_text("[apresentador] outra coisa\n", encoding="utf-8")
     s = aprovacao.verificar(pj)
-    assert not s.vigente and "roteiro.md" in s.motivo
+    assert not s.vigente and "roteiro.md" in s.motivo and "roteiro_antigo.md" in s.motivo
 
 
 def test_aprovacao_de_outro_projeto_nao_vale(aprovado):
@@ -343,6 +340,14 @@ def test_plano_invalido_e_reassinado_a_mao_ainda_e_pego_pelas_secoes(aprovado):
     _reassinar(pj)
     s = aprovacao.verificar(pj)
     assert not s.vigente and "'efeitos'" in s.motivo
+
+
+def test_plano_ilegivel_com_aprovacao_refeita_a_mao_nao_derruba_a_verificacao(aprovado):
+    pj, _ = aprovado
+    pj.plano_json.write_text("{ nao e json", encoding="utf-8")
+    _reassinar(pj)
+    s = aprovacao.verificar(pj)
+    assert not s.vigente and "plano.json" in s.motivo and "ilegível" in s.motivo
 
 
 def test_verificar_so_le(aprovado):
@@ -431,7 +436,6 @@ def test_cli_slug_invalido_ou_projeto_inexistente_sai_com_2(tmp_path, capsys):
 
 
 def test_modulo_nao_tem_nome_do_dono():
-    fonte = (RAIZ / "scripts" / "plano" / "aprovacao.py").read_text(encoding="utf-8").lower()
-    for nome in ("julio", "júlio", "thales", "jheni"):
-        assert nome not in fonte
-    assert "—" not in fonte and "–" not in fonte
+    fonte = (RAIZ / "scripts" / "plano" / "aprovacao.py").read_text(encoding="utf-8")
+    assert nomes_proibidos_em(fonte) == []
+    assert travessoes_em(fonte) == []
