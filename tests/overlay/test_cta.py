@@ -142,7 +142,8 @@ def test_cta_na_borda_inicial_do_split_desce():
 @pytest.mark.parametrize("pasta", ["reel-editorial", "reel-editorial-1x1"])
 def test_nos_templates_reais_nenhum_tempo_do_modelo_sobra(pasta):
     from pathlib import Path
-    modelo = (Path(__file__).resolve().parents[2] / "templates" / pasta / "index.html").read_text(encoding="utf-8")
+    from overlay.html_injecao import ler_template   # W4.D: o template inclui parciais (o JS mora em _parciais/timeline.js)
+    modelo = ler_template(Path(__file__).resolve().parents[2] / "templates" / pasta / "index.html")
     html = C.aplicar_html(modelo, {}, 12.3, 11.4, 20.7, [])
     assert 'data-start="50.4" data-duration="4.96"' not in html
     assert 'data-start="46.7" data-duration="8.68"' not in html
