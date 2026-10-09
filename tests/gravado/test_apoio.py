@@ -60,7 +60,7 @@ def test_criar_guarda_os_brutos_como_caminho_absoluto_da_pasta_de_onde_foi_chama
 
 def test_projeto_so_escreve_dentro_da_propria_pasta(tmp_path):
     p = gp.criar(tmp_path / "leva1", brutos=tmp_path / "brutos")
-    for nome in ("wav", "audio", "limpo", "montados", "legendado", "ENTREGA", "cache_asr"):
+    for nome in ("wav", "audio", "limpo", "montados", "legendado", "entrega", "cache_asr"):
         assert str(p.pasta(nome).resolve()).startswith(str(p.base.resolve()))
     assert not (tmp_path / "brutos").exists()           # os brutos são só leitura
 
@@ -478,7 +478,7 @@ def test_entregar_nao_copia_nada_se_qualquer_gate_sai_com_defeito(tmp_path):
     r = entregar.entregar(p, gates=[("gate_a", _gate(True)), ("gate_b", _gate(False, "pausa de 0.9s")),
                                     ("gate_c", _gate(True))])
     assert r.entregue is False and r.codigo == 1
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert not list(p.pasta("entrega").glob("*"))
     assert [(n, e) for n, e, _ in r.gates] == [("gate_a", "ok"), ("gate_b", "defeito"), ("gate_c", "ok")]
     assert "pausa de 0.9s" in r.resumo()
 
@@ -488,7 +488,7 @@ def test_entregar_nao_copia_se_um_gate_nao_conseguiu_medir(tmp_path):
     _legendados(p)
     r = entregar.entregar(p, gates=[("gate_a", _gate(True)), ("gate_b", _gate("insumo", "ASR falhou"))])
     assert r.entregue is False and r.codigo == 2
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert not list(p.pasta("entrega").glob("*"))
 
 
 def test_defeito_vale_mais_que_insumo_no_codigo_de_saida(tmp_path):
@@ -503,9 +503,9 @@ def test_entregar_copia_tudo_e_confere_o_sha_quando_todos_passam(tmp_path):
     _legendados(p)
     r = entregar.entregar(p, gates=[("gate_a", _gate(True)), ("gate_b", _gate(True))], abrir=False)
     assert r.entregue is True and r.codigo == 0
-    assert sorted(x.name for x in p.pasta("ENTREGA").glob("*.mp4")) == ["A1_normal.mp4", "B2_normal.mp4"]
+    assert sorted(x.name for x in p.pasta("entrega").glob("*.mp4")) == ["A1_normal.mp4", "B2_normal.mp4"]
     for nome in r.copiados:
-        assert (p.pasta("ENTREGA") / nome).read_bytes() == (p.pasta("legendado") / nome).read_bytes()
+        assert (p.pasta("entrega") / nome).read_bytes() == (p.pasta("legendado") / nome).read_bytes()
 
 
 def test_entregar_sem_pecas_legendadas_e_insumo_invalido(tmp_path):
@@ -735,7 +735,7 @@ def test_entregar_de_ponta_a_ponta_roda_os_onze_gates_reais_mais_legenda_aprovad
                                           "gate_emendas", "gate_redundancia", "gate_ar_morto", "gate_legenda",
                                           "gate_sincronia", "gate_repeticao", "gate_offscript", "legenda_aprovada", "tecnico"]
     assert {e for _, e, _ in r.gates} == {"ok"}
-    assert (p.pasta("ENTREGA") / "A1_normal.mp4").read_bytes() == p.legendado("A1_normal").read_bytes()
+    assert (p.pasta("entrega") / "A1_normal.mp4").read_bytes() == p.legendado("A1_normal").read_bytes()
     assert json.loads(p.falas_json.read_text(encoding="utf-8")) == {"A1_normal": TEXTO_DA_PECA}
 
 
@@ -746,7 +746,7 @@ def test_entregar_com_a_legendada_de_outra_peca_trava_no_gate_de_sincronia(tmp_p
     assert r.entregue is False and r.codigo == 1
     estados = {n: e for n, e, _ in r.gates}
     assert estados["gate_sincronia"] == "defeito"
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert not list(p.pasta("entrega").glob("*"))
 
 
 def test_entregar_com_fala_de_direcao_na_peca_trava_no_gate_offscript(tmp_path):
@@ -756,7 +756,7 @@ def test_entregar_com_fala_de_direcao_na_peca_trava_no_gate_offscript(tmp_path):
     r = entregar.entregar(p, leitor=leitor)
     assert r.entregue is False
     assert {n: e for n, e, _ in r.gates}["gate_offscript"] == "defeito"
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert not list(p.pasta("entrega").glob("*"))
 
 
 def test_entregar_com_asr_que_falhou_nao_copia_e_sai_com_2(tmp_path):
@@ -764,4 +764,4 @@ def test_entregar_com_asr_que_falhou_nao_copia_e_sai_com_2(tmp_path):
     p = _pronto_para_entregar(tmp_path)
     r = entregar.entregar(p, leitor=sx.LeitorFalso(falhar=asr.ErroDeASR("sem rede")))
     assert r.entregue is False and r.codigo == 2
-    assert not list(p.pasta("ENTREGA").glob("*"))
+    assert not list(p.pasta("entrega").glob("*"))

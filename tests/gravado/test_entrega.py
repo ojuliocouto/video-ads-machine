@@ -31,10 +31,9 @@ def w(texto, ini, fim):
 
 
 def _nada_entregue(proj):
-    """Nenhuma peça nem manifesto em ENTREGA/. (No macOS `ENTREGA` e o `entrega/` do layout do projeto são a
-    mesma pasta, e o `novo` já cria `entrega/folhas`: por isso a conferência é por peça e manifesto, não por
-    pasta vazia.)"""
-    pasta = proj.pasta("ENTREGA")
+    """Nenhuma peça nem manifesto em entrega/. (O `novo` já cria `entrega/folhas`: por isso a conferência é por
+    peça e manifesto, não por pasta vazia.)"""
+    pasta = proj.pasta("entrega")
     return not list(pasta.glob("*.mp4")) and not (pasta / "entrega.json").exists()
 
 
@@ -94,18 +93,18 @@ def test_entregue_deixa_o_manifesto_com_o_hash_de_cada_peca_e_o_veredito_de_cada
     p = _projeto(tmp_path, estado_vazio)
     r = entregar.entregar(p, gates=[("gate_a", _gate(True, "ok a")), ("gate_b", _gate(True, "ok b"))])
     assert r.entregue
-    m = json.loads((p.pasta("ENTREGA") / "entrega.json").read_text(encoding="utf-8"))
+    m = json.loads((p.pasta("entrega") / "entrega.json").read_text(encoding="utf-8"))
     assert m["versao"] == 1 and m["aceleracao"] == 1.2
     assert [x["nome"] for x in m["pecas"]] == ["A1_normal.mp4"]
     assert m["pecas"][0]["sha256"] == legendar.sha256_arquivo(p.legendado("A1_normal"))
-    assert m["pecas"][0]["sha256"] == legendar.sha256_arquivo(p.pasta("ENTREGA") / "A1_normal.mp4")
+    assert m["pecas"][0]["sha256"] == legendar.sha256_arquivo(p.pasta("entrega") / "A1_normal.mp4")
     assert [(g["nome"], g["estado"]) for g in m["gates"]] == [("gate_a", "ok"), ("gate_b", "ok")]
 
 
 def test_entrega_que_falhou_nao_deixa_manifesto(tmp_path, estado_vazio):
     p = _projeto(tmp_path, estado_vazio)
     entregar.entregar(p, gates=[("gate_a", _gate(False))])
-    assert not (p.pasta("ENTREGA") / "entrega.json").exists()
+    assert not (p.pasta("entrega") / "entrega.json").exists()
 
 
 # --- a legenda entregue é a aprovada -------------------------------------------------------------
@@ -241,7 +240,7 @@ def test_cli_entregar_tudo_verde_sai_0_copia_e_confere(tmp_path, estado_vazio, m
     pr = _preparar_cli(tmp_path, estado_vazio, monkeypatch, [("gate_a", _gate(True)), ("gate_b", _gate(True))])
     assert _cli(estado_vazio, "leva", "entregar") == 0
     assert "ENTREGUE: 1 peça(s)" in capsys.readouterr().out
-    assert (pr.pasta("ENTREGA") / "A1_normal.mp4").read_bytes() == pr.legendado("A1_normal").read_bytes()
+    assert (pr.pasta("entrega") / "A1_normal.mp4").read_bytes() == pr.legendado("A1_normal").read_bytes()
 
 
 def test_cli_entregar_sem_pecas_legendadas_sai_2(tmp_path, estado_vazio, monkeypatch):

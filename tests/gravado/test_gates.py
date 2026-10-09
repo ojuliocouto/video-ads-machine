@@ -714,3 +714,104 @@ def test_asr_que_falha_numa_cli_de_projeto_sai_com_2_nunca_com_1(tmp_path, monke
     p = sx.projeto_de_teste(tmp_path)
     _com_leitor(monkeypatch, sx.LeitorFalso(falhar=asr.ErroDeASR("sem rede")))
     assert m.main(["--projeto", str(p.base)]) == 2
+
+
+# --- W5.A (pendência 12.4): os gates de texto medem só os trechos que entram no anúncio ----------------------
+
+def test_entrega_do_gravado_e_a_pasta_entrega_minuscula():
+    """`ENTREGA/` e `entrega/` são a mesma pasta no macOS e duas no Linux: uma só, em minúsculas."""
+    from gravado import projeto as gp
+    assert "entrega" in gp.PASTAS and "ENTREGA" not in gp.PASTAS
+    texto = (SCRIPTS / "gravado" / "entregar.py").read_text(encoding="utf-8")
+    assert 'garantir("ENTREGA")' not in texto
+
+
+def test_fala_mede_so_os_trechos_usados_do_take(tmp_path):
+    """O A1 reprovava porque o gate comparava o take INTEIRO: o trecho descartado (fora do plano) tinha palavra que o
+    isolador limpou. Agora só as janelas dos trechos do plano, take a take, entram na comparação."""
+    m = _modulo("gate_fala")
+    p = sx.projeto_de_teste(tmp_path)
+    for take in ("T1", "T2"):
+        p.garantir("wav")
+        p.wav(take).write_bytes(p.limpo(take).read_bytes())
+    inteiro, sem_dez = _texto(100), " ".join("palavra%d" % i for i in range(100) if i % 10 != 3)
+
+    def por_janela(audio, ini, fim):
+        return _texto(30)                       # dentro dos trechos, bruto e limpo dizem o mesmo
+    leitor = sx.LeitorFalso(textos=por_janela,
+                            texto_peca=lambda a: sem_dez if Path(a).parent.name == "limpo" else inteiro)
+    ok, motivo = m.verificar_projeto(p, leitor)
+    assert ok, motivo
+    janelas = sorted({(Path(a).stem, ini, fim) for a, ini, fim in leitor.chamadas if not isinstance(ini, str)})
+    assert janelas == [("T1", 0.0, 3.5), ("T1", 4.0, 5.0), ("T2", 0.5, 2.0)]
+
+
+def test_fala_ainda_reprova_palavra_comida_dentro_de_um_trecho_usado(tmp_path):
+    m = _modulo("gate_fala")
+    p = sx.projeto_de_teste(tmp_path)
+    for take in ("T1", "T2"):
+        p.garantir("wav")
+        p.wav(take).write_bytes(p.limpo(take).read_bytes())
+
+    def por_janela(audio, ini, fim):
+        if Path(audio).parent.name == "limpo" and (ini, fim) == (0.0, 3.5):
+            return " ".join("palavra%d" % i for i in range(100) if i % 10 != 3)
+        return _texto(100)
+    ok, motivo = m.verificar_projeto(p, sx.LeitorFalso(textos=por_janela))
+    assert not ok and "T1" in motivo and "palavra3" in motivo
+
+
+def test_retomada_fragmento_declarado_no_plano_e_aceito():
+    m = _modulo("gate_retomada")
+    subs = [m.SubBloco(0.0, 0.4, "e vo", True, "T1"),
+            m.SubBloco(0.6, 3.0, "você vai ver como isso funciona", True, "T1")]
+    ok, motivo = m.verificar_versoes({"A1_normal": subs})
+    assert not ok and "FRAGMENTO" in motivo
+    ok, motivo = m.verificar_versoes({"A1_normal": subs}, aceitos=[("T1", 0.2, "a vinheta curta é proposital")])
+    assert ok, motivo
+    assert "aceito" in motivo and "proposital" in motivo
+
+
+def test_retomada_fragmento_declarado_em_outro_take_ou_instante_nao_vale():
+    m = _modulo("gate_retomada")
+    subs = [m.SubBloco(0.0, 0.4, "e vo", True, "T1"),
+            m.SubBloco(0.6, 3.0, "você vai ver como isso funciona", True, "T1")]
+    assert not m.verificar_versoes({"A1_normal": subs}, aceitos=[("T2", 0.2, "outro take, outra coisa")])[0]
+    assert not m.verificar_versoes({"A1_normal": subs}, aceitos=[("T1", 2.0, "no meio da frase, não")])[0]
+
+
+def test_plano_aceita_fragmentos_aceitos_com_motivo_e_recusa_sem():
+    from gravado import projeto as gp
+    ad = {"nome": "x", "corpo": [["T1", 0.0, 3.5]], "cta_normal": [["T1", 4.0, 5.0]],
+          "fragmentos_aceitos": [["T1", 0.2, "a vinheta curta é proposital"]]}
+    plano = {"versao": 1, "brutos": "/b", "ads": {"A1": ad}}
+    assert gp.validar_plano(plano) == []
+    ad["fragmentos_aceitos"] = [["T1", 0.2]]
+    assert any("fragmentos_aceitos" in e for e in gp.validar_plano(plano))
+
+
+def test_retomada_do_projeto_usa_os_fragmentos_aceitos_do_plano(tmp_path, monkeypatch):
+    from gravado import projeto as gp
+    m = _modulo("gate_retomada")
+    ads = {"A1": {"nome": "x", "corpo": [["T1", 0.0, 3.5]], "cta_normal": [["T1", 4.0, 5.0]],
+                  "fragmentos_aceitos": [["T1", 0.5, "a vinheta curta é proposital"]]}}
+    p = sx.projeto_de_teste(tmp_path, ads=ads)
+    assert p.fragmentos_aceitos("A1") == [("T1", 0.5, "a vinheta curta é proposital")]
+
+
+def test_redundancia_le_os_trechos_usados_no_limpo_e_nunca_a_janela_da_peca(tmp_path):
+    """Ler 6 s da peça MONTADA corta palavra na borda da janela do ASR e atravessa outra emenda. Agora cada lado da
+    emenda é lido no áudio limpo do take, segmento inteiro (que começa e acaba em silêncio)."""
+    m = _modulo("gate_redundancia")
+    p = sx.projeto_de_teste(tmp_path)
+    p.garantir("montados")
+    p.montado("A1_normal").write_bytes(b"x")
+    leitor = sx.LeitorFalso(textos=sx.textos_em_sequencia())
+    ok, motivo = m.verificar_projeto(p, leitor, pecas=["A1_normal"])
+    assert ok, motivo
+    lidos = [(Path(a).parent.name, ini, fim) for a, ini, fim in leitor.chamadas]
+    assert lidos and all(pasta == "limpo" for pasta, _, _ in lidos)
+    from gravado import montar
+    segs = montar.segmentos_do_ad(p, "A1", False)
+    bordas = {(s, e) for _, s, e in segs}
+    assert all((ini, fim) in bordas for _, ini, fim in lidos)

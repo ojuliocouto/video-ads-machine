@@ -134,7 +134,7 @@ def test_footage_mede_tres_amostras_dentro_do_grupo_na_faixa_da_classe(monkeypat
     vistas = []
     monkeypatch.setattr(FC, "_mediana_banda", lambda v, t, y0, y1: vistas.append((t, y0, y1)) or 200)
     assert FC.fundo_claro_footage("f.mp4", 10.0, 12.0, "costura") is True
-    assert vistas == [(10.5, 1000, 1130), (11.0, 1000, 1130), (11.5, 1000, 1130)]
+    assert vistas == [(10.5, 963, 1106), (11.0, 963, 1106), (11.5, 963, 1106)]
 
 
 @pytest.mark.parametrize("classe,faixa", [("baixa", (1370, 1520)), ("padrao", (1290, 1500)),

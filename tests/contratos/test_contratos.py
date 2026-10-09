@@ -473,3 +473,29 @@ class TestTexto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- W5.A: o logo do CTA pode subir até 0,9 s antes da pílula (overlay.cta.LOGO_LEAD) -----------------------
+
+def _timeline_valida():
+    return json.loads((EXEMPLOS / "timeline.valido.json").read_text(encoding="utf-8"))
+
+
+def test_logo_antecipado_ate_0_9_s_e_aceito_no_contrato():
+    t = _timeline_valida()
+    t["cta"]["logo"] = round(t["cta"]["inicio"] - 0.9, 3)
+    assert V().validar("timeline", t) == []
+
+
+def test_logo_antecipado_mais_que_0_9_s_reprova_nomeando_o_campo():
+    t = _timeline_valida()
+    t["cta"]["logo"] = round(t["cta"]["inicio"] - 0.95, 3)
+    erros = V().validar("timeline", t)
+    assert erros and "logo" in str(erros[0])
+
+
+def test_a_antecipacao_do_contrato_e_a_do_overlay():
+    import sys as _sys
+    _sys.path.insert(0, str(SCRIPTS))
+    from overlay import cta
+    assert V().LOGO_ANTECIPA_MAX_S == cta.LOGO_LEAD == 0.9

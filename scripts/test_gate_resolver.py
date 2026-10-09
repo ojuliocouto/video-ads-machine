@@ -148,17 +148,20 @@ class TestResolvedorDeGates(unittest.TestCase):
             self.assertNotIn("Traceback", r.stderr, f"{nome}: {r.stderr[-300:]}")
             self.assertIn("requirements.txt", r.stderr, nome)
 
-    def test_gate_ad_sem_pasta_de_output_manda_pro_init(self):
+    def test_gate_ad_sem_video_sai_com_2_e_aponta_o_vam_montar(self):
+        """O gate-ad mede o arquivo que o `vam montar` passa (--video); o modo antigo por número de anúncio saiu."""
         env = _env_limpo(self.home)
         env["VAM_ESTADO"] = str(self.home / "_local")
         r = subprocess.run([sys.executable, str(CODIGO / "gates" / "gate-ad.py"), "03"],
                            capture_output=True, text=True, env=env, timeout=60)
         self.assertEqual(r.returncode, 2)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertIn("init_local.py", r.stderr)
+        self.assertIn("--video", r.stderr)
 
 
 class TestMaterialLocal(unittest.TestCase):
+    """material_local agora fala do PROJETO do aluno (_local/projetos/<slug>): uma mensagem, o comando vam que resolve."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.home = Path(self.tmp.name)
@@ -166,38 +169,16 @@ class TestMaterialLocal(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _checar(self, estado, ad="25", look="espuma_roxa"):
-        codigo = ("import material_local as m\n"
-                  f"print('OK' if m.checar_config({ad!r}, {look!r}, '9x16') else 'FALTA')")
-        return rodar_py(codigo, self.home, {"VAM_ESTADO": str(estado)})
-
     def test_sem_local_mensagem_unica_sem_traceback(self):
-        r = self._checar(self.home / "_local")
+        codigo = ("import material_local as m\n"
+                  "from projeto import pastas\n"
+                  f"pj = pastas.projeto('meu-ad', {str(self.home / '_local')!r})\n"
+                  "print('OK' if m.checar_material(pj) else 'FALTA')")
+        r = rodar_py(codigo, self.home, {"VAM_ESTADO": str(self.home / "_local")})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Traceback", r.stdout + r.stderr)
         self.assertIn("FALTA", r.stdout)
-        saida = r.stdout + r.stderr
-        self.assertIn("_local", saida)
-        self.assertIn("init_local.py", saida)
-        self.assertIn("demo/", saida)
-        self.assertEqual(saida.count("init_local.py"), 1, "mensagem tem que ser uma so")
-
-    def test_local_existe_mas_sem_config_aponta_pro_config(self):
-        estado = self.home / "_local"
-        (estado / "configs").mkdir(parents=True)
-        r = self._checar(estado)
-        saida = r.stdout + r.stderr
-        self.assertIn("FALTA", r.stdout)
-        self.assertIn("_local/configs", saida)
-        self.assertIn("ad25v2_espuma.json", saida)
-
-    def test_config_presente_passa(self):
-        estado = self.home / "_local"
-        (estado / "configs").mkdir(parents=True)
-        (estado / "configs" / "ad25v2_espuma.json").write_text("{}")
-        r = self._checar(estado)
-        self.assertIn("OK", r.stdout)
-        self.assertEqual((r.stdout + r.stderr).count("_local"), 0)
+        self.assertEqual(r.stderr.count("vam novo meu-ad"), 1, "mensagem tem que ser uma so")
 
     def test_exigir_sai_com_codigo_2_e_mensagem(self):
         codigo = ("import material_local as m\n"
@@ -206,7 +187,7 @@ class TestMaterialLocal(unittest.TestCase):
         r = rodar_py(codigo, self.home, {"VAM_ESTADO": str(self.home / "_local")})
         self.assertEqual(r.returncode, 2)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertIn("init_local.py", r.stderr)
+        self.assertIn("vam novo", r.stderr)
 
 
 class TestInitLocal(unittest.TestCase):
@@ -226,33 +207,21 @@ class TestInitLocal(unittest.TestCase):
     def test_cria_a_estrutura(self):
         r = self._rodar()
         self.assertEqual(r.returncode, 0, r.stderr)
-        for sub in ("configs", "roteiros", "dados/inputs", "dados/output",
-                    "render-reel-editorial"):
+        for sub in ("projetos", "trilhas", "marca"):
             self.assertTrue((self.estado / sub).is_dir(), sub)
         self.assertTrue((self.estado / "README.md").is_file())
-        self.assertTrue((self.estado / "render-reel-editorial" / "meta.json").is_file())
-        self.assertTrue((self.estado / "roteiros" / "roteiro_demo.txt").is_file())
-        self.assertTrue((self.estado / "dados" / "inputs" / "ad99v2_inserts.json").is_file())
-        self.assertTrue((self.estado / "dados" / "inputs" / "ad99v2_leva.txt").is_file())
-        self.assertTrue((self.estado / "gate-excecoes.json").is_file())
-
-    def test_exemplos_sao_json_valido_e_o_config_aponta_pro_demo(self):
-        self._rodar()
-        for j in ("gate-excecoes.json", "_doc_map.json",
-                  "dados/inputs/ad99v2_inserts.json", "render-reel-editorial/meta.json"):
-            json.loads((self.estado / j).read_text())
-        cfg = json.loads((self.estado / "configs" / "ad99v2_espuma.json").read_text())
-        self.assertEqual(cfg["ad"], "ad99v2")
-        self.assertIn("kw_phrases", cfg)
+        self.assertEqual(json.loads((self.estado / "looks.json").read_text()), {"versao": 1, "looks": {}})
+        self.assertEqual(json.loads((self.estado / "glossario.json").read_text())["versao"], 1)
+        self.assertIn("vam novo", r.stdout)
 
     def test_idempotente_e_nao_sobrescreve_o_que_e_do_usuario(self):
         self._rodar()
-        alvo = self.estado / "roteiros" / "roteiro_demo.txt"
+        alvo = self.estado / "README.md"
         alvo.write_text("MEU ROTEIRO")
         r = self._rodar()
         self.assertEqual(r.returncode, 0)
         self.assertEqual(alvo.read_text(), "MEU ROTEIRO")
-        self.assertIn("ja existe", r.stdout)
+        self.assertIn("já existe", r.stdout)
 
     def test_nao_escreve_fora_do_local(self):
         self._rodar()
@@ -261,7 +230,7 @@ class TestInitLocal(unittest.TestCase):
 
     def test_mensagem_final_diz_o_proximo_passo(self):
         r = self._rodar()
-        self.assertIn("demo/", r.stdout)
+        self.assertIn("vam novo", r.stdout)
         self.assertNotIn("\u2014", r.stdout)
 
 
