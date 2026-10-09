@@ -1,8 +1,14 @@
 """Testes de projeto/pastas (W1.A): caminhos de um projeto, sempre dentro de ESTADO/projetos/<slug>."""
+import sys
+from pathlib import Path
+
+_SCRIPTS = str(Path(__file__).resolve().parents[2] / "scripts")
+if _SCRIPTS not in sys.path:  # roda também no unittest puro (sem o pythonpath do pytest.ini)
+    sys.path.insert(0, _SCRIPTS)
+
 import os
 import tempfile
 import unittest
-from pathlib import Path
 
 from projeto import pastas
 

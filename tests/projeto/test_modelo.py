@@ -1,9 +1,15 @@
 """Testes de projeto/modelo (W1.A): projeto.json, padrões por modo e erros que nomeiam o campo."""
+import sys
+from pathlib import Path
+
+_SCRIPTS = str(Path(__file__).resolve().parents[2] / "scripts")
+if _SCRIPTS not in sys.path:  # roda também no unittest puro (sem o pythonpath do pytest.ini)
+    sys.path.insert(0, _SCRIPTS)
+
 import copy
 import json
 import tempfile
 import unittest
-from pathlib import Path
 
 from projeto import modelo
 
@@ -89,7 +95,7 @@ class Reprovacoes(unittest.TestCase):
 
     def test_trilha_com_arquivo_passa_e_com_pasta_reprova(self):
         modelo.normalizar(minimo("gravado", trilha={"arquivo": "leve.mp3"}))
-        self.erro(minimo("gravado", trilha={"arquivo": "/Users/fulano/Music/trilha.mp3"}))
+        self.erro(minimo("gravado", trilha={"arquivo": "/home/fulano/musicas/trilha.mp3"}))
         self.erro(minimo("gravado", trilha={"arquivo": "../leve.mp3"}))
 
     def test_avatar_sem_look(self):
@@ -105,7 +111,9 @@ class Reprovacoes(unittest.TestCase):
         self.assertIn("doc_id", str(e))
 
     def test_modo_desconhecido_e_aceleracao_fora_da_faixa(self):
-        self.erro(minimo("avatar", modo="vsl"))
+        d = minimo("avatar")
+        d["modo"] = "vsl"
+        self.erro(d)
         self.erro(minimo("avatar", aceleracao=0.8))
         self.erro(minimo("avatar", aceleracao=2.0))
 

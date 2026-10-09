@@ -1,9 +1,15 @@
 """Testes de projeto/status (W1.A): status.json atômico (temporário + rename) com histórico."""
+import sys
+from pathlib import Path
+
+_SCRIPTS = str(Path(__file__).resolve().parents[2] / "scripts")
+if _SCRIPTS not in sys.path:  # roda também no unittest puro (sem o pythonpath do pytest.ini)
+    sys.path.insert(0, _SCRIPTS)
+
 import json
 import os
 import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from projeto import pastas, status
