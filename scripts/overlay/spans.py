@@ -75,6 +75,7 @@ def plano_de_ritmo(blocks, spans, inserts_map):
                          "s": s, "e": e,
                          "crop": (c or {}).get("crop"),
                          "dur_max": (c or {}).get("dur_max"),
+                         "layout_padrao": (c or {}).get("layout_padrao"),
                          "texto": b.get("narr", "")})
     plano = ritmo.plano_de_ritmo(entradas)
     res = ritmo.resumo(plano, spans[-1][1])

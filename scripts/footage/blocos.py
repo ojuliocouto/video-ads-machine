@@ -250,6 +250,7 @@ def plano_de_ritmo(blocks, spans, inserts):
                         "s": s, "e": e,
                         "crop": (cfg or {}).get("crop"),
                         "dur_max": (cfg or {}).get("dur_max"),
+                        "layout_padrao": (cfg or {}).get("layout_padrao"),
                         # a fala do bloco: o ritmo trava o insert quando ela aponta pra tela
                         # ("...que você tá vendo NA TELA" com o quadro no avatar). Nos QUATRO
                         # chamadores, ou desencontra.

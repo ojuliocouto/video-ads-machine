@@ -174,12 +174,16 @@ def test_o_layout_padrao_do_insert_horizontal_e_split(exemplo):
 
 # --- densidade, ritmo e congelamento: medidos -----------------------------------------------------------
 
-def _segmentos(plano, ajustes):
+PADRAO_DO_EXEMPLO = {0, 5}          # os inserts do roteiro de exemplo que ficaram sem layout (o `planilha` é split escrito)
+
+
+def _segmentos(plano, ajustes, padrao=PADRAO_DO_EXEMPLO):
     blocos = []
     for b in plano["blocos"]:
         aj = ajustes.get(b.get("insert") or "", {})
         blocos.append({"tipo": "insert" if b["tipo"] == "insert" else "orig", "s": b["s"], "e": b["e"],
-                       "crop": aj.get("recorte"), "dur_max": aj.get("dur_max"), "texto": b["fala"]})
+                       "crop": aj.get("recorte"), "dur_max": aj.get("dur_max"), "texto": b["fala"],
+                       "layout_padrao": b["i"] in padrao})
     return ritmo.plano_de_ritmo(blocos)
 
 

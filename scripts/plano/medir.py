@@ -291,7 +291,7 @@ def _visitas(segmentos, bloco):
     return max(visitas, 1)
 
 
-def _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados=None):
+def _mapa_inserts(pj, blocos, projeto, segmentos, sondar):
     ajustes = projeto.get("inserts") or {}
     ordem = []
     for b in blocos:
@@ -316,11 +316,6 @@ def _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados=None):
         ajuste = ajustes.get(chave, {})
         largura, altura, dur = med["largura"], med["altura"], med["duracao_s"]
         orient = "horizontal" if largura > altura else ("vertical" if altura > largura else "quadrado")
-        for b in usos:
-            # O LAYOUT PADRÃO (W7.Z): sem preferência escrita, insert horizontal no modo avatar é split. O bloco carrega o
-            # layout que o motor vai usar (o `cortes_previstos` e a lista de técnicas leem dele).
-            if (declarados or {}).get(b["i"]) is None:
-                b["layout"] = layout_efetivo(None, projeto.get("modo"), largura / float(altura) if dur else None) or "cheio"
         mapa.append({
             "chave": chave, "arquivo": pj.relativo(arquivos[chave]), "blocos": [b["i"] for b in usos],
             "largura": largura, "altura": altura, "duracao_s": dur, "orientacao": orient,
@@ -332,13 +327,37 @@ def _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados=None):
 
 # --- ritmo e densidade -------------------------------------------------------------------------------------
 
-def _plano_de_ritmo(blocos, projeto):
+def _resolver_layouts(pj, blocos, projeto, sondar, declarados):
+    """O LAYOUT PADRÃO (W7.Z): o insert que o roteiro deixou sem layout, horizontal e no modo avatar, é split. Cada bloco
+    carrega o layout que o motor vai usar (o `cortes_previstos` e a lista de técnicas leem dele). Devolve o conjunto dos
+    índices de bloco cujo layout veio do padrão (o ritmo alterna split e cheio entre eles). Arquivo que não se acha ou não
+    se mede fica de fora: `_mapa_inserts` é quem recusa o plano por isso."""
+    padrao, dims = set(), {}
+    for b in blocos:
+        if b["tipo"] != "insert" or declarados.get(b["i"]) is not None:
+            continue
+        chave = b["insert"]
+        if chave not in dims:
+            try:
+                achado = pj.insert(chave)
+                med = sondar(achado) if achado is not None else None
+                dims[chave] = (med["largura"] / float(med["altura"])) if med and med.get("duracao_s") else None
+            except (ValueError, KeyError, TypeError, ZeroDivisionError, PlanoNaoMedivel):
+                dims[chave] = None
+        if layout_efetivo(None, projeto.get("modo"), dims[chave]) == "split":
+            b["layout"] = "split"
+            padrao.add(b["i"])
+    return padrao
+
+
+def _plano_de_ritmo(blocos, projeto, padrao=()):
     ajustes = projeto.get("inserts") or {}
     entrada = []
     for b in blocos:
         aj = ajustes.get(b.get("insert") or "", {})
         entrada.append({"tipo": "insert" if b["tipo"] == "insert" else "orig", "s": b["s"], "e": b["e"],
-                        "crop": aj.get("recorte"), "dur_max": aj.get("dur_max"), "texto": b["fala"]})
+                        "crop": aj.get("recorte"), "dur_max": aj.get("dur_max"), "texto": b["fala"],
+                        "layout_padrao": b["i"] in padrao})
     return _ritmo.plano_de_ritmo(entrada)
 
 
@@ -594,9 +613,10 @@ def medir(pj, *, palavras=None, asr=None, sondar=None, sugestoes=None, agora=Non
     blocos = _blocos(lei, limites, propostos)
     propostas = _propostas(sug, blocos)
 
-    segmentos = _plano_de_ritmo(blocos, projeto)
     declarados = {i: b["layout"] for i, b in enumerate(lei.blocos) if b["tipo"] == "insert"}
-    mapa = _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados)
+    padrao = _resolver_layouts(pj, blocos, projeto, sondar, declarados)
+    segmentos = _plano_de_ritmo(blocos, projeto, padrao)
+    mapa = _mapa_inserts(pj, blocos, projeto, segmentos, sondar)
     letterings = _letterings(lei, blocos, tempos, projeto, aceleracao, duracao)
     efeitos = _efeitos(blocos, letterings, mapa, aceleracao)
 

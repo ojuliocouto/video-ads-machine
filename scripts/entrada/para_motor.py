@@ -342,9 +342,12 @@ def _aspecto_do_arquivo(arquivo, sondar=None):
 
 def _entrada_do_insert(arquivo, b, ajuste, layout=None):
     cfg = {"file": arquivo, "start": ajuste.get("inicio", 0), "speed": ajuste.get("velocidade", 1.0)}
+    padrao = b["layout"] is None and layout == "split"       # o split veio do padrão, não do roteiro
     layout = layout if layout is not None else b["layout"]
     if layout == "split":
         cfg["split"] = True
+        if padrao:
+            cfg["layout_padrao"] = True       # o ritmo alterna split e cheio entre os blocos que não escolheram
     elif layout == "pip":
         cfg["pip"] = True
     if "zoom" in ajuste:

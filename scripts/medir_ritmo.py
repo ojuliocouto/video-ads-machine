@@ -254,6 +254,7 @@ def medir_do_plano(ad, prancha=None):
         blocos.append({"tipo": "insert" if b["tipo"] == "insert" else "orig",
                        "s": b["s"], "e": b["e"],
                        "crop": cfg.get("crop"), "dur_max": cfg.get("dur_max"),
+                       "layout_padrao": cfg.get("layout_padrao"),
                        "texto": b.get("texto", "")})
     segs = _R.plano_de_ritmo(blocos)
     dur = pr["total"] / ac

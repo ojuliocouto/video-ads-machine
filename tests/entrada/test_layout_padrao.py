@@ -81,3 +81,13 @@ def test_imagem_estatica_horizontal_sem_layout_nao_vai_para_o_split():
         assert "split" not in next(iter(motor.inserts.values()))
     finally:
         caso.tearDown()
+
+
+class TestMarcaDoPadrao(Base):
+    """O ritmo precisa saber que o split veio do padrão (e não do roteiro) para alternar split e cheio entre os blocos."""
+
+    def test_split_do_padrao_leva_a_marca_e_o_escrito_nao(self):
+        motor = self.gerar(ROTEIRO, sondar=sondar(1280, 644))
+        assert next(iter(motor.inserts.values())).get("layout_padrao") is True
+        escrito = self.gerar(ROTEIRO.replace("[insert: demo |", "[insert: demo | split |"), sondar=sondar(1280, 644))
+        assert "layout_padrao" not in next(iter(escrito.inserts.values()))

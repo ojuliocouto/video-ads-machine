@@ -116,6 +116,20 @@ def plano_de_ritmo(blocos):
     fila = list(blocos)
     idx_orig = list(range(len(fila)))
     k_f = 0
+    # A VEZ DOS BLOCOS SEM PREFERÊNCIA (W7.Z). Com o split por padrão a imagem só muda na entrada de cada insert (a saída
+    # de um split para o apresentador não é corte), e o ritmo caía abaixo do piso. O desenho do ritmo é alternar o LAYOUT
+    # (split e cheio trocam ~60% dos pixels e REGISTRAM): os blocos que o roteiro deixou sem layout (`layout_padrao`)
+    # alternam split e cheio pela ordem; o layout escrito no roteiro nunca entra na conta nem é trocado.
+    vez_padrao = [0]
+
+    def layout_da_vez(b):
+        """O layout da visita única de um bloco sem preferência, ou None se o bloco não é dessa regra."""
+        if not b.get("layout_padrao") or b.get("_pos_hook"):
+            return None
+        lay = LAYOUTS_INSERT[vez_padrao[0] % len(LAYOUTS_INSERT)]
+        vez_padrao[0] += 1
+        return lay
+
     while k_f < len(fila):
         b = fila[k_f]
         i = idx_orig[k_f]
@@ -168,7 +182,7 @@ def plano_de_ritmo(blocos):
             segs.append({"bloco": i, "tipo": "insert", "s": round(s, 3),
                          "e": round(e, 3), "crop": b.get("crop"),
                          "sub": 0, "de": 1,
-                         "layout": _forcado or "split", "fonte_off": 0.0,
+                         "layout": _forcado or layout_da_vez(b) or "split", "fonte_off": 0.0,
                          "deitico": True})
             continue
 
@@ -190,6 +204,10 @@ def plano_de_ritmo(blocos):
             #   - fonte escassa (cap << bloco): REUSO com recorte diferente, jump cut
             #     pro detalhe, maximo 2 passadas; cada fatia sempre cabe na fonte
             cap = float(b["dur_max"])
+            _padrao = bool(b.get("layout_padrao")) and not _forcado and not b.get("_pos_hook")
+            _desloca = vez_padrao[0] if _padrao else 0
+            if _padrao:
+                vez_padrao[0] += 1               # o bloco com teto de fonte também gasta a vez dele
             # SOLVER (18/08/2026, 3a versao): escolhe n_t fatias de tela e m respiros
             # de rosto tais que n_t*f_tela + m*f_rosto == dur, com:
             #   f_tela <= cap (fatia nunca le alem da fonte; congelar e o defeito n.1)
@@ -253,7 +271,7 @@ def plano_de_ritmo(blocos):
                              "s": round(t, 3), "e": round(t + f_tela, 3),
                              "crop": recortes[k % len(recortes)],
                              "sub": 2 * k, "de": 2 * n_t,
-                             "layout": _forcado or LAYOUTS_INSERT[k % len(LAYOUTS_INSERT)],
+                             "layout": _forcado or LAYOUTS_INSERT[(k + _desloca) % len(LAYOUTS_INSERT)],
                              # _off_extra: pedaco pos-hook le a fonte DEPOIS da
                              # fatia forcada da abertura
                              "fonte_off": round(off + float(b.get("_off_extra", 0)), 3)})
@@ -270,12 +288,13 @@ def plano_de_ritmo(blocos):
             continue
         n = _n_planos(dur)
         if n == 1:
+            _lay = (_forcado or layout_da_vez(b)) if tipo == "insert" else None
             segs.append({"bloco": i, "tipo": tipo, "s": s, "e": e,
                          "crop": b.get("crop"), "sub": 0, "de": 1,
                          # visita UNICA tambem precisa de layout: era por aqui que o
                          # resto do hook saia com layout=None e a abertura do anúncio de referência
                          # virava um plano so de 11,93s na deteccao de cena.
-                         **({"layout": _forcado} if _forcado and tipo == "insert" else {})})
+                         **({"layout": _lay} if _lay else {})})
             continue
 
         if tipo == "insert":

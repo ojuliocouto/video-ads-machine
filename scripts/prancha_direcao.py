@@ -381,7 +381,8 @@ def _plano_de_ritmo_do_ad(ad, pr):
                 n += 1
             blocos.append({"tipo": "insert" if b["tipo"] == "insert" else "orig",
                            "s": b["s"], "e": b["e"],
-                           "crop": cfg.get("crop"), "dur_max": cfg.get("dur_max")})
+                           "crop": cfg.get("crop"), "dur_max": cfg.get("dur_max"),
+                           "layout_padrao": cfg.get("layout_padrao")})
         return _R.plano_de_ritmo(blocos)
     except Exception as ex:
         print(f"  [AVISO] plano de ritmo nao calculado ({ex}); regua sai pelos blocos",

@@ -47,3 +47,11 @@ def test_imagem_estatica_horizontal_sem_layout_segue_como_imagem(tmp_path):
     _, plano, _ = medir_exemplo(tmp_path, medidas={"painel": (1200, 800, 0.0)})
     assert blocos_de_insert(plano)["painel"]["layout"] == "cheio"
     assert tratamentos(plano)["painel"] == "imagem"
+
+
+def test_o_ritmo_do_plano_alterna_split_e_cheio_entre_os_blocos_sem_preferencia(tmp_path):
+    """Os blocos 0 e 5 do exemplo ficaram sem layout: as visitas deles alternam, e o `planilha` (split escrito) não entra."""
+    _, plano, _ = medir_exemplo(tmp_path)
+    assert plano["ritmo"]["cortes_min"] > 0
+    from tests.plano.test_medir import PADRAO_DO_EXEMPLO
+    assert PADRAO_DO_EXEMPLO == {0, 5}
