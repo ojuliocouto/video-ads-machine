@@ -222,8 +222,8 @@ def _num(minimo=-_LIMITE_NUM, maximo=_LIMITE_NUM, inteiro=False, opc=False, padr
     return {"k": "num", "min": minimo, "max": maximo, "int": inteiro, "opc": opc, "padrao": padrao}
 
 
-def _esc(valores):
-    return {"k": "esc", "valores": tuple(valores), "opc": False, "padrao": None}
+def _esc(valores, padrao=None):
+    return {"k": "esc", "valores": tuple(valores), "opc": False, "padrao": padrao}
 
 
 def _cor():
@@ -252,6 +252,8 @@ _SPEC = {
         "titulo_janela": _txt(50),
         "linhas": _lista(_obj({"tipo": _esc(("comando", "ok", "passo")), "texto": _txt(100),
                                "nota": _txt(50, opc=True)}), 2, 10),
+        # W7.W: `grande` leva a fonte a 56 px no palco (29 px no card de 1036 px do quadro entregue): legível no celular
+        "tamanho": _esc(("normal", "grande"), padrao="normal"),
     }),
     "kanban": _obj({
         "titulo": _txt(60),
@@ -487,6 +489,8 @@ def _ctx_terminal(d, geo):
     glifos = {"comando": "$", "ok": "✓", "passo": "→"}
     for ln in d["linhas"]:
         ln["glifo"] = glifos[ln["tipo"]]
+    d["classe_tamanho"] = " grande" if d.get("tamanho") == "grande" else ""
+    d["tamanho_grande"] = "1" if d.get("tamanho") == "grande" else ""
 
 
 def _ctx_kanban(d, geo):

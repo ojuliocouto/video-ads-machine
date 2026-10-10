@@ -16,12 +16,20 @@
 .comando .g{color:#79c0ff}.ok .g{color:#7ee787}.passo .g{color:#8b949e}.passo{color:#8b949e}
 .o{color:#ffa657}
 .cur{display:inline-block;width:9px;height:18px;background:#58a6ff;vertical-align:-3px;margin-left:4px;opacity:0}
-</style>
+</style>{{#se tamanho_grande}}
+<style>
+.win.grande{width:min(1780px,94%)}
+.win.grande .bar{height:76px;padding:0 30px;gap:14px}
+.win.grande .dot{width:22px;height:22px}
+.win.grande .tit{font-size:30px;margin-left:20px}
+.win.grande .body{padding:44px 52px 52px;font-size:56px;line-height:1.7;min-height:0}
+.win.grande .cur{width:26px;height:50px;vertical-align:-8px;margin-left:8px}
+</style>{{/se}}
 </head>
 <body>
 <div id="root" data-composition-id="main" data-start="0" data-duration="{{_dur}}" data-width="{{_largura}}" data-height="{{_altura}}">
 <div id="stage"><div id="zoom">
-<div class="win">
+<div class="win{{classe_tamanho}}">
  <div class="bar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><div class="tit">{{titulo_janela}}</div></div>
  <div class="body">
 {{#cada linhas}}<div class="lin {{tipo}}"><span class="g">{{glifo}}</span>{{texto}}{{#se nota}} <span class="o">{{nota}}</span>{{/se}}</div>

@@ -562,6 +562,24 @@ def test_terminal_tipo_so_aceita_comando_ok_ou_passo():
     assert "tipo" in str(e.value)
 
 
+def test_w7w_terminal_grande_tem_fonte_legivel_no_celular_e_o_normal_nao_muda():
+    """W7.W: o terminal normal tem fonte de 19 px no palco de 1920: num card de 1036 px do quadro entregue ela vira 10 px, ilegível
+    no celular. `tamanho: grande` leva a fonte a 56 px (29 px entregues no card de 1036 px). O normal segue byte a byte o golden."""
+    import re
+    dados = insert_ui.exemplo("terminal")
+    normal = _gerar("terminal", dados)
+    assert "grande" not in normal
+    dados_g = dict(dados, tamanho="grande")
+    grande = _gerar("terminal", dados_g)
+    px = [int(x) for x in re.findall(r"\.win\.grande \.body\{[^}]*font-size:(\d+)px", grande)]
+    assert px and px[0] * 1036 / 1920.0 >= 28.0
+    assert 'class="win grande"' in grande
+    assert insert_ui.validar("terminal", dados)["tamanho"] == "normal"
+    with pytest.raises(insert_ui.DadosInvalidos) as e:
+        insert_ui.validar("terminal", dict(dados, tamanho="gigante"))
+    assert "tamanho" in str(e.value)
+
+
 def test_fluxo_aceita_uma_ou_duas_caixas_por_etapa_e_recusa_tres():
     dados = insert_ui.exemplo("fluxo")
     caixa = dados["etapas"][0][0]
