@@ -153,12 +153,32 @@ def concat_puro(tr):
 
 
 def contagem_de_quadros(blocks, spans, tr):
-    """K de cada segmento: quadros do bloco mais os quadros da cauda (zero na junção seca)."""
+    """K de cada segmento: quadros do bloco mais os quadros da cauda (zero na junção seca).
+
+    SEM DERIVA (W7.Y). Cada bloco arredondado sozinho perde até meio quadro, e o whip sobrepõe `xf` segundos (2,4
+    quadros a 0,08 s) com uma cauda de quadros inteiros (2): os dois acumulam. Na prova como aluno, 23 planos e 8
+    whips deram uma footage 6 quadros (0,19 s) mais curta que a timeline e o `gate_relogio` reprovou. Aqui a posição
+    real da cadeia (soma dos K menos as sobreposições) é acompanhada e o bloco ganha ou perde UM quadro quando a
+    diferença para a timeline chega a 1. Sem deriva o K é o de sempre (os goldens do original não mudam); com deriva
+    o erro de cada corte fica abaixo de 1 quadro, e o total também."""
     N = len(blocks)
+    a0 = spans[0][0]
     kf = []
+    pos = 0.0           # onde o próximo segmento começa na cadeia (segundos, já descontada a sobreposição)
     for i, (s, e) in enumerate(spans):
         xf_next = xf_dur(blocks[i + 1], blocks[i], tr) if i < N - 1 else 0.0
-        kf.append(nframes(e - s) + nframes(xf_next) if xf_next > 1e-6 else nframes(e - s))
+        corpo = nframes(e - s)
+        cauda = nframes(xf_next) if xf_next > 1e-6 else 0
+        # onde o PRÓXIMO segmento começa na cadeia, menos onde a timeline manda: o corte
+        deriva = (pos + (corpo + cauda) / FPS - xf_next) - (e - a0)
+        while deriva <= -1.0 / FPS + 1e-9:
+            corpo += 1
+            deriva += 1.0 / FPS
+        while deriva >= 1.0 / FPS - 1e-9 and corpo > 1:
+            corpo -= 1
+            deriva -= 1.0 / FPS
+        kf.append(corpo + cauda)
+        pos += (corpo + cauda) / FPS - xf_next
     return kf
 
 

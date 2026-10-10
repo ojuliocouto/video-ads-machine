@@ -18,17 +18,19 @@ BLOCOS_FIXTURE = [("insert", "a"), ("insert", "b"), ("orig", "c"), ("lettering",
 SPANS_FIXTURE = [(0.62, 4.82), (4.82, 5.6), (5.6, 9.6), (9.6, 10.88), (10.88, 15.52), (15.52, 17.68)]
 
 # variante -> {"env": {...}, "fc": "<filter_complex do original>", "saida": "v5"}
+# W7.Y: regenerado com a contagem SEM DERIVA (cadeia.contagem_de_quadros). Os goldens do original acumulavam 1,2 quadro de
+# deriva nesta fixture (0,8 no 2o corte, 1,4 no 5o), acima do 1 quadro que o gate_relogio aceita. O que mudou: um quadro
+# a mais no corpo do 4o segmento; as regras do grafo (concat seco, whip por xfade, settb) seguem as do original.
 GOLDEN_CADEIA = {'padrao': {'env': {},
             'fc': '[0:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=126,setpts=PTS-STARTPTS,settb=AVTB[n0]; '
                   '[1:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=25,setpts=PTS-STARTPTS,settb=AVTB[n1]; '
                   '[2:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=120,setpts=PTS-STARTPTS,settb=AVTB[n2]; '
-                  '[3:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=38,setpts=PTS-STARTPTS,settb=AVTB[n3]; '
+                  '[3:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=39,setpts=PTS-STARTPTS,settb=AVTB[n3]; '
                   '[4:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=139,setpts=PTS-STARTPTS,settb=AVTB[n4]; '
                   '[5:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=65,setpts=PTS-STARTPTS,settb=AVTB[n5]; '
                   '[n0][n1]concat=n=2:v=1:a=0,settb=AVTB[v1]; '
                   '[v1][n2]xfade=transition=smoothright:duration=0.08:offset=4.9533,settb=AVTB[v2]; '
-                  '[v2][n3]concat=n=2:v=1:a=0,settb=AVTB[v3]; '
-                  '[v3][n4]concat=n=2:v=1:a=0,settb=AVTB[v4]; '
+                  '[v2][n3]concat=n=2:v=1:a=0,settb=AVTB[v3]; [v3][n4]concat=n=2:v=1:a=0,settb=AVTB[v4]; '
                   '[v4][n5]concat=n=2:v=1:a=0,settb=AVTB[v5]',
             'saida': 'v5'},
  'concat_puro': {'env': {'VAM_XF': '0', 'VAM_XF_SECO': '0'},
@@ -39,26 +41,25 @@ GOLDEN_CADEIA = {'padrao': {'env': {},
                     '[1:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=29,setpts=PTS-STARTPTS,settb=AVTB[n1]; '
                     '[2:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=120,setpts=PTS-STARTPTS,settb=AVTB[n2]; '
                     '[3:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=38,setpts=PTS-STARTPTS,settb=AVTB[n3]; '
-                    '[4:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=139,setpts=PTS-STARTPTS,settb=AVTB[n4]; '
+                    '[4:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=140,setpts=PTS-STARTPTS,settb=AVTB[n4]; '
                     '[5:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=65,setpts=PTS-STARTPTS,settb=AVTB[n5]; '
                     '[n0][n1]concat=n=2:v=1:a=0,settb=AVTB[v1]; '
                     '[v1][n2]xfade=transition=smoothright:duration=0.2:offset=4.9667,settb=AVTB[v2]; '
-                    '[v2][n3]concat=n=2:v=1:a=0,settb=AVTB[v3]; '
-                    '[v3][n4]concat=n=2:v=1:a=0,settb=AVTB[v4]; '
+                    '[v2][n3]concat=n=2:v=1:a=0,settb=AVTB[v3]; [v3][n4]concat=n=2:v=1:a=0,settb=AVTB[v4]; '
                     '[v4][n5]concat=n=2:v=1:a=0,settb=AVTB[v5]',
               'saida': 'v5'},
  'tipo_fixo': {'env': {'VAM_XF_TIPO': 'slideleft'},
                'fc': '[0:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=128,setpts=PTS-STARTPTS,settb=AVTB[n0]; '
-                     '[1:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=25,setpts=PTS-STARTPTS,settb=AVTB[n1]; '
+                     '[1:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=26,setpts=PTS-STARTPTS,settb=AVTB[n1]; '
                      '[2:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=122,setpts=PTS-STARTPTS,settb=AVTB[n2]; '
-                     '[3:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=40,setpts=PTS-STARTPTS,settb=AVTB[n3]; '
-                     '[4:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=141,setpts=PTS-STARTPTS,settb=AVTB[n4]; '
+                     '[3:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=41,setpts=PTS-STARTPTS,settb=AVTB[n3]; '
+                     '[4:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=142,setpts=PTS-STARTPTS,settb=AVTB[n4]; '
                      '[5:v]trim=start_frame=0,setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=0.5,trim=end_frame=65,setpts=PTS-STARTPTS,settb=AVTB[n5]; '
                      '[n0][n1]xfade=transition=slideleft:duration=0.08:offset=4.1867,settb=AVTB[v1]; '
-                     '[v1][n2]xfade=transition=slideleft:duration=0.08:offset=4.9400,settb=AVTB[v2]; '
-                     '[v2][n3]xfade=transition=slideleft:duration=0.08:offset=8.9267,settb=AVTB[v3]; '
-                     '[v3][n4]xfade=transition=slideleft:duration=0.08:offset=10.1800,settb=AVTB[v4]; '
-                     '[v4][n5]xfade=transition=slideleft:duration=0.08:offset=14.8000,settb=AVTB[v5]',
+                     '[v1][n2]xfade=transition=slideleft:duration=0.08:offset=4.9733,settb=AVTB[v2]; '
+                     '[v2][n3]xfade=transition=slideleft:duration=0.08:offset=8.9600,settb=AVTB[v3]; '
+                     '[v3][n4]xfade=transition=slideleft:duration=0.08:offset=10.2467,settb=AVTB[v4]; '
+                     '[v4][n5]xfade=transition=slideleft:duration=0.08:offset=14.9000,settb=AVTB[v5]',
                'saida': 'v5'}}
 
 # {"entra", "sai", "xf_dur", "xf_tipo_par", "xf_tipo_impar"}
@@ -217,12 +218,12 @@ def test_entrada_de_insert_e_apresentador_com_apresentador_sao_secos():
 
 def test_cada_segmento_tem_quadros_exatos_do_bloco_mais_a_cauda():
     tr = CA.Transicao.do_ambiente({})
-    assert CA.contagem_de_quadros(_blocos(), SPANS_FIXTURE, tr) == [126, 25, 120, 38, 139, 65]
+    assert CA.contagem_de_quadros(_blocos(), SPANS_FIXTURE, tr) == [126, 25, 120, 39, 139, 65]
 
 
 def test_cauda_do_whip_entra_na_contagem():
     tr = CA.Transicao.do_ambiente({"VAM_XF": "0.20"})
-    assert CA.contagem_de_quadros(_blocos(), SPANS_FIXTURE, tr) == [126, 29, 120, 38, 139, 65]
+    assert CA.contagem_de_quadros(_blocos(), SPANS_FIXTURE, tr) == [126, 29, 120, 38, 140, 65]
 
 
 def test_o_ultimo_segmento_nao_tem_cauda():
@@ -269,13 +270,13 @@ def test_grafo_misto_forca_contagem_exata_e_um_timebase_unico():
     tr = CA.Transicao.do_ambiente({})
     r = CA.montar_grafo(_blocos(), SPANS_FIXTURE, tr, ini=[0] * 6)
     fc = "; ".join(r["fc"])
-    for k in (126, 25, 120, 38, 139, 65):
+    for k in (126, 25, 120, 39, 139, 65):
         assert f"trim=end_frame={k},setpts=PTS-STARTPTS,settb=AVTB" in fc
     assert fc.count("settb=AVTB") == 6 + 5                    # 6 entradas + 5 juntas
     assert fc.count("concat=n=2") == 4 and fc.count("xfade=transition=") == 1
     assert r["secos"] == 4
     assert r["xf_total"] == pytest.approx(0.08)
-    assert r["durs"] == [k / 30 for k in (126, 25, 120, 38, 139, 65)]
+    assert r["durs"] == [k / 30 for k in (126, 25, 120, 39, 139, 65)]
 
 
 def test_segmento_com_primeiro_quadro_preto_perde_esse_quadro():
@@ -372,7 +373,7 @@ def test_montar_vchain_mede_o_preto_dos_segmentos_e_roda_o_ffmpeg_uma_vez(tmp_pa
     assert cmd[:2] == ["ffmpeg", "-y"] and cmd.count("-i") == 6
     assert cmd[cmd.index("-map") + 1] == "[v5]"
     assert cmd[-1] == str(tmp_path / "vchain0.mp4")
-    assert r["esperado"] == pytest.approx(sum(k / 30 for k in (126, 25, 120, 38, 139, 65)) - 0.08)
+    assert r["esperado"] == pytest.approx(sum(k / 30 for k in (126, 25, 120, 39, 139, 65)) - 0.08)
 
 
 def test_montar_vchain_em_concat_puro_nao_mede_nada(tmp_path, monkeypatch):
