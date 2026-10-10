@@ -72,7 +72,7 @@ escolher_python() {
     done
     command -v python3 2>/dev/null
 }
-PY_SISTEMA="${VAM_PYTHON:-$(escolher_python)}"
+PY_SISTEMA="$(escolher_python)"
 PIN="$(sed -n 's/.*"hyperframes"[[:space:]]*:[[:space:]]*"[~^]*\([0-9][^"]*\)".*/\1/p' package.json 2>/dev/null | head -1)"
 NODE_OK=0
 HF_OK=0
