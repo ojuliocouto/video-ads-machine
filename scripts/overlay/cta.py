@@ -66,7 +66,7 @@ def calcular_cta_start(blocks, spans, retorno_avatar=None, words=None, cfg=None)
     cta_start = inicio
     palavras = [w for w in (words or []) if inicio - 1e-6 <= float(w["start"]) < fim]
     cfg = cfg or {}
-    if palavras and blocks[-1]["type"] == "cta":
+    if palavras:
         i = _palavra_do_lead(palavras, cfg["cta_lead"]) if cfg.get("cta_lead") and not cfg.get("cta_sem_lead") else None
         if i is None and cfg.get("cta_label"):
             i = _palavra_do_rotulo(palavras, cfg["cta_label"])

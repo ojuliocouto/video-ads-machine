@@ -91,6 +91,15 @@ def test_lead_de_uma_palavra_casa_a_palavra_exata():
     assert t == pytest.approx(16.3)
 
 
+def test_a_ancora_vale_para_qualquer_tipo_do_ultimo_bloco():
+    """No build real o último bloco é `lettering_logo` ou `orig`, não `cta`: a timeline o rotula cta pela posição."""
+    for tipo in ("lettering_logo", "orig", "lettering"):
+        b = blocos("insert", "orig", "insert", tipo)
+        b[-1]["narr"] = "É só tocar aqui em Saiba Mais"
+        t = C.calcular_cta_start(b, SPANS_CTA, words=PALAVRAS_CTA, cfg={"cta_lead": "toque aqui em"})
+        assert t == pytest.approx(16.5), tipo
+
+
 def test_roteiro_sem_insert_nenhum_sobe_no_ultimo_bloco():
     assert C.calcular_cta_start(blocos("orig", "orig"), [(0, 5), (5, 9)]) == 5
 

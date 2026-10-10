@@ -782,6 +782,20 @@ def test_w7w_o_cta_nunca_entra_antes_do_inicio_do_bloco_cta(nome, modelo, tmp_pa
         f"{nome}: CTA em {tl['cta']['inicio']} antes do bloco {ultimo['tipo']} de {ultimo['s']}"
 
 
+def test_w7w_o_cta_entra_na_palavra_do_rotulo_no_caminho_real_da_timeline(mundo):
+    """W7.W (A2): no caminho real o último bloco NÃO tem `type == "cta"` (o parser o chama de lettering_logo, orig...): a
+    timeline é que o rotula `cta` pela posição. A âncora precisa funcionar para qualquer tipo do último bloco (o teste
+    de unidade usava `type: cta` e o build real da prova ficou no início do bloco, 0,4 s antes da palavra)."""
+    cfg = dict(mundo.cfg, cta_label="PRODUZIR AS PÁGINAS")
+    tl = TC.construir(mundo.blocks, mundo.alinhamento, inserts_map=mundo.inserts_map, cfg=cfg,
+                      caminho_alinhamento=mundo.caminho_alinhamento, raiz=mundo.dados)
+    assert mundo.blocks[-1]["type"] != "cta"
+    ultimo = tl["blocos"][-1]
+    produzir = next(w["s"] for w in mundo.alinhamento["palavras"] if w["t"] == "produzir" and w["s"] >= ultimo["s"] - 1e-6)
+    assert tl["cta"]["inicio"] > ultimo["s"] + 0.1
+    assert tl["cta"]["inicio"] == pytest.approx(produzir, abs=1e-6)
+
+
 def test_a1_os_cenarios_fixos_sao_os_25_do_diferencial_mais_o_da_auditoria():
     from tests.overlay import test_gerar as TG
 
