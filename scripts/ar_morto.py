@@ -57,7 +57,7 @@ PADRAO = {
     "pos_roll_fim": 0.20,   # respiro deixado depois da ultima palavra
 }
 
-PONTUACAO = set(".,?!;:…\"'()-—–")
+PONTUACAO = set(".,?!;:…\"'()-, –")
 
 
 def e_fala(texto):
