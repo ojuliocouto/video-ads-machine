@@ -14,7 +14,12 @@ Reprova quando (limiares do plano, seção 3, C5 e C1):
   - algum plano tem mediana de luminância abaixo de 20 (de 255), a não ser que o projeto declare
     a exceção `gate_cor` com motivo escrito em `excecoes` do projeto.json. A exceção vale só
     para esta regra, nunca para as tags, o quadro 0 nem o rosto;
-  - a razão R/G média na caixa do rosto passa de 1,6 (rosto vermelho demais).
+  - a razão R/G média na caixa do rosto passa de 1,6 (rosto vermelho demais), COMPARADA COM A FONTE (W7.Z):
+      * a grade PIOROU o R/G em mais de 0,05 sobre o avatar cru no mesmo plano: reprova (a causa é a grade);
+      * o entregue passou de 1,6 e a fonte estava em 1,6 ou abaixo: reprova (a grade empurrou o rosto);
+      * o entregue passou de 1,6 mas a fonte JÁ estava acima: aviso no laudo (`medido.avisos`), não reprovação: o
+        vermelho é do look (a prova da HeyGen de luz laranja media de 1,72 a 1,77 no cru, antes de qualquer grade);
+      * sem a fonte medida, vale a régua de antes: 1,6 no entregue.
 
 ## Como mede
 
@@ -60,6 +65,7 @@ REGRA_EXCECAO = "gate_cor"
 LIMIAR_QUADRO0 = 0.6        # quadro 0 abaixo de 0,6x a mediana dos quadros reprova (C1)
 LIMIAR_MEDIANA_PLANO = 20   # plano com mediana de luminância abaixo disso reprova (C5)
 LIMIAR_RG = 1.6             # razão R/G acima disso na caixa do rosto reprova (C5)
+LIMIAR_PIORA_RG = 0.05      # a grade piorar o R/G mais que isso sobre a fonte reprova (W7.Z)
 FPS_AMOSTRA = 4             # quadros medidos por segundo
 LARGURA_AMOSTRA = 270       # largura do quadro medido (a caixa do rosto acompanha a redução)
 TAGS_ESPERADAS = (("primarias", "color_primaries"), ("transferencia", "color_transfer"),
@@ -167,6 +173,8 @@ def _normalizar_planos(planos, duracao, caixa_rosto):
             q = {"inicio": float(p["inicio"]), "fim": float(p["fim"])}
             if p.get("rosto"):
                 q["rosto"] = list(p["rosto"])
+            if p.get("rg_fonte") is not None:
+                q["rg_fonte"] = float(p["rg_fonte"])
         else:
             q = {"inicio": float(p[0]), "fim": float(p[1])}
         saida.append(q)
@@ -210,9 +218,12 @@ def medir(video, planos=None, caixa_rosto=None):
             mediana, rg = _mediana(dono["lum"]), (_mediana(dono["rg"]) if dono["rg"] else None)
         else:                      # plano mais curto que um quadro amostrado: o quadro mais próximo do meio
             _d, mediana, rg = dono["perto"]
-        medido_planos.append({"indice": i, "inicio": round(p["inicio"], 3), "fim": round(p["fim"], 3),
-                              "mediana": round(float(mediana), 2),
-                              "rg": None if rg is None else round(float(rg), 3)})
+        linha = {"indice": i, "inicio": round(p["inicio"], 3), "fim": round(p["fim"], 3),
+                 "mediana": round(float(mediana), 2),
+                 "rg": None if rg is None else round(float(rg), 3)}
+        if p.get("rg_fonte") is not None:
+            linha["rg_fonte"] = round(float(p["rg_fonte"]), 3)
+        medido_planos.append(linha)
     return {
         "cor": {k: tags[k] for k, _ in TAGS_ESPERADAS},
         "quadro0": {"luminancia": round(lum_quadro0, 2), "mediana_dos_quadros": round(med_quadros, 2),
@@ -245,10 +256,34 @@ def _motivos(medido, excecao):
                                "sem exceção declarada em excecoes (regra %s)"
                                % (p["indice"], p["inicio"], p["fim"], p["mediana"], LIMIAR_MEDIANA_PLANO,
                                   REGRA_EXCECAO))
-        if p["rg"] is not None and p["rg"] > LIMIAR_RG:
-            motivos.append("plano %d (%.2f a %.2f s) com razão R/G %.2f na caixa do rosto, acima de %.1f "
-                           "(rosto vermelho demais)" % (p["indice"], p["inicio"], p["fim"], p["rg"], LIMIAR_RG))
+        if p["rg"] is None:
+            continue
+        fonte = p.get("rg_fonte")
+        if fonte is None:
+            if p["rg"] > LIMIAR_RG:
+                motivos.append("plano %d (%.2f a %.2f s) com razão R/G %.2f na caixa do rosto, acima de %.1f "
+                               "(rosto vermelho demais)" % (p["indice"], p["inicio"], p["fim"], p["rg"], LIMIAR_RG))
+        elif p["rg"] - fonte > LIMIAR_PIORA_RG + 1e-9:
+            motivos.append("plano %d (%.2f a %.2f s): a grade piorou o R/G de %.2f (fonte) para %.2f (entregue), mais de "
+                           "%.2f sobre a fonte: o rosto ficou mais vermelho depois da grade"
+                           % (p["indice"], p["inicio"], p["fim"], fonte, p["rg"], LIMIAR_PIORA_RG))
+        elif p["rg"] > LIMIAR_RG and fonte <= LIMIAR_RG:
+            motivos.append("plano %d (%.2f a %.2f s) com razão R/G %.2f na caixa do rosto, acima de %.1f, e a fonte "
+                           "estava em %.2f: a grade empurrou o rosto para o vermelho"
+                           % (p["indice"], p["inicio"], p["fim"], p["rg"], LIMIAR_RG, fonte))
     return motivos
+
+
+def _avisos(medido):
+    """Os planos em que o entregue passa de 1,6 mas a fonte já passava: o look é vermelho, a grade não piorou."""
+    avisos = []
+    for p in medido["planos"]:
+        fonte = p.get("rg_fonte")
+        if p["rg"] is not None and fonte is not None and p["rg"] > LIMIAR_RG and fonte > LIMIAR_RG:
+            avisos.append("plano %d (%.2f a %.2f s): R/G %.2f no entregue, acima de %.1f, mas a fonte (avatar cru) já "
+                          "estava em %.2f e a grade não piorou mais de %.2f: o vermelho vem do look"
+                          % (p["indice"], p["inicio"], p["fim"], p["rg"], LIMIAR_RG, fonte, LIMIAR_PIORA_RG))
+    return avisos
 
 
 def _gate(resultado, saida, medido=None, motivo=None, duracao=None):
@@ -256,7 +291,7 @@ def _gate(resultado, saida, medido=None, motivo=None, duracao=None):
     if medido is not None:
         g["medido"] = medido
     g["limiar"] = {"quadro0_razao_min": LIMIAR_QUADRO0, "mediana_plano_min": LIMIAR_MEDIANA_PLANO,
-                   "razao_rg_max": LIMIAR_RG, "tags": "bt709"}
+                   "razao_rg_max": LIMIAR_RG, "piora_rg_max": LIMIAR_PIORA_RG, "tags": "bt709"}
     if motivo:
         g["motivo"] = motivo
     if duracao is not None:
@@ -281,6 +316,9 @@ def rodar(video, projeto=None, planos=None, caixa_rosto=None):
     if excecao:
         medido["excecao"] = excecao
     motivos = _motivos(medido, excecao)
+    avisos = _avisos(medido)
+    if avisos:
+        medido["avisos"] = avisos
     dur = time.time() - t0
     if motivos:
         return _gate("REPROVA", 1, medido, "; ".join(motivos), dur)
@@ -342,19 +380,71 @@ def caixa_rosto_entregue(video, timeline):
     return [int(statistics.median(c[i] for c in caixas)) for i in range(4)]
 
 
-def planos_da_timeline(timeline, rosto=None):
+def planos_da_timeline(timeline, rosto=None, rg_fonte=None):
     """Planos no relógio do arquivo entregue, a partir dos `segmentos` da timeline.json.
     O relógio da timeline é o da footage a 1x: o entregue converte com (t - a0) / aceleracao.
-    O plano de apresentador leva a `rosto` (caixa em pixels do entregue); o insert não."""
+    O plano de apresentador leva a `rosto` (caixa em pixels do entregue); o insert não. `rg_fonte` (lista alinhada aos
+    segmentos, de `rg_da_fonte`) leva o R/G do avatar cru para o plano de apresentador que tem rosto."""
     a0 = timeline["relogio"]["a0"]
     acel = timeline["relogio"]["aceleracao"]
     planos = []
-    for s in timeline["segmentos"]:
+    for k, s in enumerate(timeline["segmentos"]):
         p = {"inicio": round((s["s"] - a0) / acel, 6), "fim": round((s["e"] - a0) / acel, 6)}
         if rosto and s["tipo"] == "apresentador":
             p["rosto"] = list(rosto)
+            if rg_fonte is not None and k < len(rg_fonte) and rg_fonte[k] is not None:
+                p["rg_fonte"] = float(rg_fonte[k])
         planos.append(p)
     return planos
+
+
+def _rg_do_quadro(video, t, caixa):
+    """Razão R/G média (a mesma conta do entregue: média do recorte) da `caixa` [x, y, largura, altura] do quadro de
+    `video` em `t`; None se o quadro não vem."""
+    import io
+    r = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-ss", "%.3f" % max(0.0, t), "-i", str(video),
+                        "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True)
+    if r.returncode != 0 or not r.stdout:
+        return None
+    im = Image.open(io.BytesIO(r.stdout)).convert("RGB")
+    x, y, w, h = caixa
+    x1, y1 = min(int(x + w), im.width), min(int(y + h), im.height)
+    if x1 <= int(x) or y1 <= int(y):
+        return None
+    rm, gm, _b = ImageStat.Stat(im.crop((int(x), int(y), x1, y1))).mean
+    return rm / gm if gm > 0 else None
+
+
+FRACOES_DA_FONTE = (0.25, 0.5, 0.75)      # onde, dentro de cada plano, o avatar cru é medido
+
+
+def rg_da_fonte(avatar, timeline, detectar=None, rg_em=None):
+    """O R/G do avatar CRU em cada plano de apresentador (W7.Z), com a mesma régua do entregue: a caixa do rosto é a
+    mediana das achadas no meio dos planos, no próprio cru, e o R/G de cada plano é a mediana de 3 instantes dele.
+
+    Devolve uma lista alinhada aos `segmentos` (None onde não é apresentador ou não deu para medir), ou None quando
+    nenhum rosto foi achado no cru (o gate volta à régua de 1,6). O relógio da timeline é o do avatar."""
+    detectar = detectar or _detectar_rosto
+    rg_em = rg_em or _rg_do_quadro
+    segs = timeline["segmentos"]
+    caixas = []
+    for sg in segs:
+        if sg["tipo"] == "apresentador":
+            c = detectar(str(avatar), (sg["s"] + sg["e"]) / 2.0)
+            if c:
+                caixas.append(c)
+    if not caixas:
+        return None
+    caixa = [int(statistics.median(c[i] for c in caixas)) for i in range(4)]
+    saida = []
+    for sg in segs:
+        if sg["tipo"] != "apresentador":
+            saida.append(None)
+            continue
+        vals = [rg_em(str(avatar), sg["s"] + (sg["e"] - sg["s"]) * f, caixa) for f in FRACOES_DA_FONTE]
+        vals = [v for v in vals if v is not None]
+        saida.append(round(float(statistics.median(vals)), 4) if vals else None)
+    return saida
 
 
 # --- linha de comando ------------------------------------------------------------------------------

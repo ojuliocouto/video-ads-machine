@@ -402,7 +402,12 @@ def _g_cor(ctx):
     from gates import gate_cor
     tl = ctx.timeline()
     rosto = gate_cor.caixa_rosto_entregue(str(ctx.motor.final), tl)
-    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto, planos=gate_cor.planos_da_timeline(tl, rosto))
+    # a fonte (W7.Z): o R/G do avatar cru no mesmo plano; o vermelho que já vinha do look vira aviso, a grade que piora reprova
+    pj = getattr(ctx, "pj", None)
+    avatar = getattr(pj, "avatar_mp4", None)
+    fonte = gate_cor.rg_da_fonte(str(avatar), tl) if (rosto and avatar) else None
+    return gate_cor.rodar(str(ctx.motor.final), projeto=ctx.projeto,
+                          planos=gate_cor.planos_da_timeline(tl, rosto, fonte))
 
 
 def _g_mix(ctx):
