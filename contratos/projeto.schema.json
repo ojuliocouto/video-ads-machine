@@ -105,7 +105,7 @@
         "zoom": {"type": "number", "minimum": 1, "maximum": 3, "description": "Amplia e recorta no conteúdo medido (bom para tela de código)."},
         "recorte": {"type": "string", "pattern": "^[0-9]+:[0-9]+:[0-9]+:[0-9]+$", "description": "Recorte da fonte em W:H:X:Y."},
         "exposicao": {"type": "number", "minimum": 0, "maximum": 0.45, "description": "Mínimo de clareamento; o motor mede e pode subir até o piso."},
-        "dur_max": {"type": "number", "exclusiveMinimum": 0, "description": "Teto de tempo do insert dentro do bloco, em segundos de footage."},
+        "dur_max": {"type": "number", "exclusiveMinimum": 0, "description": "Teto de tempo do insert dentro do bloco, em segundos de footage. O rosto só volta quando sobra pelo menos 1,5 s do bloco depois do teto; com menos que isso o insert cobre o bloco inteiro e o teto não muda o ritmo (o plano avisa)."},
         "texto_proprio": {"type": "boolean", "description": "O asset já traz texto impresso: a legenda desce para o rodapé."},
         "rotulo": {"$ref": "#/$defs/texto_curto", "description": "Nome curto do insert na prancha e no plano."}
       }

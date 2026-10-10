@@ -18,8 +18,11 @@ com o motivo na frente; o que a checklist proíbe é a pendência muda.
 Os limites de ritmo e de congelamento NÃO são redefinidos aqui: vêm de `medir_ritmo` e
 `analise_inserts`, os mesmos que medem o arquivo entregue e o gate de entrada.
 """
+import math
+
 import analise_inserts
 import medir_ritmo
+import ritmo
 from contratos.validar import validar
 
 # (chave no plano.json, rótulo da seção no plano_edicao.md, palavras-chave para achar a seção num texto
@@ -57,6 +60,9 @@ LIMITES_RITMO = {"cortes_min": (medir_ritmo.MIN_CORTES_MIN, medir_ritmo.MAX_CORT
                  "maior_plano": medir_ritmo.MAX_PLANO_S}
 # Congelamento: acima disto o último quadro do insert é clonado de forma visível (analise_inserts).
 LIMITE_CONGELA_S = analise_inserts.LIMITE_S
+
+# O menor trecho de rosto que o ritmo aceita no meio de um bloco de insert (o mesmo piso de scripts/ritmo.py).
+PISO_ROSTO_S = ritmo.MIN_PLANO
 
 MOTIVO_MAX = 500            # contratos/plano.schema.json: $defs.motivo
 COMO_MAX = 300              # idem: $defs.texto
@@ -238,7 +244,27 @@ def _edicao_por_insert(plano):
     return _atendido("cada insert com tratamento próprio e sem congelamento")
 
 
-def _ritmo(plano):
+def _dur_max_sem_efeito(plano, projeto):
+    """Frases dos `dur_max` que NÃO devolvem o rosto no bloco: o teto cabe no bloco com menos de PISO_ROSTO_S de sobra,
+    então o ritmo cobre o bloco inteiro com insert em vez de piscar o rosto (W7.Y, medido na prova como aluno: teto de
+    4,0 s em blocos de 4,4 e 4,6 s não mudou os cortes/min). Cada frase traz o teto que funcionaria."""
+    ajustes = (projeto or {}).get("inserts") or {}
+    por_chave = {}
+    for b in _blocos_de_insert(plano):
+        cap = (ajustes.get(b.get("insert")) or {}).get("dur_max")
+        dur = float(b["e"]) - float(b["s"])
+        if cap and float(cap) < dur and dur - float(cap) < PISO_ROSTO_S - 1e-6:
+            por_chave.setdefault(b["insert"], []).append((b["i"], dur, float(cap)))
+    frases = []
+    for chave, itens in por_chave.items():
+        blocos = ", ".join("%d (%s s)" % (i, numero(d)) for i, d, _ in itens)
+        teto = math.floor(round((min(d for _, d, _ in itens) - PISO_ROSTO_S) * 10, 6)) / 10
+        frases.append("dur_max de '%s' (%s s) não devolve o rosto no(s) bloco(s) %s, sobra menos de %s s; só funciona "
+                      "até %s s" % (chave, numero(itens[0][2]), blocos, numero(PISO_ROSTO_S), numero(max(teto, 0.0))))
+    return frases[:3]
+
+
+def _ritmo(plano, projeto=None):
     r = plano.get("ritmo") or {}
     m = {"cortes_min": r.get("cortes_min", 0.0), "frac_lenta": r.get("frac_acima_6s", 0.0),
          "maior_plano": r.get("maior_plano_s", 0.0), "planos": [r.get("maior_plano_s", 0.0)]}
@@ -247,7 +273,7 @@ def _ritmo(plano):
         return _atendido("%s cortes/min previstos, %s%% do tempo em plano longo, maior plano %s s; a medida que "
                          "vale é a do arquivo entregue"
                          % (numero(m["cortes_min"]), numero(m["frac_lenta"] * 100, 0), numero(m["maior_plano"])))
-    return _pendente("; ".join(motivos))
+    return _pendente("; ".join(motivos + _dur_max_sem_efeito(plano, projeto)))
 
 
 def avaliar(plano, projeto=None):
@@ -261,5 +287,5 @@ def avaliar(plano, projeto=None):
         "lettering_legenda": _lettering_legenda(plano),
         "variacao_contexto": _variacao_contexto(plano),
         "edicao_por_insert": _edicao_por_insert(plano),
-        "ritmo": _ritmo(plano),
+        "ritmo": _ritmo(plano, projeto),
     }
