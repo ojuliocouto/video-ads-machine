@@ -56,3 +56,12 @@ def test_o_gancho_continua_forcando_o_proprio_layout():
     blocos = [bloco(0, 9, True), avatar(9, 12)]
     segs = R.plano_de_ritmo(blocos)
     assert [sg["layout"] for sg in segs if sg["tipo"] == "insert"][0] == "split"
+
+
+def test_bloco_com_teto_de_fonte_gasta_uma_vez_por_visita():
+    """Duas visitas (split, cheio) gastam duas vezes: o bloco seguinte retoma o ciclo em split."""
+    blocos = [avatar(0, 3), bloco(3, 15, True, dur_max=3.0), avatar(15, 18), bloco(18, 22, True)]
+    segs = R.plano_de_ritmo(blocos)
+    do_teto = [sg["layout"] for sg in segs if sg["tipo"] == "insert" and sg["bloco"] == 1]
+    seguinte = [sg["layout"] for sg in segs if sg["tipo"] == "insert" and sg["bloco"] == 3]
+    assert len(do_teto) == 2 and do_teto == ["split", "cheio"] and seguinte == ["split"]

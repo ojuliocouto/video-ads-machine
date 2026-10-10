@@ -76,3 +76,15 @@ def test_visita_sem_layout_vale_o_do_bloco():
     segs, blocos = _insert_alternado("split", None)
     segs[0].pop("layout")
     assert M.cortes_previstos(segs, blocos) == []
+
+
+def test_troca_de_layout_dentro_do_mesmo_insert_e_corte():
+    """split -> cheio no mesmo bloco troca ~60% dos pixels e a detecção de cena registra (ritmo.LAYOUTS_INSERT): é corte.
+    Mesmo layout nas duas fatias é a continuação do mesmo plano e não é."""
+    blocos = [{"i": 0, "tipo": "insert", "layout": "split", "s": 0.0, "e": 5.0}]
+    trocou = [{"tipo": "insert", "s": 0.0, "e": 3.0, "layout": "split", "bloco": 0},
+              {"tipo": "insert", "s": 3.0, "e": 5.0, "layout": "cheio", "bloco": 0}]
+    igual = [{"tipo": "insert", "s": 0.0, "e": 3.0, "layout": "split", "bloco": 0},
+             {"tipo": "insert", "s": 3.0, "e": 5.0, "layout": "split", "bloco": 0}]
+    assert M.cortes_previstos(trocou, blocos) == [3.0]
+    assert M.cortes_previstos(igual, blocos) == []

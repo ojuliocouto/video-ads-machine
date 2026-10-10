@@ -206,8 +206,6 @@ def plano_de_ritmo(blocos):
             cap = float(b["dur_max"])
             _padrao = bool(b.get("layout_padrao")) and not _forcado and not b.get("_pos_hook")
             _desloca = vez_padrao[0] if _padrao else 0
-            if _padrao:
-                vez_padrao[0] += 1               # o bloco com teto de fonte também gasta a vez dele
             # SOLVER (18/08/2026, 3a versao): escolhe n_t fatias de tela e m respiros
             # de rosto tais que n_t*f_tela + m*f_rosto == dur, com:
             #   f_tela <= cap (fatia nunca le alem da fonte; congelar e o defeito n.1)
@@ -259,6 +257,8 @@ def plano_de_ritmo(blocos):
                     f_tela = dur / n_t
                 escolha = (n_t, f_tela, 0, 0.0)
             n_t, f_tela, m, f_rosto = escolha
+            if _padrao:
+                vez_padrao[0] += n_t             # o bloco com teto de fonte gasta uma vez por visita dele
             recortes = derivar_recortes(b.get("crop"), 3)
             t = s
             for k in range(n_t):

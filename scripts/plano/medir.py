@@ -385,6 +385,10 @@ def cortes_previstos(segmentos, blocos):
         if a["tipo"] != "insert" and b["tipo"] != "insert":
             continue
         if a["tipo"] == "insert" and b["tipo"] == "insert" and ba is bb:
+            # mesmo insert: a continuação do plano não é corte, mas a troca de LAYOUT (split <-> cheio) muda ~60% dos
+            # pixels e a detecção de cena a registra (`ritmo.LAYOUTS_INSERT`)
+            if a.get("layout") and b.get("layout") and a["layout"] != b["layout"]:
+                cortes.append(round(b["s"], 3))
             continue
         if a["tipo"] == "insert" and b["tipo"] != "insert" and (ba or {}).get("layout") == "split" \
                 and (a.get("layout") or "split") == "split":
