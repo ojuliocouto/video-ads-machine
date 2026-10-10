@@ -493,3 +493,14 @@ def test_requirements_dos_gates_aponta_para_o_da_raiz():
     texto = (RAIZ_REAL / "scripts" / "gates" / "requirements.txt").read_text(encoding="utf-8")
     ativas = [l.strip() for l in texto.splitlines() if l.strip() and not l.startswith("#")]
     assert ativas == ["-r ../../requirements.txt"]
+
+
+def test_venv_nasce_do_python_mais_novo_da_maquina(mundo):
+    """No macOS o `python3` do PATH é o 3.9 das Command Line Tools, e o parakeet-mlx pede 3.10+.
+    Havendo python3.12 no PATH, o .venv nasce dele, não do python3."""
+    novo = mundo.bin / "python3.12"
+    novo.write_text(PY_SISTEMA.replace('echo "python3 $*"', 'echo "python3.12 $*"'))
+    novo.chmod(0o755)
+    mundo.rodar()
+    assert mundo.chamadas("python3.12 -m venv"), mundo.log.read_text()
+    assert not mundo.chamadas("python3 -m venv")

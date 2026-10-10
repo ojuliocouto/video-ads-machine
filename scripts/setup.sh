@@ -63,7 +63,16 @@ HF_BIN="$REPO_ROOT/node_modules/.bin/hyperframes"
 GSAP_DEST="$REPO_ROOT/templates/_vendor/gsap.min.js"
 ESTADO_DIR="${VAM_ESTADO:-$REPO_ROOT/_local}"
 SOM_DIR="${VAM_DADOS:-${VAM_V1_HOME:-$ESTADO_DIR/dados}}/assets/som"
-PY_SISTEMA="$(command -v python3 2>/dev/null)"
+# O .venv nasce do Python mais novo da máquina (>= 3.10 quando existe): o parakeet-mlx pede 3.10+,
+# e no macOS o `python3` do PATH costuma ser o 3.9 das Command Line Tools.
+escolher_python() {
+    local cand
+    for cand in python3.14 python3.13 python3.12 python3.11 python3.10; do
+        if command -v "$cand" >/dev/null 2>&1; then command -v "$cand"; return; fi
+    done
+    command -v python3 2>/dev/null
+}
+PY_SISTEMA="${VAM_PYTHON:-$(escolher_python)}"
 PIN="$(sed -n 's/.*"hyperframes"[[:space:]]*:[[:space:]]*"[~^]*\([0-9][^"]*\)".*/\1/p' package.json 2>/dev/null | head -1)"
 NODE_OK=0
 HF_OK=0
