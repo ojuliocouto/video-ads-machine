@@ -44,7 +44,7 @@ HOOK_JANELA_S = 3.0            # janela do gancho
 HOOK_PASSO_S = 0.25            # amostragem mais fina que o resto do video
 HOOK_MAX_SEM_TEXTO_S = 1.0     # acumulado sem texto tolerado dentro da janela
 LUFS_ALVO, LUFS_TOL = -14.0, 1.2
-FAIXA_Y, FAIXA_H = 1240, 220
+FAIXA_Y, FAIXA_H = 1540, 160   # a base do quadro, onde a legenda mora desde 10/10/2026 (era 1240, o peito)
 
 
 

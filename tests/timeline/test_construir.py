@@ -211,7 +211,7 @@ def test_hook_cta_letterings_e_legendas_saem_no_relogio_unico(mundo):
     for lg in tl["legendas"]:
         assert lg["texto"] == " ".join(p["t"] for p in lg["palavras"])
         assert lg["texto"] in texto_roteiro, "legenda verbatim do roteiro"
-        assert lg["suprimida"] is False and lg["posicao"] in ("padrao", "rodape", "costura")
+        assert lg["suprimida"] is False and lg["posicao"] in ("base", "acima_cta")
 
 
 # ============================================================================ o relógio é o da footage
@@ -425,7 +425,6 @@ def overlay_falso(monkeypatch):
     monkeypatch.setattr(OB, "preparar_arquivos", preparar_arquivos)
     monkeypatch.setattr(OB, "planejar_visitas", visitas)
     monkeypatch.setattr(OF, "marcar_grupos_claros", lambda *a, **k: None)
-    monkeypatch.setattr(OL, "look_fechado", lambda avatar, medir=None: False)
     return capturado
 
 
@@ -879,35 +878,39 @@ def _cli_sem_midia(mundo, monkeypatch):
     monkeypatch.setattr(AL, "duracao_do_audio", lambda p: mundo.alinhamento["duracao_audio_s"])
 
 
-def test_m5_cli_mede_o_rosto_e_a_posicao_das_legendas_segue_o_look_fechado(mundo, monkeypatch, capsys):
-    """A CLI nunca passava `medir_rosto` e a timeline registrava legenda padrão num look fechado medido."""
+def test_m5_cli_nao_mede_mais_o_rosto_e_a_posicao_das_legendas_e_a_unica(mundo, monkeypatch, capsys):
+    """10/10/2026: a legenda tem uma posição só (a base do quadro; no CTA, acima da pílula). A CLI não mede mais o rosto do avatar
+    para montar as legendas (antes o look fechado medido mandava a legenda para o rodapé): o `medir_rosto` nem é importado."""
     import sys
     import types
 
     _cli_sem_midia(mundo, monkeypatch)
     rosto = types.ModuleType("medir_rosto")
     medidos = []
-    rosto.caixa_rosto = lambda video, *a, **k: medidos.append(str(video)) or (900, 600)   # queixo em 78%
+    rosto.caixa_rosto = lambda video, *a, **k: medidos.append(str(video)) or (900, 600)   # queixo em 78%: era look fechado
     monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
     destino = mundo.output / "fechado_timeline.json"
     assert _cli(mundo, mundo.cfg, destino) == 0, capsys.readouterr().err
     tl = TC.ler(destino)
-    assert medidos and medidos[0] == str(mundo.avatar)
+    assert medidos == []
     posicoes = {lg["posicao"] for lg in tl["legendas"]}
-    assert "padrao" not in posicoes and "rodape" in posicoes
+    assert posicoes <= {"base", "acima_cta"} and "base" in posicoes, posicoes
 
 
-def test_m5_cli_com_look_aberto_mantem_a_legenda_padrao(mundo, monkeypatch, capsys):
+def test_m5_o_look_aberto_ou_fechado_da_a_mesma_timeline(mundo, monkeypatch, capsys):
     import sys
     import types
 
     _cli_sem_midia(mundo, monkeypatch)
-    rosto = types.ModuleType("medir_rosto")
-    rosto.caixa_rosto = lambda video, *a, **k: (488, 425)                                # queixo em 47%
-    monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
-    destino = mundo.output / "aberto_timeline.json"
-    assert _cli(mundo, mundo.cfg, destino) == 0, capsys.readouterr().err
-    assert "padrao" in {lg["posicao"] for lg in TC.ler(destino)["legendas"]}
+    resultados = []
+    for nome, caixa in (("aberto", (488, 425)), ("fechado", (900, 600))):
+        rosto = types.ModuleType("medir_rosto")
+        rosto.caixa_rosto = lambda video, *a, _c=caixa, **k: _c
+        monkeypatch.setitem(sys.modules, "medir_rosto", rosto)
+        destino = mundo.output / (nome + "_timeline.json")
+        assert _cli(mundo, mundo.cfg, destino) == 0, capsys.readouterr().err
+        resultados.append([lg["posicao"] for lg in TC.ler(destino)["legendas"]])
+    assert resultados[0] == resultados[1]
 
 
 def test_m5_rotulo_do_cta_da_timeline_e_o_texto_do_botao_no_html(mundo, overlay_falso, monkeypatch):
@@ -942,7 +945,7 @@ def test_l8_a_cli_imprime_so_o_resumo_no_stdout(mundo, monkeypatch, capsys):
     cap = capsys.readouterr()
     linhas = [l for l in cap.out.splitlines() if l.strip()]
     assert len(linhas) == 1 and linhas[0].startswith("[timeline]"), cap.out
-    assert "[ritmo]" in cap.err or "[split]" in cap.err or "[look]" in cap.err
+    assert any(m in cap.err for m in ("[ritmo]", "[split]", "[layout]", "[logo]", "[pilha]")), cap.err
 
 
 

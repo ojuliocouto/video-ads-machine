@@ -1,19 +1,15 @@
-"""Tinta invertida onde o fundo é claro (28/08/2026).
+"""O halo da legenda pelo fundo local (28/08/2026; reescrito em 10/10/2026, "Sim pros 2").
 
-A legenda é BRANCA. O contraste WCAG de tinta branca contra um fundo de luminância L cruza 4,5:1 (o
-piso de legibilidade) exatamente em L = 119/255. Acima disso ela precisa de placa; abaixo, lê
-sozinha, e placa só sujaria o visual dos trechos escuros. O primeiro palpite foi 150, de cabeça, e o
-teste derrubou: em 150 o contraste já é 2,96:1, ou seja o limiar "seguro" deixava passar fundo que
-APAGA a legenda. Números do quadro entregue de um build de referência, no MESMO anúncio: 1,52:1 sobre
-o mockup branco, 11,68:1 sobre o fundo escuro, 14,28:1 sobre a camiseta preta.
+A legenda é BRANCA, sem caixa, sem faixa e sem contorno duro: legibilidade vem de um halo escuro em camadas, delicado,
+que o CSS desenha (`legenda.css`). O contraste WCAG de tinta branca contra um fundo de luminância L cruza 4,5:1 (o
+piso de legibilidade) exatamente em L = 119/255. Sobre fundo ESCURO o halo normal basta. Sobre fundo CLARO (um insert de
+página branca na base do quadro) a legenda precisa de MAIS halo: o grupo ganha `cgrp-halo`, que adiciona camadas e
+opacidade ao mesmo halo, ainda sem caixa, até a letra passar de 4,5:1 no `contraste_texto.py`. Antes a tinta invertia
+(escura sobre fundo claro) ou ganhava uma placa preta atrás da frase; o dono vetou a caixa preta em 23/09 ("odiei o
+estilo da legenda") e de novo em 10/10 (faixa atrás do peito), e a tinta invertida contradiz "texto branco com halo".
 
-Mudar a legenda de posição não resolve: o perfil do quadro inteiro daquele trecho não tem faixa acima
-de 3,6:1 fora da zona morta da UI. A saída é INVERTER a tinta (escura em vez de branca), que resolve
-sem tarja (vetada em 19/08) e sem engrossar contorno (deixa a letra oca sobre branco).
-
-Vale no split também: a legenda do split pousa sobre o INSERT (a costura fica em y 1030-1105 e o
-painel de cima vai até 1150). Quem mostrou foi o gate de contraste no arquivo entregue: 57 de 120
-faixas abaixo do piso, quase todas na costura.
+Números do quadro entregue de um build de referência, no MESMO anúncio: 1,52:1 sobre o mockup branco, 11,68:1 sobre
+o fundo escuro, 14,28:1 sobre a camiseta preta. A posição não resolve (a base do quadro é fixa); o halo resolve.
 
 POR INSTANTE, NÃO POR ARQUIVO. Classificar o insert inteiro por UM quadro apareceu como legenda
 ESCURA sobre fundo ESCURO (tinta 0,005 e fundo 0,000): gravação de tela que abre numa página branca
@@ -31,26 +27,26 @@ LIMIAR_FUNDO_CLARO = 119
 
 _CACHE_FUNDO = {}
 
-# --- W5.X: a tinta pelo fundo LOCAL, com as duas camadas da legenda acima de 4,5:1 ---------------------------------
-# O render real da W5.A pôs a camada APAGADA do karaokê a 3,1:1 sobre o borrado de um insert (5,64 s) e a apagada
-# da tinta invertida a 3,05 e 1,32:1 na costura de um split (9,21 s). O limiar de 119 na MEDIANA da faixa protegia
-# só a camada acesa e só contra o fundo típico. A decisão agora usa o fundo CRÍTICO da caixa do texto (o percentil 90
-# para a tinta clara, o 10 para a escura: a parte do fundo que apaga a letra) e as DUAS camadas, com folga.
-META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel)
-ACESA_CLARA, ACESA_ESCURA = 241, 19         # #F5EFE6 e #12141A, em cinza
-APAGADA_CLARA_ALFA = 0.88                   # legenda.css: rgba(245,239,230,.88) (era .70: 3,6:1 sobre a placa, .80: 3,97:1, W7.Z)
-APAGADA_ESCURA_ALFA = 0.75                  # legenda.css: rgba(18,20,26,.75) (era .62: 1,32:1 no v1)
-PLACA_ALFA = 0.88                           # legenda.css: rgba(8,9,14,.88) (era .82; o gancho segue em .82 no hook.css)
-PLACA_COR = 9
-CAIXA_X = (130, 950)                        # a largura útil da legenda (o recuo do .cgrp)
+# --- 10/10/2026: o halo pelo fundo LOCAL, medido no render real (o gate de contraste é a régua) ------------------------
+# Medido com a legenda do repo renderizada em RGBA e passada pelo `contraste_texto.medir_quadro` sobre fundos lisos de
+# 22 a 245 de cinza: o halo NORMAL (4 camadas de sombra difusa, `legenda.css`) lê 16:1 sobre 22, 5,0:1 sobre 110 e cruza 4,5:1
+# perto de 118; acima disso o gate lê a letra contra o fundo claro que o halo não alcança e reprova. O halo FORTE (36 camadas
+# de sombra de 8 px, `.cgrp-halo`) passa a ler a mancha escura contra o fundo: 4,3:1 sobre 116, 4,9:1 sobre 125, 17:1 sobre
+# 245, e cruza 4,5:1 também perto de 118. Os dois se encontram em LIMIAR_HALO_FORTE: abaixo dele o halo normal, acima o forte.
+# A conta antiga (as duas camadas do karaokê contra o p90 do fundo, WCAG) valia para a tinta invertida e a placa, que
+# morreram; esta é a do gate e tem o número medido.
+LIMIAR_HALO_FORTE = 118       # cinza (0 a 255) do fundo crítico da faixa da legenda: acima disso, `cgrp-halo`
+META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel), para a cor do destaque
+APAGADA_CLARA_ALFA = 0.88                   # legenda.css: rgba(245,239,230,.88) (era .70 e .80: 3,6:1 e 3,97:1, W7.Z)
+CAIXA_X = (140, 940)                        # a largura útil da legenda (o recuo do .cgrp)
 FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render da W5.A (y 910 a 1165)
 CAIXA_X_HOOK = (160, 920)
 LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
 
 # --- W7.W (A4): o fundo crítico da LEGENDA é o 1% mais crítico da faixa, não o p10/p90 -------------------------------
 # Sobre a interface branca do Claude, as linhas "Web" da tabela passavam atrás das letras e a legenda saiu com tinta escura
-# SEM placa (8,6 s da prova): o p10 da faixa era 201 (papel) e as linhas, ~1% dos pixels, só aparecem no p01 (135 a 154;
-# mínimo 50). Um fundo que tem estrutura escura (ou clara, para a tinta clara) em 1% da faixa já cruza as letras: placa.
+# SEM proteção (8,6 s da prova): o p10 da faixa era 201 (papel) e as linhas, ~1% dos pixels, só aparecem no p01 (135 a 154;
+# mínimo 50). Um fundo que tem estrutura clara em 1% da faixa já cruza as letras brancas: halo forte.
 # O gancho NÃO usa isto: a regra dele é o p90 contra LIMIAR_HOOK_P90.
 QUANTIS_LEGENDA = (0.01, 0.99)
 
@@ -58,16 +54,14 @@ QUANTIS_LEGENDA = (0.01, 0.99)
 # --- W7.Z: a cor do DESTAQUE (palavra de ênfase) também se decide pelo fundo local ---------------------------------------
 # A terracota (#E87D4E, luminância 0,32) sobre a camisa laranja do avatar media 1,01:1, e a camada apagada dela (alfa .62)
 # não passava de 4,5:1 nem sobre fundo escuro. Duas cores, as duas camadas (acesa e apagada do karaokê) em cada decisão,
-# com a mesma folga (META) da tinta: a MARCA (terracota; sobre tinta invertida, a terracota escura), a alternativa CLARA
-# (amarelo) e, se nenhuma passa, a placa escura.
+# com a folga META: a MARCA (terracota), a alternativa CLARA (amarelo) e, se nenhuma passa, o destaque sai BRANCO.
 KW_MARCA, KW_MARCA_ALFA = (232, 125, 78), 0.88          # legenda.css: #E87D4E e rgba(232,125,78,.88) (era .62: 3:1 até sobre fundo escuro)
-KW_ESCURA, KW_ESCURA_ALFA = (178, 67, 26), 0.75         # legenda.css: #B2431A e rgba(178,67,26,.75) (sobre tinta invertida)
 KW_ALT, KW_ALT_ALFA = (255, 209, 102), 0.80             # legenda.css: #FFD166 e rgba(255,209,102,.80)
 
 
 class Tinta(str):
-    """A tinta ("clara", "invertida" ou "placa") com a cor do destaque que combina com ela em `.enfase` ("marca" ou
-    "clara"; None sem destaque). É uma `str`: quem compara com "placa" não nota a diferença."""
+    """A tinta ("clara": halo normal; "halo": halo forte) com a cor do destaque que combina com ela em `.enfase` ("marca",
+    "clara" ou "branca"; None sem destaque). É uma `str`: quem compara com "halo" não nota a diferença."""
 
     def __new__(cls, valor, enfase=None):
         obj = super().__new__(cls, valor)
@@ -78,25 +72,6 @@ class Tinta(str):
 def _lum(v):
     c = float(v) / 255.0
     return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-
-
-def _razao(a, b):
-    la, lb = _lum(a), _lum(b)
-    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-
-
-def camada_clara(fundo, apagada=True):
-    """O cinza que a tinta clara vira sobre `fundo` (a apagada é translúcida)."""
-    return ACESA_CLARA * APAGADA_CLARA_ALFA + fundo * (1 - APAGADA_CLARA_ALFA) if apagada else ACESA_CLARA
-
-
-def camada_escura(fundo, apagada=True):
-    return ACESA_ESCURA * APAGADA_ESCURA_ALFA + fundo * (1 - APAGADA_ESCURA_ALFA) if apagada else ACESA_ESCURA
-
-
-def sob_placa(fundo):
-    """O cinza da placa sobre `fundo`."""
-    return PLACA_COR * PLACA_ALFA + fundo * (1 - PLACA_ALFA)
 
 
 def _lum_rgb(rgb):
@@ -120,37 +95,26 @@ def _camadas_ok(cor, alfa_apagada, fundos):
 
 
 def decidir_enfase(tinta, p10, p90):
-    """A cor do destaque para uma tinta e um fundo (p10, p90): "marca" (a terracota; com a tinta invertida, a terracota
-    escura), "clara" (o amarelo) ou None quando nenhuma das duas passa (quem chama sobe a tinta para a placa).
-    O fundo crítico é a faixa inteira entre p10 e p90 (uma cor de meio-tom some em qualquer fundo perto dela); na placa,
-    a placa escura sobre os dois extremos."""
-    fundos = (sob_placa(p10), sob_placa(p90)) if tinta == "placa" else (p10, p90)
-    marca, alfa_marca = (KW_ESCURA, KW_ESCURA_ALFA) if tinta == "invertida" else (KW_MARCA, KW_MARCA_ALFA)
-    if _camadas_ok(marca, alfa_marca, fundos):
+    """A cor do destaque para uma tinta e um fundo (p10, p90): "marca" (a terracota), "clara" (o amarelo) ou "branca"
+    (o destaque perde a cor e sai branco como o resto: nenhuma das duas lê no fundo, e uma legenda sem destaque é
+    melhor que uma legenda ilegível). No halo forte a mancha escura segura qualquer cor: "marca"."""
+    if tinta == "halo":
         return "marca"
-    if tinta != "invertida" and _camadas_ok(KW_ALT, KW_ALT_ALFA, fundos):
+    if _camadas_ok(KW_MARCA, KW_MARCA_ALFA, (p10, p90)):
+        return "marca"
+    if _camadas_ok(KW_ALT, KW_ALT_ALFA, (p10, p90)):
         return "clara"
-    return None
+    return "branca"
 
 
 def decidir_tinta(p10, p90, kw=False):
-    """"clara", "invertida" ou "placa" para o fundo de percentis (p10, p90), em cinza 0 a 255.
-
-    Com `kw` (o grupo tem palavra de ênfase) a decisão também passa pelo destaque (W7.Z): a tinta só fica se a cor do
-    destaque lê nela; senão sobe para a placa. O resultado é uma `Tinta` que leva a cor do destaque em `.enfase`."""
-    if min(_razao(camada_clara(p90, True), p90), _razao(camada_clara(p90, False), p90)) >= META:
-        tinta = "clara"
-    elif min(_razao(camada_escura(p10, True), p10), _razao(camada_escura(p10, False), p10)) >= META:
-        tinta = "invertida"
-    else:
-        tinta = "placa"
+    """"clara" (halo normal) ou "halo" (halo forte) para o fundo de percentis (p10, p90), em cinza 0 a 255: o forte
+    quando o fundo crítico (`p90`, na prática o p99 da faixa) passa de LIMIAR_HALO_FORTE. Com `kw` (o grupo tem
+    palavra de ênfase) o resultado é uma `Tinta` que leva a cor do destaque em `.enfase` (W7.Z)."""
+    tinta = "halo" if p90 > LIMIAR_HALO_FORTE else "clara"
     if not kw:
         return tinta
-    enfase = decidir_enfase(tinta, p10, p90)
-    if enfase is None and tinta != "placa":
-        tinta = "placa"
-        enfase = decidir_enfase(tinta, p10, p90)
-    return Tinta(tinta, enfase)
+    return Tinta(tinta, decidir_enfase(tinta, p10, p90))
 
 
 def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1], quantis=(0.10, 0.90)):
@@ -181,7 +145,7 @@ def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1], quantis=(0.
 
 
 def _tinta_dos_percentis(percentis, kw=False):
-    """A tinta ("clara", "invertida" ou "placa") para as medidas (p10, p90) de um ou mais instantes, pelo pior fundo
+    """A tinta ("clara" ou "halo") para as medidas (p10, p90) de um ou mais instantes, pelo pior fundo
     deles (o maior p90 e o menor p10). None sem medida. É a REGRA da tinta: o build (`tinta_footage`, no instante de
     cada grupo) e a prancha (`decisao_do_quadro`, num quadro) passam por aqui."""
     ps = [x for x in percentis if x is not None]
@@ -196,10 +160,10 @@ def _gancho_pede_placa(p90s):
 
 
 def tinta_footage(video, ini, fim, classe, kw=False):
-    """A tinta do grupo ("clara", "invertida" ou "placa") medida na footage, em 3 instantes dentro dele, com o pior
+    """A tinta do grupo ("clara" ou "halo") medida na footage, em 3 instantes dentro dele, com o pior
     fundo dos três (o maior p90 e o menor p10). None sem medida. `kw`: o grupo tem palavra de ênfase e a tinta leva a cor
     do destaque (`Tinta.enfase`)."""
-    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["base"])
     return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1, quantis=QUANTIS_LEGENDA)
                                  for f in (0.2, 0.5, 0.8)], kw)
 
@@ -219,14 +183,14 @@ def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
     return _gancho_pede_placa(p90s)
 
 
-def decisao_do_quadro(imagem, classe="padrao", formato="9x16", kw=False):
+def decisao_do_quadro(imagem, classe="base", formato="9x16", kw=False):
     """A decisão do overlay para UM quadro de footage (um PNG ou um vídeo, lido no instante 0):
-    {"legenda": "clara" | "invertida" | "placa" | None, "gancho": "placa" | "fino"}.
+    {"legenda": "clara" | "halo" | None, "gancho": "placa" | "fino"}.
 
     É a função que a PRANCHA de direção chama para dizer o que o motor faz naquele fundo: a mesma regra de
     `tinta_footage` (legenda) e `hook_pede_placa` (gancho), aplicadas a um quadro só. Uma regra, dois chamadores:
     a prancha nunca desenha legenda ou gancho por uma regra própria."""
-    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["base"])
     legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1, quantis=QUANTIS_LEGENDA)], kw)
     faixa = FAIXA_HOOK.get(formato)
     p90s = []
@@ -274,7 +238,7 @@ def fundo_claro_footage(video, ini, fim, classe):
     então a do build anterior vale. Três amostras dentro do grupo: perto de um corte uma amostra
     sozinha pode cair no plano vizinho, e a mediana das três não se deixa levar por isso.
     """
-    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["base"])
     vals = []
     for f in (0.25, 0.5, 0.75):
         v = _mediana_banda(video, ini + (fim - ini) * f, y0, y1)
@@ -291,7 +255,7 @@ def fundo_claro(src, start=0.0):
 
     Mede a MEDIANA de um quadro da fonte, não a média: asset bimodal (fundo escuro com uma área de
     página clara) engana a média (um asset de média 64 e mediana 33). Falha de medição devolve False
-    de propósito: sem número, não inventa placa. Cacheado por (arquivo, start).
+    de propósito: sem número, não inventa halo. Cacheado por (arquivo, start).
     """
     chave = (src, round(float(start or 0), 2))
     if chave in _CACHE_FUNDO:
@@ -333,13 +297,14 @@ def a0_da_footage(ritmo_json):
         return None
 
 
-def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
-    """Marca `claro` nos grupos de legenda sobre fundo claro, no instante em que cada um está na tela.
+def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None, janelas_split=()):
+    """Marca `halo` (halo forte) nos grupos de legenda sobre fundo claro, no instante em que cada um está na tela.
 
     Caminho bom: mede a footage renderizada, na faixa exata da classe do grupo. Primeira rodada de um
     anúncio novo (sem footage): cai no arquivo-fonte, no meio do grupo, com o tempo da fonte
     convertido por start e velocidade do insert. É aproximado (o painel mostra um recorte do asset),
-    e o build seguinte converge para o caminho de cima.
+    e o build seguinte converge para o caminho de cima. Em tela dividida a legenda está na base do painel do
+    apresentador, não sobre o insert: o arquivo-fonte não diz nada ali (`janelas_split`) e o grupo fica de fora.
 
     O RELÓGIO DA FOOTAGE (W3.X M4). O overlay é deslocado de -a0 no composite: o instante t do grupo é o instante
     t - a0 da footage. Amostrar em t media outro quadro (0,62 s depois no fixture). O `a0` vem do chamador (a
@@ -353,20 +318,19 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
             print(f"   [fundo claro] footage {_fmp4.name} sem a0 conhecido (nem timeline nem _ritmo.json): "
                   "medindo no arquivo-fonte, nao no relogio errado", flush=True)
     if _fmp4.exists() and a0 is not None:
-        n = npl = 0
+        n = 0
         for g in groups:
             _kw = any(w.get("kw") for w in g.get("words") or [])
             _r = (tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g), kw=True) if _kw
                   else tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g)))
-            if _r == "invertida":
-                g["claro"] = True
+            if _r == "halo":
+                g["halo"] = True
                 n += 1
-            elif _r == "placa":
-                g["placa"] = True
-                npl += 1
             if _kw and getattr(_r, "enfase", None) == "clara":
                 g["kw_alt"] = True
-        print(f"   [fundo claro] {n} de {len(groups)} grupo(s) com tinta INVERTIDA e {npl} com PLACA, "
+            elif _kw and getattr(_r, "enfase", None) == "branca":
+                g["kw_branco"] = True
+        print(f"   [fundo claro] {n} de {len(groups)} grupo(s) com HALO FORTE (fundo claro na base), "
               f"medidos na footage ({_fmp4.name})", flush=True)
     elif mapa_insert:
         n = 0
@@ -375,12 +339,12 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
             _jan = next((w for w in mapa_insert if w["a"] <= _meio <= w["b"]), None)
             if not _jan:
                 continue
-            if classe_do_grupo(g) == "costura":
-                continue       # a emenda do split tem um degradê escuro por construção: a mediana do arquivo-fonte não a vê
+            if any(a <= _meio < b for a, b in janelas_split or ()):
+                continue       # tela dividida: a legenda esta sobre o apresentador, nao sobre o insert
             _tsrc = _jan["start"] + max(0.0, _meio - _jan["s2"]) * _jan["speed"]
             if fundo_claro(_jan["file"], round(_tsrc, 1)):
-                g["claro"] = True
+                g["halo"] = True
                 n += 1
         if n:
-            print(f"   [fundo claro] {n} grupo(s) com tinta INVERTIDA pelo ARQUIVO-FONTE "
+            print(f"   [fundo claro] {n} grupo(s) com HALO FORTE pelo ARQUIVO-FONTE "
                   f"(sem footage ainda; o proximo build mede na footage)", flush=True)

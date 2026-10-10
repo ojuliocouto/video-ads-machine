@@ -1,20 +1,21 @@
       /* ===== legenda.css: legenda karaokê (C6), palavra a palavra, preenchimento linear =====
-         Uma família, dois estados por COR (regra de tipografia de legenda): Inter 800, ênfase por cor, nunca
-         itálico nem tamanho. SEM CONTORNO (10/10/2026, dono: "tava com um contorno em cada palavra, não tava
-         legal"): texto limpo com sombra suave e difusa, sem borda dura. Sem scrim (19/08/2026, "essa sombra embaixo
-         me dá pânico"): o contraste é da sombra macia e, em fundo médio, da faixa única (`cplaca`).
-         Posição (bottom), recuo e corpo são do formato: moram no index.html. As classes de posição
-         (`cgrp-baixa`, `cgrp-costura`) vêm de `overlay.layout_texto`. */
+         PADRÃO DE 10/10/2026 (dono, "Sim pros 2"; antes, 23/09: "odiei o estilo da legenda", "mais delicada e mais
+         abaixo"): texto BRANCO com HALO escuro delicado, na BASE do quadro. Sem caixa, sem faixa, sem placa, sem
+         contorno duro por palavra ("tava com um contorno em cada palavra, não tava legal"). O halo é sombra difusa em
+         camadas (nada de borda, nada de deslocamento duro) e mora só na camada apagada (`.base`), que está sempre
+         inteira: a camada acesa (`.fill`) é cortada pelo preenchimento e uma sombra nela pulsaria.
+         Fundo claro na base (insert de página branca): o grupo ganha `cgrp-halo`, que soma camadas e opacidade ao
+         MESMO halo, ainda sem caixa, até a letra passar de 4,5:1 no contraste_texto.py (a conta é overlay.fundo_claro).
+         Posição (bottom), recuo e corpo são do formato: moram no index.html. `cgrp-acima-cta` (o CTA na tela) sobe a
+         legenda para logo acima da pílula; as classes vêm de `overlay.layout_texto` e do `build_timeline`. */
       #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
-      /* gap de 30 px: o realce antigo crescia a palavra e colava a vizinha; o vão paga o pior caso medido. */
+      /* gap de 18 px: o corpo é de 56 px e a linha de 3 a 4 palavras cabe em x 140 a 940 sem quebrar. */
       #caps .cgrp { position:absolute; left:0; right:0;
-        display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 30px; }
+        display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:4px 18px; }
       #caps .cw { font-family:"Inter"; font-weight:800;
-        color:#F5EFE6; letter-spacing:-0.02em; line-height:1.14;
-        filter:drop-shadow(0 4px 14px rgba(0,0,0,.55));
-        text-shadow:0 2px 12px rgba(0,0,0,.50); }
+        color:#F5EFE6; letter-spacing:-0.01em; line-height:1.14; }
       /* ênfase por cor: terracota. Não muda o tamanho: a caixa é ancorada por baixo e crescer empurraria
-         a linha para cima, na direção do queixo. */
+         a linha para cima. */
       #caps .cw.kw { color:#E87D4E; }
       /* PREENCHIMENTO LINEAR, NÃO SALTO (29/08/2026, "gosto quando é uma cor, vai preenchendo ela, de forma
          linear"). Duas camadas do MESMO texto na mesma caixa: `base` apagada e `fill` acesa por cima, cortada
@@ -24,42 +25,36 @@
       #caps .cw .base, #caps .cw .fill { display:block; }
       #caps .cw .fill { position:absolute; left:0; top:0; white-space:pre;
         clip-path:inset(0 100% 0 0); }
-      /* camada apagada a 80%: com 52% a palavra ainda não falada caía para 3,2:1 e o gate de contraste achou
-         30 faixas abaixo do piso; com 70% a palavra meio preenchida, ao lado da já acesa, media 3,6:1 sobre a placa na
-         costura do split e com 80% ainda 3,97:1 (18,0 s da prova da W7.Z): a camada apagada vai a 88%. A diferença para a
+      /* HALO NORMAL: quatro camadas de sombra difusa, todas centradas na letra (sem deslocamento horizontal e com 2 px
+         de queda só na última), do mais perto e mais forte ao mais longe e mais fraco: a letra ganha um chão escuro
+         suave, não uma borda. O raio mínimo é de 4 px. MEDIDO no contraste_texto.py com este CSS renderizado: 16:1 sobre
+         fundo 22, 5,0:1 sobre 110, e cruza 4,5:1 perto de 118 (overlay.fundo_claro.LIMIAR_HALO_FORTE). */
+      #caps .cw .base { text-shadow:0 0 4px rgba(0,0,0,.70), 0 0 10px rgba(0,0,0,.60), 0 0 22px rgba(0,0,0,.50), 0 2px 30px rgba(0,0,0,.40); }
+      /* HALO FORTE (fundo claro na base, acima de 118 de cinza): o MESMO halo com muito mais camadas e opacidade cheia, sem
+         caixa e sem borda dura (o raio de 8 px dissolve a borda). MEDIDO: 4,3:1 sobre 116, 4,9:1 sobre 125 e 17:1 sobre
+         245 no contraste_texto.py; a tinta (alfa >= 190) desce 17 px abaixo da letra: com a caixa em y 1682 fica dentro da zona segura (y 1690). */
+      #caps .cgrp-halo .cw .base { text-shadow:0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
+        0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
+        0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
+        0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
+        0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
+        0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000; }
+      /* camada apagada a 88%: com 52% a palavra ainda não falada caía para 3,2:1 e o gate de contraste achou
+         30 faixas abaixo do piso; com 70% a palavra meio preenchida, ao lado da já acesa, media 3,6:1 e com
+         80% ainda 3,97:1 (18,0 s da prova da W7.Z): a camada apagada vai a 88%. A diferença para a
          camada acesa (alfa cheio) segue visível no preenchimento. */
       #caps .cw .base { color:rgba(245,239,230,.88); }
       #caps .cw .fill { color:#F5EFE6; }
       #caps .cw.kw .base { color:rgba(232,125,78,.88); }
       #caps .cw.kw .fill { color:#E87D4E; }
-      /* sobre insert claro a tinta inverte, e as duas camadas invertem junto */
-      /* .75 (era .62): a camada apagada escura virava cinza médio sobre o insert claro, 3,05 e 1,32:1 no render da W5.A;
-         a conta é overlay.fundo_claro.decidir_tinta (APAGADA_ESCURA_ALFA) */
-      #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.75); }
-      #caps .cgrp-claro .cw .fill { color:#12141A; }
-      #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.75); }
-      /* PLACA (W5.X, faixa única na W5.Y): fundo de meio-tom ou misturado (a costura do split, o borrado do insert), onde
-         nem a tinta clara nem a invertida deixam a camada APAGADA acima de 4,5:1. UMA faixa escura por grupo (o
-         elemento `cplaca`, primeiro filho do grupo), atrás da frase inteira: a placa por palavra picotava a linha
-         (5,64 s, 9,21 s e 10,99 s do v2). Cantos discretos, folga de .2em em volta da letra (o anel onde o gate mede
-         o fundo). Posição e tamanho são medidos no navegador, nas caixas das palavras, pelo timeline.js: a largura
-         acompanha a LINHA MAIS LARGA do grupo, nunca a tela toda. A cor e o alfa são os de overlay.fundo_claro
-         (PLACA_COR, PLACA_ALFA). Sem medida ela nasce com tamanho zero: o gate de contraste acusa, nunca vaza. */
-      #caps .cplaca { position:absolute; left:0; top:0; width:0; height:0; background:rgba(8,9,14,.88);
-        border-radius:16px; pointer-events:none; }
-      #caps .cgrp-placa .cw { filter:none; text-shadow:none; }
-      #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
       /* COR ALTERNATIVA DO DESTAQUE (W7.Z): quando a terracota não lê no fundo local (a camisa laranja do avatar media
          1,01:1) o grupo ganha `cgrp-kwalt` e o destaque vira amarelo. A conta é overlay.fundo_claro.decidir_enfase. */
       #caps .cgrp-kwalt .cw.kw .base { color:rgba(255,209,102,.80); }
       #caps .cgrp-kwalt .cw.kw .fill { color:#FFD166; }
-      /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
-         tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá
-         ~15:1 sem mexer em geometria; a sombra vira clara para segurar meio-tom. */
-      #caps .cgrp-claro .cw { color:#12141A;
-        filter:drop-shadow(0 3px 12px rgba(255,255,255,.60));
-        text-shadow:0 2px 10px rgba(255,255,255,.55); }
-      #caps .cgrp-claro .cw.kw { color:#B2431A; }
+      /* DESTAQUE BRANCO: nem a terracota nem o amarelo leem no fundo local (a camisa laranja entre 87 e 118 de cinza): a
+         palavra de ênfase perde a cor e sai branca como o resto do grupo. Melhor sem destaque que ilegível. */
+      #caps .cgrp-kwbranco .cw.kw .base { color:rgba(245,239,230,.88); }
+      #caps .cgrp-kwbranco .cw.kw .fill { color:#F5EFE6; }
       /* OPACIDADE CHEIA NA PALAVRA (29/08/2026). O apagado mora na COR da camada `.base`. Com opacity .82 na
          palavra, o MÁXIMO de alfa do overlay era 210 e o gate de contraste ficava cego ("0 faixas" com PASSA).
          O gate-ad conta texto por alfa acima de 190: abaixo de 0,82 de opacidade ele para de enxergar a

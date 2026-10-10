@@ -14,8 +14,9 @@ A zona segura é RÍGIDA, nos números que o dono aprovou nas levas (plano, seç
            reprova. A linha 1690 em si ainda é zona segura.
   x 940    onde o app desenha a coluna de curtir e comentar. Tinta com x > 940 reprova.
 
-A faixa de 1250 a 1690, da máscara de anúncio da Meta, NÃO reprova: gera relato (`medido.avisos`). A legenda
-padrão (y 1290 a 1500) e o rodapé (1370 a 1520) moram nela por desenho, então quase todo anúncio terá o relato.
+A faixa de 1250 a 1690, da máscara de anúncio da Meta, NÃO reprova: gera relato (`medido.avisos`). A legenda de
+base (y 1562 a 1690, o centro da linha perto de y 1660, padrão do dono de 10/10/2026) mora nela por desenho, então
+quase todo anúncio terá o relato.
 Não há exceção por projeto: o C6 não admite tinta na UI do app declarada com motivo.
 
 ## Duas etapas, dois nomes de laudo (o laudo não aceita nome repetido)
@@ -34,7 +35,7 @@ Não há exceção por projeto: o C6 não admite tinta na UI do app declarada co
 
 Pixel com alfa de 190 ou mais (de 255). Letra, contorno, botão e logo são opacos; o dim de tela inteira do lettering
 (alfa 140, `rgba(2,3,6,.55)`) e o scrim do hook (alfa 168) ficam abaixo e NÃO são tinta (o comentário do CSS do
-template registra os mesmos 190). Cor não entra: a legenda de tinta invertida (escura, sobre fundo claro) é tinta.
+template registra os mesmos 190). Cor não entra: a letra, clara ou escura, é tinta.
 
 ## Os instantes
 
@@ -76,8 +77,9 @@ TINTA_ALFA_MIN = 190            # tinta = alfa de 190 a 255; o dim (140) e o scr
 INSTANTES = 6
 ENTRADA_MIN_S = 0.6             # lettering e CTA: depois da animação de entrada
 JANELA_MIN_S = 0.05             # evento mais curto que isto não entra na amostra
-# O contrato fala `rodape`; o layout_texto fala `baixa`. A inversa de `timeline.construir.POSICAO` (um teste confere).
-FAIXA_DA_POSICAO = {"padrao": "padrao", "rodape": "baixa", "costura": "costura"}
+# O contrato e o layout_texto falam a mesma língua desde 10/10/2026 (a base do quadro e, no CTA, acima da pílula). A
+# inversa de `timeline.construir.POSICAO` (um teste confere).
+FAIXA_DA_POSICAO = {"base": "base", "acima_cta": "acima_cta"}
 _EPS = 1e-9
 
 

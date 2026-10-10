@@ -52,7 +52,7 @@ def tl_curta():
             "relogio": {"base": "footage_1x", "fps": 30, "aceleracao": 1.0, "cauda_s": 0.0, "a0": 0.0},
             "segmentos": [{"bloco": 0, "tipo": "apresentador", "s": 0.0, "e": 2.0, "sub": 0, "de": 1}],
             "janelas_split": [], "letterings": [],
-            "legendas": [{"s": 1.0, "e": 1.8, "texto": "uma legenda", "posicao": "padrao", "suprimida": False,
+            "legendas": [{"s": 1.0, "e": 1.8, "texto": "uma legenda", "posicao": "base", "suprimida": False,
                           "palavras": [{"t": "uma", "s": 1.0, "e": 1.4}, {"t": "legenda", "s": 1.4, "e": 1.8}]}],
             "hook": {"s": 0.0, "e": 1.0, "eyebrow": "A", "linha": "B", "destaque": "C", "estilo": "editorial"},
             "cta": {"inicio": 1.9, "logo": 1.9, "label": "saiba mais", "sem_lead": False}}
@@ -68,7 +68,7 @@ def tl_seis_eventos():
     return {"versao": 1, "projeto": "seis", "formato": "9x16", "duracao_s": 15.0,
             "relogio": {"base": "footage_1x", "fps": 30, "aceleracao": 1.0, "cauda_s": 0.0, "a0": 0.0},
             "segmentos": [{"bloco": 0, "tipo": "apresentador", "s": 0.0, "e": 15.0, "sub": 0, "de": 1}],
-            "janelas_split": [], "legendas": [leg(2.5, 4.0, "padrao"), leg(7.0, 8.5, "rodape")],
+            "janelas_split": [], "legendas": [leg(2.5, 4.0, "base"), leg(7.0, 8.5, "acima_cta")],
             "letterings": [lett("A", 4.5, 2.0), lett("B", 9.0, 2.0)],
             "hook": {"s": 0.0, "e": 2.0, "eyebrow": "A", "linha": "B", "destaque": "C", "estilo": "editorial"},
             "cta": {"inicio": 12.0, "logo": 12.2, "label": "saiba mais", "sem_lead": False}}
@@ -143,10 +143,11 @@ def test_os_limites_sao_os_do_plano():
 
 
 def test_a_posicao_da_timeline_aponta_para_a_faixa_certa_do_layout_texto():
-    """O contrato fala `rodape`; o layout_texto fala `baixa`. A tabela é a inversa da do construir."""
+    """Desde 10/10/2026 o contrato e o layout_texto falam a mesma língua (base e acima_cta). A tabela é a inversa da do construir."""
     from timeline import construir as TC
     assert gate_safezone.FAIXA_DA_POSICAO == {v: k for k, v in TC.POSICAO.items()}
-    for posicao in ("padrao", "rodape", "costura"):
+    assert set(gate_safezone.FAIXA_DA_POSICAO) == {"base", "acima_cta"}
+    for posicao in ("base", "acima_cta"):
         assert gate_safezone.faixa_da_legenda(posicao) == OL.FAIXA_LEGENDA[gate_safezone.FAIXA_DA_POSICAO[posicao]]
 
 
@@ -162,23 +163,23 @@ def test_o_plano_valido_passa_antes_e_o_resultado_esta_no_formato_do_laudo():
 
 
 def test_as_faixas_das_legendas_vem_do_layout_texto_na_hora_da_chamada(monkeypatch):
-    """Mutante: o dono mexe na faixa do rodapé e ela passa do teto da UI. O gate não guarda cópia dela."""
+    """Mutante: alguém desce a base e ela passa do teto da UI. O gate não guarda cópia dela."""
     novo = dict(OL.FAIXA_LEGENDA)
-    novo["baixa"] = (1370, 1700)
+    novo["base"] = (1560, 1700)
     monkeypatch.setattr(OL, "FAIXA_LEGENDA", novo)
     g = gate_safezone.rodar_antes(timeline())
     assert g["resultado"] == "REPROVA" and g["saida"] == 1
-    assert "rodape" in g["motivo"] and "1700" in g["motivo"] and "1690" in g["motivo"]
+    assert "base" in g["motivo"] and "1700" in g["motivo"] and "1690" in g["motivo"]
 
 
 def test_so_as_posicoes_que_a_timeline_usa_entram_na_conta(monkeypatch):
     """Uma faixa estourada que nenhuma legenda usa não reprova esta timeline."""
     tl = timeline()
     for leg in tl["legendas"]:
-        if leg["posicao"] == "rodape":
-            leg["posicao"] = "padrao"
+        if leg["posicao"] == "base":
+            leg["posicao"] = "acima_cta"
     novo = dict(OL.FAIXA_LEGENDA)
-    novo["baixa"] = (1370, 1700)
+    novo["base"] = (1560, 1700)
     monkeypatch.setattr(OL, "FAIXA_LEGENDA", novo)
     assert gate_safezone.rodar_antes(tl)["resultado"] == "PASS"
 
@@ -186,30 +187,35 @@ def test_so_as_posicoes_que_a_timeline_usa_entram_na_conta(monkeypatch):
 def test_legenda_suprimida_nao_entra_na_conta(monkeypatch):
     tl = timeline()
     for leg in tl["legendas"]:
-        if leg["posicao"] == "rodape":
+        if leg["posicao"] == "base":
             leg["suprimida"] = True
     novo = dict(OL.FAIXA_LEGENDA)
-    novo["baixa"] = (1370, 1700)
+    novo["base"] = (1560, 1700)
     monkeypatch.setattr(OL, "FAIXA_LEGENDA", novo)
     assert gate_safezone.rodar_antes(tl)["resultado"] == "PASS"
 
 
 def test_a_faixa_de_1250_a_1690_so_gera_relato_e_nunca_reprova():
-    """A legenda padrão (y 1290 a 1500) e o rodapé (1370 a 1520) moram na faixa da máscara da Meta."""
+    """A legenda de base (y 1554 a 1682) mora na faixa da máscara da Meta; a do CTA (972 a 1100) fica acima dela."""
     g = gate_safezone.rodar_antes(timeline())
     assert g["resultado"] == "PASS"
     avisos = g["medido"]["avisos"]
     assert avisos and all("só relato" in a for a in avisos)
-    assert any("padrao" in a for a in avisos) and any("rodape" in a for a in avisos)
-    assert not any("costura" in a for a in avisos)               # a costura (1000 a 1130) está fora da faixa
+    assert any("base" in a for a in avisos)
+    assert not any("acima_cta" in a for a in avisos)               # a faixa do CTA (972 a 1100) está fora da faixa
 
 
-def test_timeline_so_com_costura_nao_tem_relato():
+def test_timeline_so_com_a_legenda_do_cta_nao_tem_relato():
     tl = timeline()
     for leg in tl["legendas"]:
-        leg["posicao"] = "costura"
+        leg["posicao"] = "acima_cta"
     g = gate_safezone.rodar_antes(tl)
     assert g["resultado"] == "PASS" and g["medido"]["avisos"] == []
+
+
+def test_a_base_do_quadro_termina_dentro_da_zona_segura_com_folga_para_o_halo():
+    """A caixa da base termina em y 1682 e o halo forte desce ~4 px (a tinta, alfa >= 190): dentro de 1690."""
+    assert OL.FAIXA_LEGENDA["base"][1] <= gate_safezone.LIMITE_Y - 8
 
 
 @pytest.mark.parametrize("y1,x1,reprova", [

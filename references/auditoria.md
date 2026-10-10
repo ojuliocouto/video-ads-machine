@@ -30,7 +30,7 @@ Para cada pergunta, responda com o que viu, não com o que o laudo diz:
 - **Gancho (0 a 3 s).** Dá para ler a promessa em meio segundo? Há algo acontecendo que não seja só uma cabeça falando?
 - **Fala x tela.** Em cada insert, a imagem prova a frase? Há fala de interface sem tela?
 - **Cortes e emendas.** Algum corte pisca, atropela uma sílaba ou deixa o mesmo quadro na tela por tempo demais?
-- **Texto.** Legenda, lettering e CTA lidos de verdade em fundo claro e em fundo movimentado; algum cobre boca ou rosto?
+- **Texto.** Legenda, lettering e CTA lidos de verdade em fundo claro e em fundo movimentado; algum cobre boca ou rosto? A legenda é o padrão do dono (10/10/2026): texto branco com halo escuro delicado, na base do quadro, sem caixa e sem faixa; no CTA ela sobe para logo acima da pílula. Defeito é legenda com caixa, faixa ou contorno por palavra, legenda sobre peito ou mãos, ou que toca o botão ou o logo. **Não é defeito:** palavra falada sob um lettering sem legenda (legenda e lettering nunca dividem a tela, por design: o gate de cobertura não a conta e você também não); halo mais forte sobre insert claro.
 - **Som.** A música briga com a voz? Algum silêncio morto? Alguma palavra cortada?
 - **Fecho.** O CTA diz o que fazer e o botão e o logo aparecem?
 - **Dados sensíveis.** Algum insert mostra nome, telefone, e-mail ou conversa de pessoa real?

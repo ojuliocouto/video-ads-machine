@@ -46,9 +46,9 @@ Decisões onde o motor e o contrato não falam a mesma língua (registradas, nã
   - cta.logo é o instante REAL do logo: o overlay o antecipa em 0,9 s quando o bloco anterior ao CTA é
     apresentador (`overlay.cta.LOGO_LEAD`), e o contrato aceita até essa antecipação (W5.A; antes a timeline
     grudava o logo no CTA). A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
-  - legenda: a posição sai do layout (costura no split, rodapé sobre insert com texto). O rodapé por look
-    fechado depende de medir o rosto: o chamador passa `medir_rosto`, e a CLI passa a medição do avatar que ela
-    alinhou (W3.X M5: sem isso a timeline registrava legenda padrão num look fechado medido);
+  - legenda: a posição é uma só, a base do quadro (y ~1660), e `acima_cta` durante o CTA (10/10/2026); não sai mais
+    do layout (costura no split, rodapé sobre insert com texto, look fechado): por isso a timeline já não mede o rosto
+    do avatar para montar as legendas;
   - lettering: o estilo EFETIVO do config (`cinema.lettering_estilos.efetivo`: sem estilo, ou em split, close e pilha,
     o `serif_editorial`); o lettering que passaria do fim é aparado no fim.
 
@@ -86,7 +86,7 @@ DUCKING_SEM_TRILHA = {"desligado": True,
 # Ordem das chaves de um plano do ritmo.py (todos os ramos seguem esta ordem): o `_ritmo.json` da footage é
 # comparado byte a byte pela paridade.
 OPCIONAIS_DO_PLANO = ("layout", "fonte_off", "deitico", "base", "punch")
-POSICAO = {"costura": "costura", "baixa": "rodape", "padrao": "padrao"}
+POSICAO = {"base": "base", "acima_cta": "acima_cta"}
 
 
 class ErroTimeline(RuntimeError):
@@ -169,7 +169,7 @@ def duracao_do_overlay(tl):
 
 # ======================================================================================== o texto da tela
 
-def _texto_da_tela(blocks, words, spans_, plano, inserts_map, cfg, medir_rosto):
+def _texto_da_tela(blocks, words, spans_, plano, inserts_map, cfg):
     """Hook, janelas, letterings, CTA e legendas, pelas funções do overlay na ordem do `overlay.gerar`."""
     from overlay import (brolls as OB, cta as OC, gerar as OG, hook as OH, layout_texto as OL,
                          letterings as OLE, transcricao as OT)
@@ -177,13 +177,12 @@ def _texto_da_tela(blocks, words, spans_, plano, inserts_map, cfg, medir_rosto):
     OT.marcar_kw(ov, cfg.get("kw_phrases", []))
     h = OH.calcular_hook(blocks, spans_)
     visitas, _retorno_avatar = OB.planejar_visitas(blocks, spans_, inserts_map, plano)
-    js, jt, mapa = OL.janelas_por_visita(visitas)
+    js, _jt, mapa = OL.janelas_por_visita(visitas)
     letts, lett_windows = OLE.montar(cfg.get("letterings", []), ov, spans_, blocks, js)
     cta_start = OC.calcular_cta_start(blocks, spans_, words=ov, cfg=cfg)
     logo_start = OC.logo_start(cta_start, OC.logo_lead(blocks))
-    groups = OG._montar_legendas(ov, cfg, cfg.get("ad", ""), cfg.get("look", ""), h, logo_start, js, jt, mapa,
-                                 letts, lett_windows, medir_rosto=medir_rosto or (lambda avatar: None),
-                                 medir_fundo=False)
+    groups = OG._montar_legendas(ov, cfg, cfg.get("ad", ""), cfg.get("look", ""), h, logo_start, js, mapa,
+                                 letts, lett_windows, medir_fundo=False)
     return h, js, letts, groups, cta_start, logo_start, OL.classe_do_grupo
 
 
@@ -244,7 +243,7 @@ def com_camera(tl):
 
 def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, raiz, fps=FPS,
               aceleracao=ACELERACAO_PADRAO, cauda_s=CAUDA_S, formato=None, projeto=None, punches=(), sfx=(),
-              ducking=None, medir_rosto=None):
+              ducking=None):
     """A timeline (dict validado no contrato). Não grava nada e não chama subprocesso.
 
     `alinhamento` é o que `timeline.alinhar` gravou em `caminho_alinhamento` (o sha do arquivo vai para
@@ -269,7 +268,7 @@ def construir(blocks, alinhamento, *, inserts_map, cfg, caminho_alinhamento, rai
         with contextlib.redirect_stdout(sys.stderr):
             plano = BL.plano_de_ritmo(blocks, sp, inserts_map)
             h, js, letts, groups, cta_start, logo_start, classe = _texto_da_tela(
-                blocks, words, sp, plano, inserts_map, cfg, medir_rosto)
+                blocks, words, sp, plano, inserts_map, cfg)
     except SystemExit as e:                 # o overlay para o motor com sys.exit(mensagem)
         raise ErroTimeline(str(e.code))
     except BL.CA.ErroFootage as e:
@@ -380,16 +379,6 @@ def ler_para_motor(caminho_timeline, blocks, avatar=None):
 
 # ======================================================================================== CLI
 
-def medir_rosto_do_avatar(avatar):
-    """A medição do rosto que o overlay usa (`medir_rosto.caixa_rosto`), sempre sobre o avatar que a CLI alinhou (e
-    não sobre o `avatar` do config do overlay, que pode ser outra cópia). Falha de medição chega ao overlay como
-    exceção e ele cai no plano declarado do look."""
-    def medir(_avatar_do_config):
-        import medir_rosto
-        return medir_rosto.caixa_rosto(str(avatar))
-    return medir
-
-
 def _alinhamento_padrao(timeline):
     nome = timeline.name
     if nome == "timeline.json":
@@ -440,7 +429,7 @@ def main(argv=None):
                         raiz=raiz, glossario=glossario)
         sha = AL.gravar(al, alinhamento)
         tl = construir(blocks, al, inserts_map=inserts_map, cfg=cfg, caminho_alinhamento=alinhamento, raiz=raiz,
-                       fps=a.fps, aceleracao=a.aceleracao, medir_rosto=medir_rosto_do_avatar(a.avatar))
+                       fps=a.fps, aceleracao=a.aceleracao)
         gravar(tl, timeline)
     except (ErroTimeline, AL.ErroAlinhamento) as e:
         sys.stderr.write(f"ERRO: {e}\n")

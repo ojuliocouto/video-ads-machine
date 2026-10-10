@@ -741,55 +741,12 @@ def test_equivalencia_letterings_pilha_e_trava_de_layout(original):
     assert r["ok"] > 150 and r["exit:ancora"] > 50      # inclui a ancora que nao existe
 
 
-# W7.Z: a UNICA mudança deliberada na fronteira. O grupo que atravessa a borda e não tem PISO_FATIA em nenhum dos lados
-# ficava "como está" (atravessando a troca de layout, com a posição do outro layout sobre o rosto); agora sai da tela. O
-# resto do trecho é o original, caractere a caractere.
-SEM_LADO_QUE_CHEGUE_ORIGINAL = r"else:\n(\s+)_saida\.append\(_f\)\n"
-SEM_LADO_QUE_CHEGUE_W7Z = r"else:\n\1_cortados += 1\n"
-
-
-def test_equivalencia_fronteira_de_split_e_costura(original):
-    velho = fatiar(original, [(745, 915)], ["groups", "janelas_split"], ["groups"],
-                   regex=[(SEM_LADO_QUE_CHEGUE_ORIGINAL, SEM_LADO_QUE_CHEGUE_W7Z, 3)])
-
-    def novo(groups, janelas_split):
-        if janelas_split:
-            groups = LT.cortar_na_fronteira(groups, janelas_split)
-            LT.marcar_costura(groups, janelas_split)
-        return (groups,)
-
-    def gerar(rnd):
-        groups = g_grupos(rnd)
-        for g in groups:
-            if rnd.random() < 0.15:
-                g["baixa"] = True
-        return groups, g_janelas(rnd, groups)
-
-    assert comparar(velho, novo, gerar, n=1500)["ok"] == 1500
-
-
-# W3.X A1: a UNICA mudança deliberada no fechamento. O piso de 0,20 s (e o "sem palavra") passa a rodar DEPOIS de
-# truncar no logo, senão o grupo empurrado para depois do split e truncado no logo nascia invertido (início 13,43,
-# fim 13,25, medido pela auditoria) e a timeline recusava o anúncio. O resto do trecho é o original, caractere a caractere.
-FECHAMENTO_ORIGINAL = ('groups = [g for g in groups if g["words"] and g["end"] - g["start"] >= 0.20]\n'
-                       'for g in groups:\n    if g["end"] > logo_start:\n        g["end"] = logo_start')
-FECHAMENTO_W3X = ('for g in groups:\n    if g["end"] > logo_start:\n        g["end"] = logo_start\n'
-                  'groups = [g for g in groups if g["words"] and g["end"] - g["start"] >= 0.20]')
-
-
-def test_equivalencia_guarda_pos_split_e_fechamento(original):
-    velho = fatiar(original, [(957, 967)], ["groups", "janelas_split", "logo_start"], ["groups"],
-                   subst=[(FECHAMENTO_ORIGINAL, FECHAMENTO_W3X)])
-
-    def novo(groups, janelas_split, logo_start):
-        LT.empurrar_pos_split(groups, janelas_split)
-        return (LG.fechar_grupos(groups, logo_start),)
-
-    def gerar(rnd):
-        groups = g_grupos(rnd)
-        return groups, g_janelas(rnd, groups), round(rnd.uniform(5, 40), 2)
-
-    assert comparar(velho, novo, gerar, n=1000)["ok"] == 1000
+# APOSENTADOS em 10/10/2026 ("Sim pros 2"): `test_equivalencia_fronteira_de_split_e_costura` e
+# `test_equivalencia_guarda_pos_split_e_fechamento`. A legenda tem UMA posição (a base do quadro; no CTA, acima da pílula),
+# então o motor não parte mais o grupo na fronteira de uma troca de layout, não marca a costura, não empurra o grupo que
+# nasce colado no fim do split e não corta a legenda no logo: ela é partida por palavra e continua no CTA. O trecho do
+# `gen_ad_v2.py` original que esses testes comparavam morreu de propósito; o comportamento novo está em
+# test_legendas.py (fechar_grupos), test_layout_texto.py e test_legenda_halo_na_base.py.
 
 
 def test_equivalencia_eco_e_aparo_nos_letterings(original):
@@ -811,9 +768,20 @@ def test_equivalencia_eco_e_aparo_nos_letterings(original):
     assert comparar(velho, novo, gerar, n=1000)["ok"] == 1000
 
 
+# 10/10/2026: a UNICA mudança deliberada no gate de tela vazia é o texto do aborto por janela de CTA longa. A legenda não é
+# mais cortada na janela do CTA (continua acima da pílula), então a mensagem deixou de dizer que "rodaria sem legenda".
+MSG_CTA_ORIGINAL = (
+    ('A legenda do corpo e cortada "', 'O CTA fica "'),
+    ('f"nessa janela, entao {100 * _janela_cta / total:.0f}% do anuncio rodaria sem "',
+     'f"na tela por {100 * _janela_cta / total:.0f}% do anuncio. "'),
+    ('f"legenda. Quase sempre a causa e um insert com dur_max no MEIO do roteiro "',
+     'f"Quase sempre a causa e um insert com dur_max no MEIO do roteiro "'),
+)
+
+
 def test_equivalencia_gate_de_tela_vazia(original):
     velho = fatiar(original, [(1073, 1107)], ["hook_dur", "groups", "lett_windows", "cta_s", "total"],
-                   ["_pior", "_quando"])
+                   ["_pior", "_quando"], subst=MSG_CTA_ORIGINAL)
     novo = lambda hook_dur, groups, lett_windows, cta_s, total: TV.checar(    # noqa: E731
         hook_dur, groups, lett_windows, cta_s, total)
 

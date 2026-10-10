@@ -132,6 +132,8 @@ def aplicar_html(html, cfg, cta_s, logo_s, total, janelas_split):
               f"(senao pousam no rosto)", flush=True)
         html = html.replace('id="cta" class="clip"', 'id="cta" class="clip cta-split"', 1)
         html = html.replace('id="ev-logo" class="clip"', 'id="ev-logo" class="clip logo-split"', 1)
+        # a legenda que acompanha o CTA sobe junto: fica acima do bloco, onde quer que ele esteja
+        html = html.replace('id="caps" class="clip"', 'id="caps" class="clip caps-cta-split"', 1)
     html = html.replace('data-start="50.4" data-duration="4.96" data-track-index="46"',
                         f'data-start="{cta_s}" data-duration="{round(total-cta_s,2)}" data-track-index="46"')
     html = html.replace('data-start="46.7" data-duration="8.68" data-track-index="48"',

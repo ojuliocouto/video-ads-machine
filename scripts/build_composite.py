@@ -265,7 +265,7 @@ class Motor(object):
             ducking = musica.ducking_desligado(motivo) if trilha is None else musica.ducking_para_timeline([])
             tl = TC.construir(blocks, al, inserts_map=inserts_map, cfg=cfg, caminho_alinhamento=self.pj.alinhamento,
                               raiz=self.pj.raiz, aceleracao=self.accel, cauda_s=TAIL_FINAL, formato=self.formato,
-                              projeto=self.slug, ducking=ducking, medir_rosto=TC.medir_rosto_do_avatar(self.pj.avatar_mp4))
+                              projeto=self.slug, ducking=ducking)
         except (AL.ErroAlinhamento, TC.ErroTimeline, musica.TrilhaInvalida) as e:
             raise ErroDoMotor("timeline", str(e))
         tl = TC.com_camera(tl)                      # W5.X: o punch da KEY chega à footage

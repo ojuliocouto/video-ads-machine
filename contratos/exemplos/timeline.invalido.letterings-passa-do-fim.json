@@ -202,7 +202,7 @@
           "e": 4.78
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -226,7 +226,7 @@
           "e": 6.38
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -270,7 +270,7 @@
           "e": 9.18
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": true
     },
     {
@@ -304,7 +304,7 @@
           "e": 11.38
         }
       ],
-      "posicao": "costura",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -343,7 +343,7 @@
           "e": 13.58
         }
       ],
-      "posicao": "costura",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -417,7 +417,7 @@
           "e": 18.88
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": true
     },
     {
@@ -446,7 +446,7 @@
           "e": 21.28
         }
       ],
-      "posicao": "rodape",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -485,7 +485,7 @@
           "e": 23.98
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": false
     },
     {
@@ -544,7 +544,7 @@
           "e": 27.48
         }
       ],
-      "posicao": "padrao",
+      "posicao": "base",
       "suprimida": true
     }
   ],

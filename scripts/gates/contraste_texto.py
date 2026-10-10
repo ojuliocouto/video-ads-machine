@@ -62,7 +62,7 @@ except ImportError as _e:       # dependência que o aluno ainda não instalou: 
     sys.exit("Falta uma dependência Python deste gate (%s). Instale com:\n"
              "  pip install -r scripts/gates/requirements.txt" % _e.name)
 
-PISO = 4.5                 # WCAG AA para texto; o mesmo número que decide a tinta invertida no motor
+PISO = 4.5                 # WCAG AA para texto; o mesmo número que decide o halo da legenda no motor
 PASSO_S = 0.2              # 5 amostras por segundo (o invariante pede pelo menos 4)
 ALFA_TINTA = 100           # 0,39 de opacidade: a camada apagada (0,62 a 0,70) e o texto se dissolvendo são tinta
 TOPHAT_ALFA = 40           # texto sobre nada ou sobre scrim: alfa acima da vizinhança lisa

@@ -1,7 +1,7 @@
 """W7.X item 5: a prancha de direção usa a MESMA decisão de tinta, placa e faixa que o overlay.
 
 A prova de aluno achou a prancha desenhando legenda e gancho do jeito antigo (branco fino sobre insert claro): ela gerava
-o overlay ANTES da footage, e o overlay só mede o fundo NA footage (tinta invertida, placa da legenda, placa do gancho).
+o overlay ANTES da footage, e o overlay só mede o fundo NA footage (halo da legenda, placa do gancho).
 Sem a footage ele cai no arquivo-fonte e decide errado. Além disso o rótulo da prancha tinha a própria regra
 (luminância acima de 180), que não é a do motor (placa no gancho acima de 119 no p90, tinta pelo contraste de 4,5:1).
 
@@ -37,7 +37,7 @@ def _cinza(tmp_path, nivel):
 def test_prancha_e_overlay_dao_a_mesma_decisao_no_mesmo_fundo(tmp_path, nivel):
     mp4, png = _cinza(tmp_path, nivel)
     quadro = PD.decisao_do_quadro(png)
-    assert quadro["legenda"] == FC.tinta_footage(mp4, 0.2, 1.8, "padrao")
+    assert quadro["legenda"] == FC.tinta_footage(mp4, 0.2, 1.8, "base")
     assert (quadro["gancho"] == "placa") == FC.hook_pede_placa(mp4, 0.0, 1.5, "9x16")
 
 
@@ -45,10 +45,10 @@ def test_a_decisao_da_prancha_e_a_funcao_do_overlay_nao_uma_copia():
     assert PD.decisao_do_quadro is FC.decisao_do_quadro
 
 
-def test_fundo_claro_ganha_tinta_invertida_e_o_gancho_ganha_placa_fundo_escuro_nao(tmp_path):
+def test_fundo_claro_ganha_halo_forte_e_o_gancho_ganha_placa_fundo_escuro_nao(tmp_path):
     _, claro = _cinza(tmp_path, 245)
     _, escuro = _cinza(tmp_path, 8)
-    assert FC.decisao_do_quadro(claro) == {"legenda": "invertida", "gancho": "placa"}
+    assert FC.decisao_do_quadro(claro) == {"legenda": "halo", "gancho": "placa"}
     assert FC.decisao_do_quadro(escuro) == {"legenda": "clara", "gancho": "fino"}
 
 
@@ -60,7 +60,7 @@ def test_o_rotulo_da_prancha_nao_tem_mais_a_regra_propria_de_luminancia_180():
 def test_o_rotulo_diz_a_decisao_do_motor(tmp_path):
     _, claro = _cinza(tmp_path, 245)
     texto = PD.texto_da_decisao(PD.decisao_do_quadro(claro))
-    assert "legenda: tinta invertida" in texto and "gancho: placa" in texto
+    assert "legenda: halo forte" in texto and "gancho: placa" in texto
 
 
 # --- a ordem: footage ANTES do overlay, como o build -------------------------------------------------------------

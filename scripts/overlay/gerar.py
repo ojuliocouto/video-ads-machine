@@ -47,26 +47,21 @@ def _preparar_pasta(out, tmpl):
     shutil.copy(_meta, out / "meta.json")
 
 
-def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert, letts,
-                     lett_windows, medir_rosto=None, medir_fundo=True, a0=None):
-    """Os grupos de legenda finais, na ordem do original: corpo, texto próprio, look fechado,
-    fronteira de split, costura, tinta invertida, guarda pós-split, fechamento e letterings.
+def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, mapa_insert, letts,
+                     lett_windows, medir_fundo=True, a0=None):
+    """Os grupos de legenda finais: corpo (e CTA, `acima_cta`), halo forte onde o fundo é claro, partição no logo e
+    letterings.
 
-    `medir_rosto` (padrão: a medição do `medir_rosto`) e `medir_fundo` existem para a timeline montar as
-    MESMAS legendas sem mídia: nenhum dos dois muda tempo, só a classe (rodapé, tinta invertida). `a0` é o
-    início da footage no relógio do overlay (a timeline sabe): o fundo claro mede a footage em t - a0."""
+    Uma posição só (10/10/2026): a base do quadro, em avatar cheio, insert e tela dividida; no CTA, logo acima da
+    pílula. Antes `janelas_texto` e `medir_rosto` desciam a legenda para o rodapé sobre card com texto e em look
+    fechado; a posição é uma só e os dois saíram. `medir_fundo` existe
+    para a timeline montar as MESMAS legendas sem mídia: não muda tempo, só a classe (`halo`). `a0` é o início da
+    footage no relógio do overlay (a timeline sabe): o fundo claro mede a footage em t - a0."""
     groups = legendas.agrupar(words)
-    groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
-    layout_texto.descer_para_rodape_em_texto(groups, janelas_texto)
-    layout_texto.baixar_no_look_fechado(groups, cfg.get("avatar", ""), medir=medir_rosto,
-                                        plano_do_look=cfg.get("look_plano"))
-    if janelas_split:
-        groups = layout_texto.cortar_na_fronteira(groups, janelas_split)
-        layout_texto.marcar_costura(groups, janelas_split)
-    if medir_fundo:
-        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert, a0=a0)
-    layout_texto.empurrar_pos_split(groups, janelas_split)
+    groups = legendas.filtrar_corpo(groups, h.cap_gate)
     groups = legendas.fechar_grupos(groups, logo_start)
+    if medir_fundo:
+        fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert, a0=a0, janelas_split=janelas_split)
     return legendas.aparar_nos_letterings(groups, letts, lett_windows)
 
 
@@ -152,7 +147,7 @@ def main(cfg_path):
     cta_start = cta_m.calcular_cta_start(blocks, spans, words=words, cfg=cfg)
     lead = cta_m.logo_lead(blocks)
     logo_start = cta_m.logo_start(cta_start, lead)
-    groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert,
+    groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, mapa_insert,
                               letts, lett_windows, a0=tl["relogio"]["a0"] if tl else None)
     if tl is not None:
         groups = legendas.filtrar_suprimidas(groups, tl.get("legendas"))     # supressão pedida pelo gate_geometria

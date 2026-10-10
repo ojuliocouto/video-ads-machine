@@ -102,7 +102,7 @@
               }
             }
           },
-          "posicao": {"enum": ["padrao", "rodape", "costura"]},
+          "posicao": {"enum": ["base", "acima_cta"]},
           "suprimida": {"type": "boolean", "description": "true quando um lettering ocupa a janela: lettering e legenda nunca juntos."}
         }
       }

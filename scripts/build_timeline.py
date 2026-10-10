@@ -219,11 +219,18 @@ def _segurar_nas_pausas(groups, segurar_max=SEGURAR_MAX, folga=SEGURAR_FOLGA):
     return groups
 
 
-def group_captions(words: list[dict], max_words: int = 3) -> list[dict]:
+def _letras(texto: str) -> int:
+    return len(re.sub(r"\s", "", texto))
+
+
+def group_captions(words: list[dict], max_words: int = 3, max_chars: int | None = None) -> list[dict]:
     """Agrupa palavras em janelas de legenda respeitando pontuacao.
 
     Fecha o grupo ao atingir `max_words` OU quando a ultima palavra
     adicionada termina em pontuacao (.,?!;:), o que vier primeiro.
+    Com `max_chars` (letras sem espaco), a palavra que estouraria o teto abre
+    o grupo seguinte: a linha da legenda de base cabe em uma linha so
+    (10/10/2026), e uma palavra sozinha nunca e recusada.
 
     Depois de agrupar, cada grupo SEGURA durante a pausa da fala
     (ver `_segurar_nas_pausas`), pra a tela nao ficar sem texto entre frases.
@@ -231,6 +238,9 @@ def group_captions(words: list[dict], max_words: int = 3) -> list[dict]:
     groups: list[dict] = []
     bucket: list[dict] = []
     for word in words:
+        if max_chars and bucket and _letras("".join(w["text"] for w in bucket) + word["text"]) > max_chars:
+            groups.append(_close_caption_group(bucket))
+            bucket = []
         bucket.append(word)
         if len(bucket) >= max_words or _ends_with_break_punct(word["text"]):
             groups.append(_close_caption_group(bucket))
@@ -381,30 +391,18 @@ def _render_captions_html(groups: list[dict]) -> str:
     # anima via GSAP lendo esses attrs custom). So o #caps (wrapper) e clip.
     for group in groups:
         lines.append(
-            # "baixa" vem do gen_ad_v2 quando a legenda cai sobre insert que JA TEM texto
-            # proprio (card de depoimento, print de prova social). La ela desce pro rodape
-            # em vez de pousar no paragrafo do card. Suprimir era a primeira ideia e deu
-            # errado: sem legenda o AD15 ficou 6,0s sem texto de tela e o gate reprovou
-            # (teto de 12% do video sem texto). Descer resolve os dois lados.
-            # "costura" (split) tem prioridade sobre "baixa": no split a posicao baixa
-            # cai na boca do apresentador, que e o defeito que ela deveria evitar.
-            # "claro" vem do gen_ad_v2 quando o fundo daquele trecho e CLARO (insert de
-            # tela cheia com mockup de pagina branca). A legenda e branca, e sobre fundo
-            # claro ela some: contraste medido no quadro entregue do build 26, 1,52:1,
-            # contra 11,7 e 14,3 nos trechos escuros do mesmo anuncio. Mudar de posicao
-            # nao resolve nesse caso: o perfil do quadro inteiro nao tem UMA faixa acima
-            # de 3,6:1 fora da zona morta da UI. La a legenda INVERTE a tinta (escura em
-            # vez de branca), que resolve sem tarja (vetada pela estrategista em 19/08) e sem
-            # engrossar contorno (deixa a letra oca sobre branco, achado do diretor).
+            # Posicao unica (10/10/2026, "Sim pros 2"): a legenda mora na BASE do quadro (y ~1660), em avatar cheio, em
+            # insert e em tela dividida; durante o CTA (`acima_cta`) sobe para logo acima da pilula. Acabaram `baixa`,
+            # `costura` e o look fechado: uma posicao so, medida, nunca sobre peito ou maos.
+            # `halo` vem do overlay.fundo_claro quando o fundo local e claro (insert de pagina branca na base): a
+            # legenda segue BRANCA, sem caixa nem faixa, e o halo escuro em camadas fica mais forte ate passar de
+            # 4,5:1 no gate de contraste. Antes a tinta invertia ou ganhava uma placa preta; os dois foram vetados
+            # (23/09 "odiei o estilo da legenda", 10/10 "contorno em cada palavra" e caixa atras do peito).
             f'  <div class="cgrp'
-            f'{" cgrp-costura" if group.get("costura") else (" cgrp-baixa" if group.get("baixa") else "")}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-claro" if group.get("claro") else ""}{" cgrp-placa" if group.get("placa") else ""}{" cgrp-kwalt" if group.get("kw_alt") else ""}" '
+            f'{" cgrp-acima-cta" if group.get("acima_cta") else ""}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-halo" if group.get("halo") else ""}{" cgrp-kwalt" if group.get("kw_alt") else ""}{" cgrp-kwbranco" if group.get("kw_branco") else ""}" '
             f'data-g-start="{group["start"]:.3f}" '
             f'data-g-end="{group["end"]:.3f}">'
         )
-        if group.get("placa"):
-            # W5.Y: UMA faixa escura por grupo, atras da frase inteira (era uma placa por palavra, que picotava a linha).
-            # O tamanho vem das caixas das palavras, medidas no navegador (templates/_parciais/timeline.js).
-            lines.append('    <span class="cplaca"></span>')
         for word in group["words"]:
             css_class = "cw kw" if word.get("kw") else "cw"
             # DUAS CAMADAS POR PALAVRA (29/08/2026, pedido do diretor por audio: "nao

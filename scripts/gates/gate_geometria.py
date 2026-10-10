@@ -16,31 +16,22 @@ se via depois do render. Por isso o gate roda em duas etapas, com dois nomes de 
 
 ## antes: o que se confere (limiares do plano, seção 3, C6)
 
-As FAIXAS de legenda, a costura, o rodapé, o limite do look fechado e a guarda pós-split vêm de
-`overlay.layout_texto` (fonte única: importadas, lidas na hora da chamada, nunca copiadas). Para cada legenda não
-suprimida, em cada pedaço de tempo com layout constante (avatar cheio, tela dividida, insert):
+A FAIXA de cada posição de legenda vem de `overlay.layout_texto.FAIXA_LEGENDA` (fonte única: importada, lida na hora da
+chamada, nunca copiada). Desde 10/10/2026 há uma posição só, a BASE do quadro (y 1554 a 1682, centro da linha perto de
+y 1650), e `acima_cta` durante o CTA (y 972 a 1100): a posição não depende mais do layout, então o gate não escolhe
+entre posições, só confere que a faixa que a legenda usa não cai no NÚCLEO do rosto. Para cada legenda não suprimida,
+em cada pedaço de tempo com layout constante (avatar cheio, tela dividida, insert):
 
-  tela dividida   só a COSTURA escapa do rosto: o apresentador mora no painel de baixo (a partir de y 1150) e a
-                  padrão ou o rodapé caem nele. A faixa é cruzada com o NÚCLEO do rosto do painel (a interseção
-                  em pixels vai para o laudo); a costura tem que dar interseção ZERO.
-  avatar cheio    a costura é a posição do split e cai na boca dele; a legenda PADRÃO em look FECHADO (queixo abaixo de
-                  60% da altura) raspa o queixo e tem que ir para o rodapé (o motivo diz o rodapé e os números);
-  faixa livre     o espaço entre o queixo e o teto da UI (y 1690) tem que acomodar a legenda de duas linhas, 196 px.
-                  Se não cabe, NENHUMA posição serve: o gate declara `acao: suprimir_legenda` (dentro de `medido`,
-                  com a lista) e reprova. `aplicar_supressao` marca essas legendas como suprimidas e a segunda
-                  rodada passa. Sem rosto não há resultado inventado: sem a medição do rosto o gate dá ERRO;
-  insert          sem rosto do apresentador, nada a colidir;
-  tempos          uma legenda cujo pedaço cai no layout errado (ela atravessa a troca) reprova no lado errado;
-                  lasca de menos de meio quadro na fronteira é ignorada. Legenda que nasce a menos de
-                  `GUARDA_POS_SPLIT` do fim do split é RELATO (`avisos`): era o remendo da deriva de 0,1 s entre os
-                  dois relógios, que a timeline única (W3.A) acabou; o `layout_texto` ainda a aplica.
+  avatar cheio    a faixa é cruzada com o NÚCLEO do rosto do avatar (a interseção em pixels vai para o laudo); tem que
+                  dar interseção ZERO. Se não der, NENHUMA posição serve (a posição é única): o gate declara
+                  `acao: suprimir_legenda` (dentro de `medido`, com a lista) e reprova. `aplicar_supressao` marca essas
+                  legendas como suprimidas e a segunda rodada passa. Sem rosto não há resultado inventado: sem a
+                  medição do rosto o gate dá ERRO;
+  tela dividida   o apresentador mora no painel de baixo (a partir de y 1150) e a base do quadro é a base desse painel:
+                  a faixa é cruzada com o NÚCLEO do rosto do painel, interseção ZERO, e a mesma supressão vale;
+  insert          sem rosto do apresentador, nada a colidir.
 
-ATENÇÃO, a supressão: a timeline carrega `legendas[].suprimida`, mas hoje nada do pipeline a LÊ (o `construir` a escreve
-sempre `false` e o `overlay.gerar` monta os grupos de legenda por conta própria). `aplicar_supressao` deixa a timeline
-certa e o gate passa na segunda rodada, mas para a legenda sumir do render o overlay tem que filtrar os grupos por ela.
-
-O rosto do avatar cheio é o do avatar bruto, na MESMA convenção do `layout_texto.look_fechado` (queixo = topo +
-altura sobre 1920, sem o reframe e o zoom do plano); a posição real no quadro entregue é medida no `depois`. O rosto do
+O rosto do avatar cheio é o do avatar bruto (queixo = topo + altura sobre 1920, sem o reframe e o zoom do plano); a posição real no quadro entregue é medida no `depois`. O rosto do
 painel do split vem do mesmo avatar pelo corte do motor (`filtros_avatar`: topo do painel, janela, escala e
 `corte_y_split` do bias), ou direto de `rosto_split=(y0, y1)`.
 
@@ -62,10 +53,8 @@ Dict no formato de gate do laudo (`contratos/laudo.schema.json`). `acao` e `avis
 laudo proíbe chave extra no gate. Timeline 1x1 sai PULADO. Não há exceção por projeto.
 """
 import argparse
-import contextlib
 import copy
 import importlib.util
-import io
 import json
 import subprocess
 import sys
@@ -85,7 +74,6 @@ ETAPA_ANTES = "antes"
 NOME_DEPOIS = "gate_geometria_depois"
 ETAPA_DEPOIS = "depois"
 
-ALTURA_LEGENDA_PX = 196         # faixa livre mínima para a legenda de duas linhas (plano, W3.D); 2 x 80 px x 1,14 = 182
 TETO_UI_Y = gate_safezone.LIMITE_Y
 INSTANTES = gate_safezone.INSTANTES
 # Do gate-colisao-texto.py (um teste confere cada número contra o texto dele, sem importá-lo):
@@ -95,7 +83,6 @@ LIMIAR_COLISAO_PCT = 1.5        # tinta cobrindo mais que isso do núcleo reprov
 TINTA_ALFA_ROSTO = 120          # tinta = alfa acima disso ...
 TINTA_LUM_ROSTO = 150           # ... e cor acima disso (letra clara e opaca; o scrim é escuro)
 PELE_MIN = 0.12                 # fração de pele mínima numa caixa para ela valer como rosto
-GUARDA_AVISO_S = 1e-3
 _EPS = 1e-9
 
 
@@ -182,12 +169,6 @@ def _rosto_do_avatar(avatar, rosto, medir):
     return _rosto_ok(caixa)
 
 
-def _look_fechado(topo, altura):
-    """A regra do `layout_texto.look_fechado` sobre a caixa JÁ medida (a função imprime; aqui fica calada)."""
-    with contextlib.redirect_stdout(io.StringIO()):
-        return bool(OL.look_fechado("(rosto medido)", medir=lambda _avatar: (topo, altura)))
-
-
 def _painel_do_split(topo, altura, avatar, bias, rosto_split, medir_bias):
     """O rosto no painel do split: {y0, y1, nucleo_y0, nucleo_y1[, bias]}. Direto de `rosto_split` ou do avatar."""
     if rosto_split is not None:
@@ -249,9 +230,9 @@ def _fatias(tl, s, e, tol):
 
 
 def _limiar():
-    return {"altura_legenda_min_px": ALTURA_LEGENDA_PX, "teto_ui_y": TETO_UI_Y, "queixo_fechado": OL.QUEIXO_FECHADO,
+    return {"teto_ui_y": TETO_UI_Y,
             "colisao_pct": LIMIAR_COLISAO_PCT, "inset_nucleo": INSET_NUCLEO, "fracao_altura_nucleo": FRACAO_ALTURA_NUCLEO,
-            "guarda_pos_split_s": OL.GUARDA_POS_SPLIT, "split_top_h": FA.SPLIT_TOP_H,
+            "split_top_h": FA.SPLIT_TOP_H,
             "faixas": {k: list(v) for k, v in OL.FAIXA_LEGENDA.items()}, "instantes": INSTANTES}
 
 
@@ -278,38 +259,24 @@ def _pulado(tl, etapa, nome):
 # --- antes ---------------------------------------------------------------------------------------------------
 
 def _problemas_da_fatia(lay, posicao, faixa, rosto, painel_fn):
-    """(problemas, intersecao_px, sem_faixa) de um pedaço de legenda em `lay`. `painel_fn()` devolve o rosto do split."""
-    topo, altura, fechado, fracao, livre = rosto
+    """(problemas, intersecao_px, sem_faixa) de um pedaço de legenda em `lay`. `painel_fn()` devolve o rosto do split.
+    `sem_faixa` é True quando a faixa cai no núcleo do rosto: a posição é única, nenhuma outra serve, a legenda sai."""
+    topo, altura = rosto
     a, b = faixa
     if lay == "cheio":
-        if livre < ALTURA_LEGENDA_PX:
-            return ["faixa livre de %d px abaixo do queixo (queixo em y %d, teto da UI em y %d), menos que os %d px da "
-                    "legenda de duas linhas: nenhuma posição cabe, suprimir a legenda"
-                    % (livre, topo + altura, TETO_UI_Y, ALTURA_LEGENDA_PX)], 0, True
-        if posicao == "costura":
-            certa, nome_certa = ("baixa", "o rodapé") if fechado else ("padrao", "a padrão")
-            return ["a costura (y %d a %d) é a posição do split: no avatar cheio ela cai na boca do apresentador; "
-                    "use %s (y %d a %d)" % (a, b, nome_certa, *OL.FAIXA_LEGENDA[certa])], 0, False
-        if posicao == "padrao" and fechado:
-            r0, r1 = OL.FAIXA_LEGENDA["baixa"]
-            return ["posição padrão em look fechado (queixo em %d%% da altura, acima de %d%%): a legenda raspa o queixo; "
-                    "use o rodapé (y %d a %d)" % (round(100 * fracao), round(100 * OL.QUEIXO_FECHADO), r0, r1)], 0, False
+        n0, n1 = nucleo_y(topo, altura)
+        inter = intersecao_px((a, b), (n0, n1))
+        if inter > 0:
+            return ["a legenda (%s, y %d a %d) cai %d px no núcleo do rosto do avatar (y %d a %d): a posição é única, "
+                    "nenhuma outra serve, suprimir a legenda" % (posicao, a, b, inter, n0, n1)], inter, True
         return [], 0, False
     if lay == "split":
         painel = painel_fn()
         inter = intersecao_px((a, b), (painel["nucleo_y0"], painel["nucleo_y1"]))
-        c0, c1 = OL.FAIXA_LEGENDA["costura"]
-        if posicao != "costura":
-            if inter == 0:
-                return ["no split a legenda vai na costura (y %d a %d), não na posição %s (y %d a %d): ela não toca o "
-                        "núcleo do rosto do painel (y %d a %d) neste enquadramento, mas pousa no painel do apresentador"
-                        % (c0, c1, posicao, a, b, painel["nucleo_y0"], painel["nucleo_y1"])], 0, False
-            return ["no split só a costura (y %d a %d) escapa do rosto: a posição %s (y %d a %d) cai %d px no núcleo do "
-                    "rosto do painel (y %d a %d)" % (c0, c1, posicao, a, b, inter, painel["nucleo_y0"],
-                                                      painel["nucleo_y1"])], inter, False
         if inter > 0:
-            return ["a costura (y %d a %d) invade %d px do núcleo do rosto do painel (y %d a %d)"
-                    % (a, b, inter, painel["nucleo_y0"], painel["nucleo_y1"])], inter, False
+            return ["a legenda (%s, y %d a %d) cai %d px no núcleo do rosto do painel do apresentador (y %d a %d): a "
+                    "posição é única, nenhuma outra serve, suprimir a legenda"
+                    % (posicao, a, b, inter, painel["nucleo_y0"], painel["nucleo_y1"])], inter, True
         return [], 0, False
     return [], 0, False
 
@@ -338,10 +305,9 @@ def rodar_antes(timeline, projeto=None, *, avatar=None, rosto=None, medir=None, 
         topo, altura = _rosto_do_avatar(avatar, rosto, medir)
         queixo = topo + altura
         fracao = queixo / float(FA.H)
-        fechado = _look_fechado(topo, altura)
-        livre = TETO_UI_Y - queixo
+        n0, n1 = nucleo_y(topo, altura)
         info_avatar = {"topo": topo, "altura": altura, "queixo_y": queixo, "queixo_fracao": round(fracao, 4),
-                       "fechado": fechado, "faixa_livre_px": livre}
+                       "nucleo_y0": n0, "nucleo_y1": n1}
         cache = {}
 
         def painel_fn():
@@ -350,7 +316,6 @@ def rodar_antes(timeline, projeto=None, *, avatar=None, rosto=None, medir=None, 
             return cache["p"]
 
         tol = 0.5 / float((timeline.get("relogio") or {}).get("fps") or 30)
-        fim_do_split = [j["e"] for j in timeline["janelas_split"]]
         verificadas = suprimidas = 0
         com_problema, suprimir, avisos = [], [], []
         por_problema = {}                           # texto do problema -> [(índice, s, e)]: o motivo agrupa
@@ -365,15 +330,11 @@ def rodar_antes(timeline, projeto=None, *, avatar=None, rosto=None, medir=None, 
             fatias, problemas, sem_faixa = [], [], False
             for a, b, lay in _fatias(timeline, leg["s"], leg["e"], tol):
                 probs, inter, sem = _problemas_da_fatia(lay, leg["posicao"], faixa,
-                                                        (topo, altura, fechado, fracao, livre), painel_fn)
+                                                        (topo, altura), painel_fn)
                 fatias.append({"layout": lay, "s": round(a, 3), "e": round(b, 3), "faixa": list(faixa),
                                "intersecao_px": inter, "problemas": probs})
                 problemas += probs
                 sem_faixa = sem_faixa or sem
-            for b in fim_do_split:
-                if -_EPS <= leg["s"] - b < OL.GUARDA_POS_SPLIT - GUARDA_AVISO_S:
-                    avisos.append("legenda #%d nasce a %.2f s do fim do split (%.2f s), menos que a guarda de %.2f s do "
-                                  "layout_texto; só relato" % (i, leg["s"] - b, b, OL.GUARDA_POS_SPLIT))
             if not problemas:
                 continue
             texto = str(leg.get("texto") or "")
@@ -383,10 +344,6 @@ def rodar_antes(timeline, projeto=None, *, avatar=None, rosto=None, medir=None, 
                 por_problema.setdefault(prob, []).append((i, leg["s"], leg["e"]))
             if sem_faixa:
                 suprimir.append({"indice": i, "s": leg["s"], "e": leg["e"], "texto": texto})
-        if livre < ALTURA_LEGENDA_PX:
-            avisos.append("faixa livre de %d px abaixo do queixo, menos que os %d px da legenda de duas linhas: a legenda "
-                          "não cabe em avatar cheio, e suprimi-la deixa o áudio sem texto na tela (o teto de 12%% sem "
-                          "texto é do gate-ad)" % (livre, ALTURA_LEGENDA_PX))
         motivos = ["%s (%s)" % (prob, _quem(onde)) for prob, onde in por_problema.items()]
         medido = {"rosto_avatar": info_avatar, "rosto_split": cache.get("p"),
                   "legendas": {"verificadas": verificadas, "suprimidas": suprimidas, "com_problema": com_problema},
@@ -575,9 +532,8 @@ def imprimir(g, como_json):
                   % (len(med["instantes"]), pior, LIMIAR_COLISAO_PCT))
         else:
             ra = med["rosto_avatar"]
-            print("PASSA: %d legenda(s) verificadas, look %s (queixo em %d%% da altura, %d px livres até a UI)"
-                  % (med["legendas"]["verificadas"], "fechado" if ra["fechado"] else "aberto",
-                     round(100 * ra["queixo_fracao"]), ra["faixa_livre_px"]))
+            print("PASSA: %d legenda(s) verificadas (queixo em %d%% da altura, núcleo do rosto em y %d a %d)"
+                  % (med["legendas"]["verificadas"], round(100 * ra["queixo_fracao"]), ra["nucleo_y0"], ra["nucleo_y1"]))
         for a in med["avisos"]:
             print("  relato: %s" % a)
     elif g["resultado"] == "PULADO":

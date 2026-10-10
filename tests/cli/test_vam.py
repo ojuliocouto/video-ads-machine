@@ -301,8 +301,8 @@ def test_o_look_fechado_do_looks_json_chega_ao_overlay(estado_vazio, tmp_path):
 
 
 def test_a_footage_tem_o_nome_que_o_fundo_claro_procura(estado_vazio, tmp_path):
-    """O overlay decide a tinta invertida medindo a FOOTAGE (`<ad>_<look>_footage_1x.mp4` no output do motor). Com outro
-    nome ele caía no arquivo-fonte do insert e invertia a legenda do rodapé sobre o fundo escuro (contraste 1,1:1 no
+    """O overlay decide o halo da legenda medindo a FOOTAGE (`<ad>_<look>_footage_1x.mp4` no output do motor). Com outro
+    nome ele caía no arquivo-fonte do insert e decidia o halo pelo fundo errado (contraste 1,1:1 no
     primeiro e2e)."""
     import build_composite as BC
     pj = _projeto_com_roteiro(estado_vazio, tmp_path)

@@ -79,6 +79,10 @@ PELE_MIN_HERANCA = 0.12
 # Altura do painel de cima na tela dividida (espelha VAM_SPLIT_TOP_H do motor).
 # Durante um split o apresentador mora SO na metade de baixo.
 SPLIT_TOP_H = int(os.environ.get("VAM_SPLIT_TOP_H", "1150"))
+# Topo da faixa da legenda de BASE (10/10/2026): a legenda mora na base do quadro, inclusive na base do painel do
+# apresentador em tela dividida, e esse trecho da base nao e colisao (e o padrao do dono, abaixo do peito). Espelha
+# overlay.layout_texto.FAIXA_LEGENDA["base"][0]; um teste confere o numero sem importar este arquivo.
+LEGENDA_BASE_Y0 = 1554
 
 
 def carregar_janelas_split(caminho, accel, a0=0.0):
@@ -637,9 +641,10 @@ def main():
                         and i < len(quadros_overlay)):
                     _qo = cv2.imread(quadros_overlay[i], cv2.IMREAD_UNCHANGED)
                     if _qo is not None and _qo.ndim >= 3 and _qo.shape[2] >= 4:
-                        # a faixa da costura e legitima; o resto do painel, nao
+                        # a faixa da legenda de base e legitima (a base do painel do apresentador); o resto do
+                        # painel, nao
                         _y0 = SPLIT_TOP_H + 120
-                        _pn = _qo[_y0:, :, :]
+                        _pn = _qo[_y0:LEGENDA_BASE_Y0, :, :]
                         _tinta = ((_pn[:, :, 3] > LIMIAR_ALPHA_OVERLAY)
                                   & (_pn[:, :, :3].max(axis=2) > LIMIAR_LUM_TINTA))
                         _pct = 100.0 * float(_tinta.mean())
@@ -647,7 +652,7 @@ def main():
                             colisoes.append({
                                 "t": t,
                                 "pct_rosto_coberto": round(_pct, 1),
-                                "rosto": [0, _y0, 1080, 1920 - _y0],
+                                "rosto": [0, _y0, 1080, LEGENDA_BASE_Y0 - _y0],
                                 "texto_y": [int(np.where(_tinta.any(axis=1))[0].min()) + _y0,
                                             int(np.where(_tinta.any(axis=1))[0].max()) + _y0],
                                 "rosto_herdado": False,

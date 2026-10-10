@@ -1,11 +1,12 @@
 """W3.D: gate_geometria. A geometria se verifica no PLANO antes de renderizar (custou 5 versões do AD4, 18/09).
 
-O texto de tela nunca pode cair no rosto do apresentador. Onde cada legenda pousa depende do layout daquele
-instante (avatar cheio, tela dividida, insert), e as faixas são as de `overlay.layout_texto` (FONTE ÚNICA: este
-gate importa e lê na hora da chamada, nunca copia). Duas etapas, dois nomes de laudo:
+O texto de tela nunca pode cair no rosto do apresentador. Desde 10/10/2026 (dono, "Sim pros 2") a legenda tem UMA
+posição: a base do quadro (y 1554 a 1682) e, no CTA, logo acima da pílula (y 972 a 1100); a posição não depende mais do
+layout. As faixas são as de `overlay.layout_texto` (FONTE ÚNICA: este gate importa e lê na hora da chamada, nunca copia).
+Duas etapas, dois nomes de laudo:
 
-  antes   `gate_geometria`          sobre a timeline: a faixa de cada legenda contra o núcleo do rosto, os tempos
-                                    contra a fronteira do split e a faixa livre abaixo do queixo. Sem render.
+  antes   `gate_geometria`          sobre a timeline: a faixa de cada legenda contra o núcleo do rosto do avatar cheio e
+                                    do painel do split. Sem render. Sem folga, nenhuma outra posição serve: suprimir.
   depois  `gate_geometria_depois`   sobre o render: a tinta REAL do overlay (alfa) contra o rosto, em 6 instantes
                                     espaçados. Complementa o `gate-colisao-texto` (que amostra o vídeo todo a cada
                                     1,5 s): usa os mesmos limiares e a mesma definição de núcleo e de tinta, e
@@ -15,14 +16,11 @@ Os testes rápidos injetam o detector de rosto e desenham o overlay com PIL (sem
 usa um .mov com alfa de verdade; o `lento` + `midia_real` usa o avatar real da fixture da paridade (Haar de
 verdade), e só roda com VAM_PARIDADE_MIDIA.
 
-Mutantes que TÊM que reprovar: legenda deslocada pro rosto, legenda padrão em look fechado, costura no avatar
-cheio, tinta sobre o rosto no render.
-Resultado no formato do laudo: `acao` e `avisos` moram dentro de `medido` (o schema do laudo proíbe chave
+Mutantes que TÊM que reprovar: legenda sobre o núcleo do rosto (avatar cheio e painel do split) e tinta sobre o rosto no
+render. Resultado no formato do laudo: `acao` e `avisos` moram dentro de `medido` (o schema do laudo proíbe chave
 extra no gate).
 """
-import contextlib
 import hashlib
-import io
 import json
 import os
 import re
@@ -45,14 +43,16 @@ GATE_COLISAO = RAIZ / "scripts" / "gates" / "gate-colisao-texto.py"
 
 LARGURA, ALTURA = 1080, 1920
 
-ROSTO_ABERTO = (300, 500)         # (topo, altura) no avatar: queixo em y 800 (41,7% da altura), folga de sobra
-ROSTO_FECHADO = (900, 500)        # queixo em y 1400 (72,9%): acima de 60%, não sobra peito para a legenda padrão
-ROSTO_SPLIT = (1258, 1832)        # o rosto no painel de baixo do split, em y de tela (plano, W3.D)
+ROSTO_ABERTO = (300, 500)         # (topo, altura) no avatar: núcleo em y 360 a 656, longe das duas faixas
+ROSTO_MEIO = (900, 500)           # núcleo em y 960 a 1256: bate na faixa do CTA (972 a 1100), longe da base
+ROSTO_BAIXO = (1300, 500)         # núcleo em y 1360 a 1656: a base do quadro (1554 a 1682) cai nele
+ROSTO_SPLIT = (1195, 1645)        # o rosto no painel de baixo do split, em y de tela: núcleo 1249 a 1515 (o da prova)
+ROSTO_SPLIT_BAIXO = (1300, 1750)  # núcleo 1354 a 1620: a base cai 66 px nele
 
 
 # =================================================================================== insumos sintéticos
 
-def leg(s, e, posicao, suprimida=False):
+def leg(s, e, posicao="base", suprimida=False):
     return {"s": s, "e": e, "texto": "uma legenda", "posicao": posicao, "suprimida": suprimida,
             "palavras": [{"t": "uma", "s": s, "e": round((s + e) / 2, 3)},
                          {"t": "legenda", "s": round((s + e) / 2, 3), "e": e}]}
@@ -89,10 +89,12 @@ def formato_do_laudo(g):
 
 # =================================================================================== constantes e origem
 
-def test_as_faixas_e_o_look_fechado_sao_os_do_layout_texto():
+def test_as_faixas_sao_as_do_layout_texto_e_so_ha_duas():
     assert gate_geometria.OL is OL                                   # o módulo, não uma cópia dos números
     assert gate_geometria.FA is FA
-    assert gate_geometria.ALTURA_LEGENDA_PX == 196
+    assert set(OL.FAIXA_LEGENDA) == {"base", "acima_cta"}
+    for morta in ("ALTURA_LEGENDA_PX", "_look_fechado"):
+        assert not hasattr(gate_geometria, morta), morta
 
 
 def test_o_nucleo_e_os_limiares_sao_os_do_gate_de_colisao_que_ja_existe():
@@ -108,9 +110,10 @@ def test_o_nucleo_e_os_limiares_sao_os_do_gate_de_colisao_que_ja_existe():
     assert gate_geometria.LIMIAR_COLISAO_PCT == 1.5
 
 
-def test_a_altura_da_legenda_cabe_duas_linhas_da_fonte_de_80px():
-    """196 px: o piso da faixa livre (plano, W3.D). Tem que acomodar a legenda de 2 linhas (80 px x 1,14)."""
-    assert gate_geometria.ALTURA_LEGENDA_PX >= 2 * 80 * 1.14
+def test_o_gate_de_colisao_espelha_o_topo_da_legenda_de_base_do_layout_texto():
+    """O `gate-colisao-texto` não importa o layout_texto (é um script solto): o topo da base fica espelhado e este teste confere."""
+    src = GATE_COLISAO.read_text(encoding="utf-8")
+    assert [int(x) for x in re.findall(r"(?m)^LEGENDA_BASE_Y0 = (\d+)", src)] == [OL.FAIXA_LEGENDA["base"][0]]
 
 
 def test_o_nucleo_e_a_caixa_do_rosto_sem_o_inset_e_sem_o_queixo():
@@ -124,31 +127,36 @@ def test_intersecao_em_pixels():
     assert gate_geometria.intersecao_px((100, 200), (300, 400)) == 0
 
 
-# =================================================================================== antes: rosto x costura
+def test_as_duas_faixas_nao_tocam_os_nucleos_da_prova():
+    """O rosto da prova no avatar (y 539, 450 px) e no painel do split (1195 a 1645): é por isso que a posição única passa."""
+    for faixa in OL.FAIXA_LEGENDA.values():
+        assert gate_geometria.intersecao_px(faixa, gate_geometria.nucleo_y(539, 450)) == 0
+    assert gate_geometria.intersecao_px(OL.FAIXA_LEGENDA["base"], gate_geometria.nucleo_y(*ROSTO_SPLIT[:1], 450)) == 0
 
-def test_rosto_em_y_1258_a_1832_com_legenda_na_costura_da_intersecao_zero():
-    nucleo = gate_geometria.nucleo_y(1258, 1832 - 1258)
-    assert gate_geometria.intersecao_px((967, 1106), nucleo) == 0                  # a tinta da costura, medida
-    assert gate_geometria.intersecao_px(OL.FAIXA_LEGENDA["costura"], nucleo) == 0  # e a faixa do layout_texto
-    g = antes(timeline([leg(7.0, 8.5, "costura")]))
+
+# =================================================================================== antes: a posição única
+
+def test_legenda_na_base_passa_em_avatar_cheio_e_no_painel_do_split():
+    g = antes(timeline([leg(1.0, 2.5), leg(7.0, 8.5), leg(12.3, 13.7)]))
     assert g["nome"] == "gate_geometria" and g["etapa"] == "antes"
     assert g["resultado"] == "PASS" and g["saida"] == 0, g.get("motivo")
     assert formato_do_laudo(g) == []
     m = g["medido"]
-    assert m["legendas"]["verificadas"] == 1 and m["legendas"]["com_problema"] == []
-    assert m["rosto_split"]["y0"] == 1258 and m["rosto_split"]["y1"] == 1832
-    assert m["rosto_split"]["nucleo_y0"] == 1326 and m["rosto_split"]["nucleo_y1"] == 1667
+    assert m["legendas"]["verificadas"] == 3 and m["legendas"]["com_problema"] == []
+    assert m["rosto_split"]["y0"] == 1195 and m["rosto_split"]["y1"] == 1645
+    assert m["rosto_split"]["nucleo_y0"] == 1249 and m["rosto_split"]["nucleo_y1"] == 1515
+    assert m["rosto_avatar"]["nucleo_y0"] == 360 and m["rosto_avatar"]["nucleo_y1"] == 656
     assert "acao" not in m
 
 
 def test_o_rosto_do_avatar_vira_o_rosto_do_painel_pelo_mesmo_corte_do_motor():
-    """avatar (688, 574) com bias 0,3: corte de 480 px no avatar já reduzido ao painel, painel começa em 1150."""
+    """avatar (625, 450) com bias 0,3: corte de 480 px no avatar já reduzido ao painel, painel começa em 1150."""
     assert FA.SPLIT_TOP_H == 1150
     assert FA.corte_y_split(0.3, FA.altura_util_split()) == 480
-    assert gate_geometria.rosto_no_split(688, 574, 0.3) == (1258, 1832)
-    g = gate_geometria.rodar_antes(timeline([leg(7.0, 8.5, "costura")]), rosto=(688, 574), bias=0.3)
+    assert gate_geometria.rosto_no_split(625, 450, 0.3) == (1195, 1645)
+    g = gate_geometria.rodar_antes(timeline([leg(7.0, 8.5)]), rosto=(625, 450), bias=0.3)
     assert g["resultado"] == "PASS", g.get("motivo")
-    assert g["medido"]["rosto_split"]["y0"] == 1258 and g["medido"]["rosto_split"]["y1"] == 1832
+    assert g["medido"]["rosto_split"]["y0"] == 1195 and g["medido"]["rosto_split"]["y1"] == 1645
     assert g["medido"]["rosto_split"]["bias"] == 0.3
 
 
@@ -159,154 +167,85 @@ def test_o_rosto_no_split_respeita_o_limite_do_corte():
     assert y0 == 1150 + (1000 - 100) - 830 and y1 - y0 == 400
 
 
-def test_mutante_legenda_deslocada_pro_rosto_reprova_com_a_intersecao_em_pixels():
-    """A legenda padrão (y 1290 a 1500) no painel do apresentador cai no núcleo do rosto (1326 a 1667)."""
-    g = antes(timeline([leg(7.0, 8.5, "padrao")]))
+def test_mutante_rosto_baixo_no_avatar_cheio_reprova_com_a_intersecao_e_manda_suprimir():
+    """Não há outra posição: com o núcleo do rosto em y 1360 a 1656, a base (1554 a 1682) cai 102 px nele."""
+    g = antes(timeline([leg(1.0, 2.5)]), rosto=ROSTO_BAIXO)
     assert g["resultado"] == "REPROVA" and g["saida"] == 1
-    assert "costura" in g["motivo"] and "split" in g["motivo"]
+    assert "núcleo do rosto" in g["motivo"] and "suprimir" in g["motivo"] and "avatar" in g["motivo"]
     (p,) = g["medido"]["legendas"]["com_problema"]
     (f,) = p["fatias"]
-    assert f["layout"] == "split" and f["intersecao_px"] == OL.FAIXA_LEGENDA["padrao"][1] - 1326
+    assert f["layout"] == "cheio" and f["intersecao_px"] == 1656 - OL.FAIXA_LEGENDA["base"][0] == 102
+    assert g["medido"]["acao"] == "suprimir_legenda" and [x["indice"] for x in g["medido"]["suprimir"]] == [0]
     assert formato_do_laudo(g) == []
-    assert "acao" not in g["medido"]                         # aqui há conserto (mover para a costura), não supressão
 
 
-def test_mutante_rodape_no_split_tambem_reprova():
-    g = antes(timeline([leg(7.0, 8.5, "rodape")]))
+def test_mutante_rosto_baixo_no_painel_do_split_reprova():
+    g = antes(timeline([leg(7.0, 8.5)]), rosto_split=ROSTO_SPLIT_BAIXO)
     assert g["resultado"] == "REPROVA"
     (f,) = g["medido"]["legendas"]["com_problema"][0]["fatias"]
-    a, b = OL.FAIXA_LEGENDA["baixa"]
-    assert f["intersecao_px"] == min(b, 1667) - max(a, 1326) == 150      # a faixa inteira (1370 a 1520) está no núcleo
+    assert f["layout"] == "split" and f["intersecao_px"] == 1620 - 1554 == 66
+    assert g["medido"]["acao"] == "suprimir_legenda"
+    assert "painel do apresentador" in g["motivo"]
 
 
-def test_costura_no_avatar_cheio_reprova():
-    """No avatar cheio a costura (y 1000 a 1130) cai na boca dele: é a posição do split, não a do rosto livre."""
-    g = antes(timeline([leg(1.0, 2.5, "costura")]))
-    assert g["resultado"] == "REPROVA" and "costura" in g["motivo"] and "avatar cheio" in g["motivo"]
-    assert "a padrão" in g["motivo"]                                  # a posição certa depende do look
-    g = antes(timeline([leg(1.0, 2.5, "costura")]), rosto=ROSTO_FECHADO)
-    assert "o rodapé" in g["motivo"]
+def test_a_faixa_do_cta_tambem_e_conferida_contra_o_rosto():
+    assert antes(timeline([leg(14.2, 15.8, "acima_cta")]))["resultado"] == "PASS"
+    g = antes(timeline([leg(14.2, 15.8, "acima_cta")]), rosto=ROSTO_MEIO)
+    assert g["resultado"] == "REPROVA" and "972" in g["motivo"] and "1100" in g["motivo"]
+    assert g["medido"]["legendas"]["com_problema"][0]["fatias"][0]["intersecao_px"] == 1100 - 972
 
 
-def test_rodape_no_split_que_nao_toca_o_rosto_ainda_reprova_mas_nao_inventa_pixel():
-    """Rosto lá embaixo (núcleo a partir de y 1600): o rodapé (1370 a 1520) não o toca, mas no split a ordem é a
-    costura. O motivo diz isso, sem fingir uma interseção."""
-    g = antes(timeline([leg(7.0, 8.5, "rodape")]), rosto_split=(1590, 1900))
-    assert g["resultado"] == "REPROVA"
-    (f,) = g["medido"]["legendas"]["com_problema"][0]["fatias"]
-    assert f["intersecao_px"] == 0 and "não toca" in g["motivo"] and "costura" in g["motivo"]
+def test_posicao_do_contrato_antigo_e_erro_de_insumo():
+    for velha in ("padrao", "rodape", "costura"):
+        g = antes(timeline([leg(1.0, 2.5, velha)]))
+        assert g["resultado"] == "ERRO" and g["saida"] == 2 and velha in g["motivo"]
 
 
 def test_as_faixas_sao_lidas_do_layout_texto_na_hora_da_chamada(monkeypatch):
-    """Mutante: alguém desce a costura para cima do painel do apresentador. O gate tem que ver."""
+    """Mutante: alguém desce a base para cima do rosto do painel. O gate tem que ver."""
     novo = dict(OL.FAIXA_LEGENDA)
-    novo["costura"] = (1100, 1400)
+    novo["base"] = (1400, 1682)
     monkeypatch.setattr(OL, "FAIXA_LEGENDA", novo)
-    g = antes(timeline([leg(7.0, 8.5, "costura")]))
+    g = antes(timeline([leg(7.0, 8.5)]))
     assert g["resultado"] == "REPROVA"
     (f,) = g["medido"]["legendas"]["com_problema"][0]["fatias"]
-    assert f["intersecao_px"] == 1400 - 1326
+    assert f["intersecao_px"] == 1515 - 1400
 
 
 def test_split_sem_bias_nem_rosto_do_painel_e_erro_de_insumo():
-    g = gate_geometria.rodar_antes(timeline([leg(7.0, 8.5, "costura")]), rosto=ROSTO_ABERTO)
+    g = gate_geometria.rodar_antes(timeline([leg(7.0, 8.5)]), rosto=ROSTO_ABERTO)
     assert g["resultado"] == "ERRO" and g["saida"] == 2 and "bias" in g["motivo"]
 
 
 def test_sem_legenda_no_split_nao_precisa_do_bias():
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=ROSTO_ABERTO)
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), rosto=ROSTO_ABERTO)
     assert g["resultado"] == "PASS" and g["medido"]["rosto_split"] is None
 
 
-# =================================================================================== antes: look fechado
-
-def test_legenda_padrao_em_look_fechado_reprova_e_o_motivo_indica_o_rodape():
-    g = antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=ROSTO_FECHADO)
-    assert g["resultado"] == "REPROVA" and g["saida"] == 1
-    a, b = OL.FAIXA_LEGENDA["baixa"]
-    assert "rodapé" in g["motivo"] and "fechado" in g["motivo"] and str(a) in g["motivo"] and str(b) in g["motivo"]
-    assert "73%" in g["motivo"] and "60%" in g["motivo"]                      # o queixo e o limite, em % da altura
-    assert g["medido"]["rosto_avatar"]["fechado"] is True
-    assert "acao" not in g["medido"]
-    assert formato_do_laudo(g) == []
-
-
 def test_a_mesma_causa_em_varias_legendas_vira_um_motivo_so():
-    """Um anúncio inteiro em look fechado tem dezenas de legendas padrão: o motivo não repete a frase 40 vezes."""
-    tl = timeline([leg(0.3 + 0.7 * k, 0.9 + 0.7 * k, "padrao") for k in range(8)] + [leg(12.2, 13.5, "padrao")])
-    g = antes(tl, rosto=ROSTO_FECHADO)
+    """Rosto baixo num anúncio inteiro: dezenas de legendas na mesma faixa; o motivo não repete a frase 40 vezes."""
+    tl = timeline([leg(0.3 + 0.7 * k, 0.9 + 0.7 * k) for k in range(8)] + [leg(12.2, 13.5)])
+    g = antes(tl, rosto=ROSTO_BAIXO)
     assert g["resultado"] == "REPROVA"
-    assert g["motivo"].count("raspa o queixo") == 1
+    assert g["motivo"].count("núcleo do rosto do avatar") == 1
     assert "legendas #0, #1, #2, #3, #4 e mais 3" in g["motivo"]                  # 8 em avatar cheio; a do insert não conta
     assert len(g["medido"]["legendas"]["com_problema"]) == 8                      # o detalhe de cada uma fica no medido
 
 
-def test_o_mesmo_look_fechado_com_a_legenda_no_rodape_passa():
-    g = antes(timeline([leg(1.0, 2.5, "rodape")]), rosto=ROSTO_FECHADO)
-    assert g["resultado"] == "PASS", g.get("motivo")
-    assert g["medido"]["rosto_avatar"]["fechado"] is True
-
-
-def test_look_aberto_aceita_a_legenda_padrao():
-    g = antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=ROSTO_ABERTO)
-    assert g["resultado"] == "PASS"
-    assert g["medido"]["rosto_avatar"]["fechado"] is False
-    assert g["medido"]["rosto_avatar"]["queixo_fracao"] == pytest.approx(800 / 1920, abs=1e-3)
-
-
-def test_o_limite_do_look_fechado_e_o_do_layout_texto():
-    """60% da altura: queixo em y 1152 ainda é aberto; 1153 já é fechado."""
-    topo = 1152 - 500
-    assert OL.QUEIXO_FECHADO == 0.60
-    aberto = antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=(topo, 500))
-    fechado = antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=(topo + 1, 500))
-    assert aberto["resultado"] == "PASS" and fechado["resultado"] == "REPROVA"
-
-
-# =================================================================================== antes: faixa livre
-
-def test_faixa_livre_abaixo_de_196_px_declara_supressao_da_legenda_e_nao_levanta():
-    """Queixo em y 1495: sobram 195 px até o teto da UI (1690), menos que a legenda de duas linhas."""
-    tl = timeline([leg(1.0, 2.5, "rodape"), leg(3.0, 4.5, "rodape"), leg(7.0, 8.5, "costura")])
-    g = antes(tl, rosto=(1000, 495))
-    assert g["resultado"] == "REPROVA" and g["saida"] == 1
-    m = g["medido"]
-    assert m["acao"] == "suprimir_legenda"
-    assert [x["indice"] for x in m["suprimir"]] == [0, 1]                    # a costura (split) tem onde ficar
-    assert m["rosto_avatar"]["faixa_livre_px"] == 195
-    assert "196" in g["motivo"] and "suprimir" in g["motivo"]
-    assert formato_do_laudo(g) == []
-    assert any("12%" in a for a in m["avisos"])                              # o vão de texto é do gate-ad
-
-
-def test_o_piso_da_faixa_livre_e_196_exatos():
-    ok = antes(timeline([leg(1.0, 2.5, "rodape")]), rosto=(1000, 494))       # sobram 196: cabe
-    sem = antes(timeline([leg(1.0, 2.5, "rodape")]), rosto=(1000, 495))      # sobram 195: não cabe
-    assert ok["resultado"] == "PASS" and "acao" not in ok["medido"]
-    assert ok["medido"]["rosto_avatar"]["faixa_livre_px"] == 196
-    assert sem["medido"]["acao"] == "suprimir_legenda"
-
-
-def test_sem_faixa_livre_a_supressao_vale_tambem_para_a_legenda_padrao():
-    """O conserto 'vá para o rodapé' não existe quando não cabe nada: a ação é suprimir, não mudar de posição."""
-    g = antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=(1000, 495))
-    assert g["medido"]["acao"] == "suprimir_legenda"
-    assert "rodapé" not in g["motivo"]
-
-
 def test_aplicar_a_supressao_e_rodar_de_novo_passa():
-    tl = timeline([leg(1.0, 2.5, "rodape"), leg(7.0, 8.5, "costura")])
-    g = antes(tl, rosto=(1000, 495))
+    tl = timeline([leg(1.0, 2.5), leg(7.0, 8.5)])
+    g = antes(tl, rosto=ROSTO_BAIXO)
+    assert g["medido"]["acao"] == "suprimir_legenda" and [x["indice"] for x in g["medido"]["suprimir"]] == [0]
     tl2 = gate_geometria.aplicar_supressao(tl, g)
     assert [l["suprimida"] for l in tl2["legendas"]] == [True, False]
     assert [l["suprimida"] for l in tl["legendas"]] == [False, False]         # a original não mexe
-    g2 = antes(tl2, rosto=(1000, 495))
+    g2 = antes(tl2, rosto=ROSTO_BAIXO)
     assert g2["resultado"] == "PASS" and g2["saida"] == 0 and "acao" not in g2["medido"]
     assert g2["medido"]["legendas"]["suprimidas"] == 1
 
 
 def test_aplicar_a_supressao_sem_acao_devolve_a_mesma_timeline_copiada():
-    tl = timeline([leg(1.0, 2.5, "padrao")])
+    tl = timeline([leg(1.0, 2.5)])
     g = antes(tl)
     tl2 = gate_geometria.aplicar_supressao(tl, g)
     assert tl2 == tl and tl2 is not tl
@@ -314,47 +253,40 @@ def test_aplicar_a_supressao_sem_acao_devolve_a_mesma_timeline_copiada():
 
 # =================================================================================== antes: tempos
 
-def test_legenda_que_atravessa_a_troca_de_layout_reprova_no_lado_errado():
-    g = antes(timeline([leg(5.5, 6.5, "costura")]))              # 0,5 s no avatar cheio e 0,5 s no split
+def test_legenda_que_atravessa_a_troca_de_layout_so_reprova_no_lado_onde_a_faixa_bate_no_rosto():
+    """A posição é a mesma nos dois layouts: o que muda é o rosto. Aqui só o painel do split tem o rosto na base."""
+    g = antes(timeline([leg(5.5, 6.5)]), rosto_split=ROSTO_SPLIT_BAIXO)           # 0,5 s no avatar cheio e 0,5 s no split
     assert g["resultado"] == "REPROVA"
     (p,) = g["medido"]["legendas"]["com_problema"]
-    assert [f["layout"] for f in p["fatias"] if f["problemas"]] == ["cheio"]
-    g = antes(timeline([leg(5.5, 6.5, "padrao")]))
-    (p,) = g["medido"]["legendas"]["com_problema"]
     assert [f["layout"] for f in p["fatias"] if f["problemas"]] == ["split"]
+    g = antes(timeline([leg(5.5, 6.5)]), rosto=ROSTO_BAIXO)
+    (p,) = g["medido"]["legendas"]["com_problema"]
+    assert [f["layout"] for f in p["fatias"] if f["problemas"]] == ["cheio"]
 
 
 def test_legenda_que_acaba_na_fronteira_nao_atravessa():
-    assert antes(timeline([leg(4.0, 6.0, "padrao")]))["resultado"] == "PASS"
-    assert antes(timeline([leg(10.0, 11.5, "padrao")]))["resultado"] == "PASS"
+    assert antes(timeline([leg(4.0, 6.0)]), rosto_split=ROSTO_SPLIT_BAIXO)["resultado"] == "PASS"
+    assert antes(timeline([leg(10.0, 11.5)]), rosto_split=ROSTO_SPLIT_BAIXO)["resultado"] == "PASS"
 
 
 def test_uma_lasca_de_menos_de_meio_quadro_na_fronteira_e_ignorada():
     meio_quadro = 0.5 / 30
-    assert antes(timeline([leg(4.0, 6.0 + meio_quadro / 2, "padrao")]))["resultado"] == "PASS"
-    assert antes(timeline([leg(4.0, 6.0 + 2 * meio_quadro, "padrao")]))["resultado"] == "REPROVA"
-
-
-def test_legenda_que_nasce_colada_no_fim_do_split_vira_relato_e_nao_reprova():
-    g = antes(timeline([leg(10.05, 11.5, "padrao")]))
-    assert g["resultado"] == "PASS"
-    assert any("fim do split" in a and "0.18" in a.replace(",", ".") for a in g["medido"]["avisos"])
-    g = antes(timeline([leg(10.0 + OL.GUARDA_POS_SPLIT, 11.5, "padrao")]))
-    assert g["medido"]["avisos"] == []
+    assert antes(timeline([leg(4.0, 6.0 + meio_quadro / 2)]), rosto_split=ROSTO_SPLIT_BAIXO)["resultado"] == "PASS"
+    assert antes(timeline([leg(4.0, 6.0 + 2 * meio_quadro)]), rosto_split=ROSTO_SPLIT_BAIXO)["resultado"] == "REPROVA"
 
 
 def test_legenda_suprimida_nao_e_verificada():
-    g = antes(timeline([leg(7.0, 8.5, "padrao", suprimida=True)]))
+    g = antes(timeline([leg(7.0, 8.5, suprimida=True)]), rosto_split=ROSTO_SPLIT_BAIXO)
     assert g["resultado"] == "PASS" and g["medido"]["legendas"]["suprimidas"] == 1
     assert g["medido"]["legendas"]["verificadas"] == 0
 
 
 def test_legenda_sobre_insert_cheio_nao_tem_rosto_para_colidir():
-    for posicao in ("padrao", "rodape", "costura"):
-        assert antes(timeline([leg(12.2, 13.5, posicao)]))["resultado"] == "PASS"
+    for posicao in ("base", "acima_cta"):
+        assert antes(timeline([leg(12.2, 13.5, posicao)]), rosto=ROSTO_BAIXO)["resultado"] == "PASS"
 
 
-def test_a_timeline_de_exemplo_do_contrato_passa_com_look_aberto():
+def test_a_timeline_de_exemplo_do_contrato_passa_com_o_rosto_aberto():
     tl = json.loads(TIMELINE_VALIDA.read_text(encoding="utf-8"))
     g = antes(tl)
     assert g["resultado"] == "PASS", g.get("motivo")
@@ -364,7 +296,7 @@ def test_a_timeline_de_exemplo_do_contrato_passa_com_look_aberto():
 # =================================================================================== antes: insumos
 
 def test_sem_medicao_do_rosto_e_erro_de_insumo_e_nao_chute():
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]))
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]))
     assert g["resultado"] == "ERRO" and g["saida"] == 2 and "rosto" in g["motivo"]
     assert formato_do_laudo(g) == []
 
@@ -374,21 +306,21 @@ def test_o_medidor_injetado_recebe_o_avatar_e_o_resultado_vale():
 
     def medir(avatar):
         visto.append(avatar)
-        return ROSTO_FECHADO
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]), avatar="inputs/av.mp4", medir=medir,
+        return ROSTO_BAIXO
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), avatar="inputs/av.mp4", medir=medir,
                                    rosto_split=ROSTO_SPLIT)
-    assert visto == ["inputs/av.mp4"] and g["resultado"] == "REPROVA" and "rodapé" in g["motivo"]
+    assert visto == ["inputs/av.mp4"] and g["resultado"] == "REPROVA" and "núcleo do rosto" in g["motivo"]
 
 
 def test_medidor_que_nao_acha_rosto_e_erro_de_insumo():
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]), avatar="av.mp4", medir=lambda a: None)
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), avatar="av.mp4", medir=lambda a: None)
     assert g["resultado"] == "ERRO" and g["saida"] == 2 and "não achei" in g["motivo"]
 
 
 def test_medidor_que_estoura_vira_erro_de_insumo():
     def quebra(avatar):
         raise OSError("ffmpeg não leu o avatar")
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]), avatar="av.mp4", medir=quebra)
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), avatar="av.mp4", medir=quebra)
     assert g["resultado"] == "ERRO" and g["saida"] == 2 and "ffmpeg" in g["motivo"]
 
 
@@ -401,7 +333,7 @@ def test_timeline_invalida_vira_erro_de_insumo(ruim):
 
 @pytest.mark.parametrize("rosto", [(300,), "alto", (300, -5), (300, 0), (None, 500), (300, 500, 7)])
 def test_rosto_malformado_vira_erro_de_insumo(rosto):
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, "padrao")]), rosto=rosto, rosto_split=ROSTO_SPLIT)
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), rosto=rosto, rosto_split=ROSTO_SPLIT)
     assert g["resultado"] == "ERRO" and g["saida"] == 2
 
 
@@ -419,7 +351,7 @@ LEVA = """[inserção de vídeo: demo a] Minha skill de criação de páginas tr
 """
 
 
-def construir_de_verdade(tmp_path, medir_rosto=None):
+def construir_de_verdade(tmp_path):
     """A timeline que o `timeline.construir` monta (as funções do overlay, de verdade), sem mídia."""
     from footage import blocos as BL
     from timeline import alinhar as AL
@@ -446,31 +378,24 @@ def construir_de_verdade(tmp_path, medir_rosto=None):
     caminho = dados / "output" / "alinhamento.json"
     AL.gravar(al, caminho)
     return TC.construir(blocks, al, inserts_map=inserts_map, cfg=dict(CFG, avatar=str(avatar)),
-                        caminho_alinhamento=caminho, raiz=dados, medir_rosto=medir_rosto)
+                        caminho_alinhamento=caminho, raiz=dados)
 
 
-def test_a_timeline_que_o_construir_monta_passa_no_gate_com_look_aberto(tmp_path):
+def test_a_timeline_que_o_construir_monta_passa_no_gate_com_o_rosto_aberto(tmp_path):
     tl = construir_de_verdade(tmp_path)
     assert tl["janelas_split"], "a fixture precisa de um split para o teste valer"
     posicoes = {l["posicao"] for l in tl["legendas"]}
-    assert "costura" in posicoes and "padrao" in posicoes
+    assert posicoes <= {"base", "acima_cta"} and "base" in posicoes, posicoes
     g = antes(tl, rosto=ROSTO_ABERTO)
     assert g["resultado"] == "PASS", g.get("motivo")
     assert g["medido"]["legendas"]["verificadas"] >= 3
 
 
-def test_a_timeline_do_construir_com_look_fechado_medido_vai_pro_rodape_e_passa(tmp_path):
-    tl = construir_de_verdade(tmp_path, medir_rosto=lambda avatar: ROSTO_FECHADO)
-    assert "rodape" in {l["posicao"] for l in tl["legendas"]}
-    g = antes(tl, rosto=ROSTO_FECHADO)
-    assert g["resultado"] == "PASS", g.get("motivo")
-
-
-def test_timeline_montada_sem_medir_o_rosto_reprova_quando_o_look_e_fechado(tmp_path):
-    """É o defeito de 27/08: o look fechado não foi medido na montagem e a legenda padrão raspou a barba."""
+def test_a_timeline_do_construir_com_rosto_baixo_reprova_e_manda_suprimir(tmp_path):
+    """Com o núcleo do rosto sobre a base, nenhuma posição serve: o gate reprova e declara a supressão."""
     tl = construir_de_verdade(tmp_path)
-    g = antes(tl, rosto=ROSTO_FECHADO)
-    assert g["resultado"] == "REPROVA" and "rodapé" in g["motivo"]
+    g = antes(tl, rosto=ROSTO_BAIXO)
+    assert g["resultado"] == "REPROVA" and g["medido"]["acao"] == "suprimir_legenda"
 
 
 # =================================================================================== antes: linha de comando
@@ -483,11 +408,11 @@ def _gravar(tmp_path, tl):
 
 def test_cli_antes_sai_0_1_ou_2(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(gate_geometria, "_medir_padrao", lambda avatar: ROSTO_ABERTO)
-    tl = _gravar(tmp_path, timeline([leg(1.0, 2.5, "padrao"), leg(7.0, 8.5, "costura")]))
-    base = ["antes", "--timeline", str(tl), "--avatar", "av.mp4", "--rosto-split", "1258:1832"]
+    tl = _gravar(tmp_path, timeline([leg(1.0, 2.5), leg(7.0, 8.5)]))
+    base = ["antes", "--timeline", str(tl), "--avatar", "av.mp4", "--rosto-split", "1195:1645"]
     assert gate_geometria.main(base) == 0
     assert "PASSA" in capsys.readouterr().out
-    monkeypatch.setattr(gate_geometria, "_medir_padrao", lambda avatar: ROSTO_FECHADO)
+    monkeypatch.setattr(gate_geometria, "_medir_padrao", lambda avatar: ROSTO_BAIXO)
     assert gate_geometria.main(base) == 1
     assert "REPROVA" in capsys.readouterr().out
     assert gate_geometria.main(["antes", "--timeline", str(tmp_path / "nao-existe.json"), "--avatar", "a"]) == 2
@@ -496,7 +421,7 @@ def test_cli_antes_sai_0_1_ou_2(tmp_path, capsys, monkeypatch):
 
 
 def test_cli_antes_json_imprime_o_gate_do_laudo(tmp_path, capsys):
-    tl = _gravar(tmp_path, timeline([leg(1.0, 2.5, "padrao")]))
+    tl = _gravar(tmp_path, timeline([leg(1.0, 2.5)]))
     assert gate_geometria.main(["antes", "--timeline", str(tl), "--rosto", "300:500", "--json"]) == 0
     g = json.loads(capsys.readouterr().out)
     assert g["nome"] == "gate_geometria" and g["resultado"] == "PASS"
@@ -519,7 +444,7 @@ class Cena(object):
     """Um anúncio sintético: onde está o rosto em cada layout e onde a tinta pousa. O detector e o leitor do
     overlay respondem pelo instante, como o render de verdade responderia."""
 
-    def __init__(self, tl, tinta, rosto_cheio=(300, 300, 480, 500), rosto_split=(300, 1258, 480, 574)):
+    def __init__(self, tl, tinta, rosto_cheio=(300, 300, 480, 500), rosto_split=(300, 1195, 480, 450)):
         self.tl, self.tinta = tl, tinta                    # tinta: layout -> retângulo (x0, y0, x1, y1[, cor])
         self.rosto_cheio, self.rosto_split = rosto_cheio, rosto_split
         self.pedidos_overlay, self.pedidos_video = [], []
@@ -546,13 +471,12 @@ class Cena(object):
         return [self.rosto_cheio] if lay == "cheio" else ([self.rosto_split] if lay == "split" else [])
 
 
-# onde a tinta certa pousa em cada layout (nenhuma encosta no núcleo do rosto)
-TINTA_CERTA = {"cheio": (200, 1400, 880, 1480), "split": (200, 967, 880, 1106), "insert": (200, 1400, 880, 1480)}
+# onde a tinta certa pousa em cada layout: a base do quadro (nenhuma encosta no núcleo do rosto)
+TINTA_CERTA = {"cheio": (200, 1580, 880, 1670), "split": (200, 1580, 880, 1670), "insert": (200, 1580, 880, 1670)}
 
 
 def tl_com_legendas():
-    return timeline([leg(1.0, 2.5, "padrao"), leg(3.0, 4.5, "padrao"), leg(7.0, 8.5, "costura"),
-                     leg(10.5, 11.8, "padrao"), leg(12.3, 13.7, "rodape")])
+    return timeline([leg(1.0, 2.5), leg(3.0, 4.5), leg(7.0, 8.5), leg(10.5, 11.8), leg(12.3, 13.7)])
 
 
 def depois(cena, tmp_path, **kw):
@@ -564,7 +488,7 @@ def depois(cena, tmp_path, **kw):
     return gate_geometria.rodar_depois(vid, ovl, cena.tl, **kw)
 
 
-def test_tinta_no_peito_e_na_costura_passa_em_6_instantes(tmp_path):
+def test_tinta_na_base_passa_em_6_instantes(tmp_path):
     cena = Cena(tl_com_legendas(), TINTA_CERTA)
     g = depois(cena, tmp_path)
     assert g["nome"] == "gate_geometria_depois" and g["etapa"] == "depois"
@@ -585,7 +509,7 @@ def test_mutante_legenda_deslocada_pro_rosto_reprova_no_render(tmp_path):
     assert ruins and all(m["layout"] == "cheio" and m["maior_cobertura_pct"] > 1.5 for m in ruins)
 
 
-def test_no_split_a_tinta_padrao_cai_no_painel_do_apresentador_e_reprova(tmp_path):
+def test_no_split_a_tinta_no_meio_do_painel_cai_no_apresentador_e_reprova(tmp_path):
     cena = Cena(tl_com_legendas(), dict(TINTA_CERTA, split=(200, 1290, 880, 1500)))
     g = depois(cena, tmp_path, instantes=[7.75])
     assert g["resultado"] == "REPROVA"
@@ -593,11 +517,11 @@ def test_no_split_a_tinta_padrao_cai_no_painel_do_apresentador_e_reprova(tmp_pat
     assert m["layout"] == "split" and m["maior_cobertura_pct"] > 1.5 and m["fonte_do_rosto"] == "detector"
 
 
-def test_no_split_a_costura_passa_com_o_rosto_embaixo(tmp_path):
+def test_no_split_a_base_passa_com_o_rosto_acima(tmp_path):
     cena = Cena(tl_com_legendas(), TINTA_CERTA)
     g = depois(cena, tmp_path, instantes=[7.75])
     assert g["resultado"] == "PASS"
-    assert g["medido"]["instantes"][0]["tinta_y"] == [967, 1106]
+    assert g["medido"]["instantes"][0]["tinta_y"] == [1580, 1670]
 
 
 def test_detector_cego_no_split_cai_na_geometria_do_plano(tmp_path):
@@ -609,7 +533,7 @@ def test_detector_cego_no_split_cai_na_geometria_do_plano(tmp_path):
     assert g["resultado"] == "REPROVA" and g["saida"] == 1
     (m,) = g["medido"]["instantes"]
     assert m["fonte_do_rosto"] == "plano" and m["maior_cobertura_pct"] > 1.5
-    # e a costura, com o mesmo detector cego, passa
+    # e a base do quadro, com o mesmo detector cego, passa
     cena = Cena(tl_com_legendas(), TINTA_CERTA)
     assert depois(cena, tmp_path, detector=cego, instantes=[7.75], rosto_split=ROSTO_SPLIT)["resultado"] == "PASS"
 
@@ -651,7 +575,7 @@ def test_so_a_tinta_clara_e_opaca_conta_como_no_gate_de_colisao(tmp_path):
 
 
 def test_o_instante_do_video_e_o_entregue_com_aceleracao_e_a0(tmp_path):
-    tl = timeline([leg(7.0, 8.5, "costura")], aceleracao=1.35, a0=0.24)
+    tl = timeline([leg(7.0, 8.5)], aceleracao=1.35, a0=0.24)
     cena = Cena(tl, TINTA_CERTA)
     depois(cena, tmp_path, instantes=[7.75])
     assert cena.pedidos_overlay == [7.75]                                  # o overlay vive no relógio da timeline
@@ -721,7 +645,7 @@ def _overlay_mov(tmp_path, nome, caixas):
 
 
 def _tl_curta():
-    tl = timeline([leg(1.0, 1.8, "padrao")])
+    tl = timeline([leg(1.0, 1.8)])
     tl.update({"duracao_s": 2.0, "janelas_split": [], "hook": dict(tl["hook"], e=0.9),
                "cta": {"inicio": 1.9, "logo": 1.9, "label": "saiba mais", "sem_lead": False},
                "segmentos": [{"bloco": 0, "tipo": "apresentador", "s": 0.0, "e": 2.0, "sub": 0, "de": 1}]})
@@ -755,20 +679,12 @@ def _avatar_real():
 
 @pytest.mark.lento
 @pytest.mark.midia_real
-def test_avatar_real_o_rosto_medido_decide_a_posicao_da_legenda():
-    """O Haar de verdade num avatar real: a legenda na posição que o próprio layout_texto escolhe passa; na outra,
-    quando ela cai no rosto ou raspa o queixo, reprova."""
+def test_avatar_real_a_legenda_na_base_nao_toca_o_nucleo_do_rosto():
+    """O Haar de verdade num avatar real: a base do quadro e a faixa do CTA passam; o rosto medido não bate nelas."""
     avatar = _avatar_real()
-    tl = timeline([leg(1.0, 2.5, "padrao")])
-    with contextlib.redirect_stdout(io.StringIO()):
-        fechado = OL.look_fechado(avatar)
-    certa = "rodape" if fechado else "padrao"
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5, certa)]), avatar=avatar, rosto_split=ROSTO_SPLIT)
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5), leg(14.2, 15.8, "acima_cta")]), avatar=avatar,
+                                   rosto_split=ROSTO_SPLIT)
     assert g["resultado"] == "PASS", g.get("motivo")
-    assert g["medido"]["rosto_avatar"]["fechado"] is fechado
-    errada = gate_geometria.rodar_antes(tl if fechado else timeline([leg(1.0, 2.5, "costura")]),
-                                        avatar=avatar, rosto_split=ROSTO_SPLIT)
-    assert errada["resultado"] == "REPROVA"
 
 
 @pytest.mark.lento
@@ -806,7 +722,7 @@ def test_avatar_real_tinta_na_cara_reprova_e_tinta_no_peito_passa(tmp_path):
     avatar = _avatar_real()
     from medir_rosto import caixa_rosto
     topo, altura = caixa_rosto(avatar)
-    tl = timeline([leg(1.0, 2.5, "padrao"), leg(3.0, 4.5, "padrao")])
+    tl = timeline([leg(1.0, 2.5), leg(3.0, 4.5)])
     tl["segmentos"] = [{"bloco": 0, "tipo": "apresentador", "s": 0.0, "e": 16.0, "sub": 0, "de": 1}]
     tl["janelas_split"] = []
     boca = _overlay_mov(tmp_path, "boca.mov", [(300, topo + altura // 2 - 40, 480, 90)])

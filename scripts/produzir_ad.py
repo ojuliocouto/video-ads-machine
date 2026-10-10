@@ -574,7 +574,7 @@ def montar(pj, *, motor=None, gates=None, previa=None, medir=None, folhas=None, 
                 g = rodar(nome)
             if falhou(g):
                 return parar(g)
-        # a footage ANTES do overlay: o overlay decide a tinta invertida medindo o fundo NA footage, no relógio da
+        # a footage ANTES do overlay: o overlay decide o halo da legenda medindo o fundo NA footage, no relógio da
         # timeline (sem ela, ele cai no arquivo-fonte do insert e inverte a legenda onde a tela é escura)
         passo("footage", motor.montar_footage)
         passo("overlay", motor.gerar_overlay)

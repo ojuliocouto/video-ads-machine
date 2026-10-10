@@ -4,7 +4,7 @@
 Por que existe (ordem do diretor, 18/08/2026): "se ele e um diretor, ele dirige, nao apenas
 audita no final". Eu classifiquei item por item a auditoria que reprovou o anúncio de referência com 6,3:
 os 12 defeitos eram julgaveis sem o video pronto. Enquadramento ilegivel, texto decepado,
-lista que nao empilha, faixa preta na costura, legenda dentro da area de UI do Reels,
+lista que nao empilha, faixa preta, legenda dentro da area de UI do Reels,
 exposicao, vao sem texto, cauda: tudo isso vive em quadro parado e em linha do tempo.
 Gastei quatro renders de 25 minutos pra descobrir o que cabia numa prancha.
 
@@ -87,7 +87,7 @@ def luminancia_faixa(im, y0_frac, y1_frac):
     return float(faixa.mean()) if faixa.size else 0.0
 
 
-_TINTA = {"clara": "tinta clara", "invertida": "tinta invertida", "placa": "placa escura", None: "sem medida"}
+_TINTA = {"clara": "halo normal", "halo": "halo forte", None: "sem medida"}
 
 
 def texto_da_decisao(decisao):
@@ -169,8 +169,8 @@ def footage(motor, reaproveitar=False):
 
 
 def construir(motor, reaproveitar=False):
-    """Timeline, footage e overlay, NESSA ordem (a do build, produzir_ad): o overlay decide a tinta invertida, a placa
-    da legenda e a placa do gancho medindo o fundo NA footage; sem ela cai no arquivo-fonte e decide pelo fundo errado
+    """Timeline, footage e overlay, NESSA ordem (a do build, produzir_ad): o overlay decide o halo
+    da legenda (normal ou forte) e a placa do gancho medindo o fundo NA footage; sem ela cai no arquivo-fonte e decide pelo fundo errado
     (a prancha desenhava legenda e gancho do jeito antigo). Devolve (prancha.json, projeto do overlay, footage)."""
     preparar_arquivos(motor)
     foot = footage(motor, reaproveitar)
@@ -585,7 +585,7 @@ def _montar(pj, rap):
         im = compor(fp, pngs[i])
         im = marcar_safe(im.convert("RGB"))
         # luminancia das duas faixas onde texto mora: hook (14-42%) e legenda/lettering (62-88%), so como numero.
-        # A DECISAO (tinta, placa) nao e da prancha: e a do overlay, medida no quadro da footage (W7.X).
+        # A DECISAO (halo da legenda, placa do gancho) nao e da prancha: e a do overlay, medida no quadro da footage (W7.X).
         _lh = luminancia_faixa(im, 0.14, 0.42)
         _ll = luminancia_faixa(im, 0.62, 0.88)
         _dec = texto_da_decisao(decisao_do_quadro(fp))

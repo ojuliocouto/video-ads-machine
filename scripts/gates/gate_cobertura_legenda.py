@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GATE DA COBERTURA DA LEGENDA (W7.W, A2): toda palavra falada tem texto na tela, fora de lettering, gancho e CTA.
+"""GATE DA COBERTURA DA LEGENDA (W7.W, A2): toda palavra falada tem texto na tela, fora de lettering e gancho.
 
     python3 scripts/gates/gate_cobertura_legenda.py --timeline render/timeline.json --alinhamento render/alinhamento.json
     exit 0 passa · 1 reprova · 2 insumo inválido (timeline ou alinhamento ausente, ilegível ou sem palavras)
@@ -11,12 +11,15 @@ uma janela de cada vez; este olha a FALA. Reprova quando
   - mais de 3% (`MAX_SEM_TEXTO_PCT`) das palavras faladas fora das janelas isentas ficam sem texto na tela;
   - o CTA entra antes do início do bloco cta (a âncora do CTA nunca é anterior ao bloco: `overlay.cta`).
 
-Janelas ISENTAS (a palavra ali não precisa de legenda, outro texto ocupa o lugar): o gancho, cada lettering com a folga em
-que a legenda sai de propósito (`FOLGA_LETTERING_S`, a de `overlay.legendas`: legenda e lettering não dividem a tela) e o CTA,
-que começa no INÍCIO DO BLOCO cta e não no `cta.inicio` declarado (é essa a janela que, adiantada, escondia o defeito).
+Janelas ISENTAS (a palavra ali não precisa de legenda, outro texto ocupa o lugar): o gancho e cada lettering com a folga em
+que a legenda sai de propósito (`FOLGA_LETTERING_S`, a de `overlay.legendas`: legenda e lettering não dividem a tela). A
+palavra falada SOB um lettering não é contada nem penalizada (regra mantida pelo dono em 10/10/2026: lettering e legenda
+nunca juntos, a palavra sob o lettering fica sem legenda por design). O CTA NÃO é mais isento: desde 10/10/2026 a legenda
+continua durante o CTA, acima da pílula, e as palavras finais da fala ("e se inscrever enquanto as vagas...") precisam
+de texto como as outras. O CTA entrar antes do início do bloco cta segue sendo defeito (`cta_antes_do_bloco_s`).
 
 Texto na tela, para a palavra que PRECISA de legenda, é a legenda declarada na timeline que não está `suprimida` (o CTA
-que entrou cedo ocupa a tela mas não é a legenda da fala: é justamente o defeito). Um vão entre duas legendas (ou entre uma
+não é a legenda da fala). Um vão entre duas legendas (ou entre uma
 legenda e uma janela isenta) de até `VAO_PONTE_S` (o piscar da troca de layout e o piso de 0,2 s do grupo) não é palavra perdida: a
 palavra dentro dele tem texto logo antes e logo depois. Todos os tempos estão no relógio da footage a 1x, o mesmo do
 alinhamento: nenhuma conversão para o entregue.
@@ -84,8 +87,7 @@ def _janelas(timeline):
         bloco_cta = next((float(b["s"]) for b in reversed(timeline.get("blocos") or []) if b.get("tipo") == "cta"), None)
     except (KeyError, TypeError, ValueError) as e:
         raise InsumoInvalido("a timeline não tem o campo %s (use o render/timeline.json do projeto)" % e)
-    janela_cta = (max(cta_inicio, bloco_cta) if bloco_cta is not None else cta_inicio, total)
-    isentas = _uniao([gancho, janela_cta] + [(a - FOLGA_LETTERING_S, b + FOLGA_LETTERING_S) for a, b in letterings])
+    isentas = _uniao([gancho] + [(a - FOLGA_LETTERING_S, b + FOLGA_LETTERING_S) for a, b in letterings])
     texto = _uniao(isentas + legendas)
     antes_do_bloco = round(bloco_cta - cta_inicio, 3) if bloco_cta is not None and cta_inicio < bloco_cta - TOLERANCIA_S \
         else 0.0
