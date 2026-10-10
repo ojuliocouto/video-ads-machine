@@ -33,11 +33,23 @@ def test_fundo_branco_liso_pede_o_halo_forte(tmp_path):
     assert FC.decisao_do_quadro(v, "base")["legenda"] == "halo"
 
 
-def test_uma_faixa_clara_larga_atras_da_legenda_em_fundo_escuro_pede_o_halo_forte(tmp_path):
-    """Metade da faixa de 128 px clara (190): o p90 é 190, a letra branca some nela e o halo normal não a cobre."""
+def test_fundo_misto_metade_clara_metade_escura_fica_no_halo_normal(tmp_path):
+    """Metade da faixa de 128 px clara (190) e metade escura: o p10 é 20. O halo forte lê o decil mais escuro da vizinhança
+    (1,1:1 contra o fundo escuro); o normal é o que mais se aproxima. Só o fundo INTEIRO claro pede o forte."""
     v = video_9x16(tmp_path / "faixa.mp4", 20, marcas=[(1554, 64, 190)])
-    assert FC.tinta_footage(v, 0.2, 0.8, "base") == "halo"
-    assert FC.decisao_do_quadro(v, "base")["legenda"] == "halo"
+    assert FC.tinta_footage(v, 0.2, 0.8, "base") == "clara"
+    assert FC.decisao_do_quadro(v, "base")["legenda"] == "clara"
+
+
+def test_a_caixa_do_texto_estreita_a_medida_e_acompanha_as_linhas_da_tinta(tmp_path):
+    """Com o tamanho do grupo a medida é a caixa DELE (as linhas da tinta e a largura do texto): um faixa clara fora do texto
+    não pede o halo forte nem derruba o normal."""
+    v = video_9x16(tmp_path / "lados.mp4", 20, marcas=[(1604, 86, 230)])        # tudo claro nas linhas da tinta, mas...
+    assert FC.tinta_footage(v, 0.2, 0.8, "base", nchars=10) == "halo"
+    x0, x1, y0, y1 = FC._caixa_do_texto("base", 10)
+    assert (x0, x1) == (540 - 181, 540 + 181) and (y0, y1) == FC.FAIXA_TINTA["base"]
+    assert FC._caixa_do_texto("acima_cta", 99)[:2] == (140, 940)                  # nunca passa da faixa útil
+    assert FC._caixa_do_texto("base")[:2] == FC.CAIXA_X
 
 
 def test_linhas_claras_finas_de_ate_5_por_cento_nao_pedem_o_halo_forte(tmp_path):

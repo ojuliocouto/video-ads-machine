@@ -2,11 +2,12 @@
 
 O invariante do gate (gates/contraste_texto) vale para as duas camadas da legenda (a acesa e a apagada do karaokê) e
 para o gancho. A legenda é BRANCA com halo escuro, sem caixa (dono, "Sim pros 2"). O motor decide, por grupo de legenda
-e no instante dele, medindo a footage na caixa do texto (o p90, o que o gate lê):
+e no instante dele, medindo a footage na caixa do texto (o p10 e o p90, o que o gate lê):
 
-  - halo NORMAL (`clara`) quando o fundo crítico é de até `LIMIAR_HALO_FORTE` (118 de cinza): medido no render real
-    na camada apagada do karaokê, o gate lê 12:1 sobre 22, 5,6:1 sobre 100 e 4,5:1 em 118;
-  - halo FORTE (`halo`, a classe `cgrp-halo`) acima disso: medido, 4,6:1 em 120, 5,2:1 sobre 130 e 17:1 sobre 245. Nunca caixa,
+  - halo NORMAL (`clara`) em tudo, menos no fundo inteiro claro: medido no render real na camada apagada do karaokê, o gate
+    lê 12:1 sobre 22, 5,6:1 sobre 100 e 4,5:1 em 118 (o decil mais claro da vizinhança da letra);
+  - halo FORTE (`halo`, a classe `cgrp-halo`) quando o p10 da caixa do texto passa de `LIMIAR_HALO_FORTE` (118 de cinza): o
+    gate lê a mancha escura contra o decil mais escuro da vizinhança; medido: 4,6:1 em 120, 5,2:1 sobre 130 e 17:1 sobre 245. Nunca caixa,
     faixa, placa, nem tinta invertida (escura sobre fundo claro: contradiz "texto branco com halo");
   - a cor do destaque (a palavra de ênfase) cai para o amarelo e, se nem ele lê, sai BRANCA (`cgrp-kwbranco`).
 
@@ -25,10 +26,12 @@ PARCIAIS = RAIZ / "templates" / "_parciais"
 
 @pytest.mark.parametrize("p10,p90,esperado", [
     (10, 40, "clara"),          # parede escura do avatar
-    (60, 118, "clara"),         # o limite: ainda halo normal
-    (60, 119, "halo"),          # um passo acima: halo forte
+    (60, 118, "clara"),         # o limite do halo normal (p90 de até 118)
+    (60, 160, "clara"),         # fundo MISTO (queixo e gola): nenhum halo satisfaz, o normal é o que mais se aproxima
+    (26, 130, "clara"),         # o peito do CTA da prova: o forte lia 1,1:1 (o decil escuro da vizinhança é o queixo)
+    (118, 250, "clara"),        # o p10 no limite ainda não pede o forte
+    (119, 250, "halo"),         # o fundo INTEIRO claro: o forte
     (200, 245, "halo"),         # página branca do insert
-    (60, 160, "halo"),          # meio-tom claro
     (90, 115, "clara"),         # o borrado do insert aos 5,64 s do v1 (a camada apagada a 3,1:1): o halo normal o segura
 ])
 def test_decidir_tinta(p10, p90, esperado):
@@ -38,11 +41,12 @@ def test_decidir_tinta(p10, p90, esperado):
 @pytest.mark.parametrize("p10", range(0, 256, 5))
 @pytest.mark.parametrize("p90", range(0, 256, 5))
 def test_a_decisao_e_so_pelo_fundo_critico_e_nunca_inventa_tinta_antiga(p10, p90):
-    """Propriedade: duas tintas só (clara e halo), a fronteira é o LIMIAR_HALO_FORTE, e o destaque nunca fica sem cor."""
+    """Propriedade: duas tintas só (clara e halo), o forte só com o fundo INTEIRO claro (p10 acima do LIMIAR_HALO_FORTE), e o
+    destaque nunca fica sem cor."""
     if p10 > p90:
         return
     d = FC.decidir_tinta(p10, p90)
-    assert d == ("halo" if p90 > FC.LIMIAR_HALO_FORTE else "clara")
+    assert d == ("halo" if p10 > FC.LIMIAR_HALO_FORTE else "clara")
     assert d not in ("invertida", "placa")
     assert FC.decidir_tinta(p10, p90, kw=True).enfase in ("marca", "clara", "branca")
 
@@ -71,7 +75,7 @@ def test_grupos_recebem_a_classe_do_halo_medido_na_footage(tmp_path, monkeypatch
     (tmp_path / "output").mkdir()
     (tmp_path / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
     decisoes = iter(["clara", "halo", "halo", None])
-    monkeypatch.setattr(FC, "tinta_footage", lambda *a: next(decisoes))
+    monkeypatch.setattr(FC, "tinta_footage", lambda *a, **k: next(decisoes))
     grupos = [{"start": i, "end": i + 1.0, "words": []} for i in range(4)]
     FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
     assert [x.get("halo") for x in grupos] == [None, True, True, None]

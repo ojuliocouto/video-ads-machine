@@ -34,10 +34,13 @@ _CACHE_FUNDO = {}
 # o halo não alcança (o gate exclui da vizinhança da letra tudo com 39% de preto ou mais) e reprova. O halo FORTE (36
 # camadas de sombra de 8 px, `.cgrp-halo`) passa a ler a mancha escura contra o fundo: 4,6:1 em 120, 5,2:1 sobre 130 e 17:1
 # sobre 245, e abaixo de 118 ele reprova (a mancha some no fundo escuro: 1,1:1 sobre 22). Os dois se encontram em
-# LIMIAR_HALO_FORTE: abaixo dele o halo normal, acima o forte. O 1º remontar com o p99 da faixa errou por isso: raros pontos
-# claros (a mão, a lâmpada) elevavam o p99 a 150 num fundo que o gate lê a 0,05 e o halo forte reprovava em 96 amostras; o
-# gate mede o p90 da vizinhança da letra, então a decisão usa o p90 da faixa (`QUANTIS_LEGENDA`).
-LIMIAR_HALO_FORTE = 118       # cinza (0 a 255) do p90 da faixa da legenda: acima disso, `cgrp-halo`
+# LIMIAR_HALO_FORTE. O gate lê o halo normal contra o decil mais CLARO da vizinhança (a letra branca é mais clara que a
+# mediana dela) e o halo forte contra o decil mais ESCURO (a mancha preta é mais escura que a mediana): por isso o normal
+# serve com p90 de até 118 e o forte só com p10 acima de 118; fundo misto (queixo e gola, página e avatar) não tem halo
+# que o satisfaça e fica com o normal, que é o que mais se aproxima. O 1º remontar da prova decidiu pelo p99 da faixa inteira
+# e o halo forte reprovou em 96 amostras (a mão e a lâmpada elevavam o p99 a 150 num fundo que o gate lia a 0,05); o 2º
+# preflight mostrou o mesmo no CTA, sobre o peito (p10 26, p90 130: a decisão pelo p90 escolhia o forte e ele lia 1,1:1).
+LIMIAR_HALO_FORTE = 118       # cinza (0 a 255): o p10 da caixa do texto acima disso pede `cgrp-halo`; o p90 acima disso reprova o normal
 META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel), para a cor do destaque
 APAGADA_CLARA_ALFA = 0.88                   # legenda.css: rgba(245,239,230,.88) (era .70 e .80: 3,6:1 e 3,97:1, W7.Z)
 CAIXA_X = (140, 940)                        # a largura útil da legenda (o recuo do .cgrp)
@@ -45,11 +48,20 @@ FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render d
 CAIXA_X_HOOK = (160, 920)
 LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
 
-# --- o fundo crítico da LEGENDA é o p90 da faixa (era o p01/p99 da W7.W, para a tinta escura da inversão) -----------------
-# O gate de contraste lê o p90 do fundo na vizinhança da letra. O p99 da W7.W existia para a letra ESCURA sobre papel com
-# linhas finas; com letra branca e halo ele superestima o fundo (raros pontos claros), e o halo forte sobre fundo escuro lê
-# 1,1:1. O p10 não entra mais na decisão do halo (só na cor do destaque).
+# --- o fundo crítico da LEGENDA é o p10 e o p90 da caixa do texto (era o p01/p99 da W7.W, para a tinta escura da inversão) --
+# O gate de contraste lê o decil mais claro (letra branca) ou o mais escuro (mancha do halo forte) da vizinhança da letra. O
+# p99 da W7.W existia para a letra ESCURA sobre papel com linhas finas; com letra branca e halo ele superestima o fundo (raros
+# pontos claros), e o halo forte sobre fundo escuro lê 1,1:1.
 QUANTIS_LEGENDA = (0.10, 0.90)
+
+# A CAIXA onde o gate lê o fundo é a do TEXTO, não a faixa inteira (preflight do 2º remontar da prova): sobre o peito no CTA a
+# faixa de 128 px e 800 de largura dava p90 de 130 a 145 (a gola clara, a pele) enquanto o fundo atrás das letras era escuro e o
+# halo forte lia 1,1:1. Logo a decisão mede as LINHAS DA TINTA (a linha de 56 px mais 12 px de vizinhança) e a LARGURA que o
+# texto do grupo ocupa (33 px por letra, centrado), quando o chamador sabe o tamanho do grupo (`nchars`).
+FAIXA_TINTA = {"base": (1604, 1690), "acima_cta": (1022, 1108)}
+LARGURA_POR_LETRA = 33        # px de uma letra da Inter 800 de 56 px (medido: "Claude em um web", 16 letras, 530 px)
+FOLGA_X = 16                  # px de vizinhança dos lados
+PASSO_MIN_PARTIDA_S = 0.25    # o grupo só é partido na troca de fundo se as duas partes tiverem pelo menos isto
 
 
 # --- W7.Z: a cor do DESTAQUE (palavra de ênfase) também se decide pelo fundo local ---------------------------------------
@@ -109,10 +121,14 @@ def decidir_enfase(tinta, p10, p90):
 
 
 def decidir_tinta(p10, p90, kw=False):
-    """"clara" (halo normal) ou "halo" (halo forte) para o fundo de percentis (p10, p90), em cinza 0 a 255: o forte
-    quando o fundo crítico (`p90` da faixa) passa de LIMIAR_HALO_FORTE. Com `kw` (o grupo tem
-    palavra de ênfase) o resultado é uma `Tinta` que leva a cor do destaque em `.enfase` (W7.Z)."""
-    tinta = "halo" if p90 > LIMIAR_HALO_FORTE else "clara"
+    """"clara" (halo normal) ou "halo" (halo forte) para o fundo de percentis (p10, p90), em cinza 0 a 255.
+
+    O halo forte só serve quando o fundo INTEIRO é claro, ou seja, o p10 da caixa do texto passa de LIMIAR_HALO_FORTE: o gate
+    lê a mancha escura do halo contra o decil mais ESCURO da vizinhança (ver o topo do módulo), e uma vizinhança mista (o
+    queixo e a gola, a página e o avatar) o reprova em 1,1:1. Em fundo misto ou escuro o halo normal é o melhor que há (o gate
+    lê a letra contra o decil mais CLARO, e ele cai bem quando esse decil é de até 118). `p90` só entra na cor do destaque.
+    Com `kw` (o grupo tem palavra de ênfase) o resultado é uma `Tinta` que leva a cor do destaque em `.enfase` (W7.Z)."""
+    tinta = "halo" if p10 > LIMIAR_HALO_FORTE else "clara"
     if not kw:
         return tinta
     return Tinta(tinta, decidir_enfase(tinta, p10, p90))
@@ -160,13 +176,77 @@ def _gancho_pede_placa(p90s):
     return bool(p90s) and max(p90s) > LIMIAR_HOOK_P90
 
 
-def tinta_footage(video, ini, fim, classe, kw=False):
+def _caixa_do_texto(classe, nchars=None):
+    """(x0, x1, y0, y1) onde se mede o fundo da legenda: as linhas da tinta da classe e, com `nchars` (letras e espaços do
+    grupo), a largura do texto centrado; sem ele, a faixa inteira de sempre (CAIXA_X e FAIXA_LEGENDA)."""
+    if nchars:
+        y0, y1 = FAIXA_TINTA.get(classe, FAIXA_TINTA["base"])
+        meia = min(nchars * LARGURA_POR_LETRA / 2.0 + FOLGA_X, (CAIXA_X[1] - CAIXA_X[0]) / 2.0)
+        return int(540 - meia), int(540 + meia), y0, y1
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["base"])
+    return CAIXA_X[0], CAIXA_X[1], y0, y1
+
+
+def tinta_footage(video, ini, fim, classe, kw=False, nchars=None):
     """A tinta do grupo ("clara" ou "halo") medida na footage, em 3 instantes dentro dele, com o pior
     fundo dos três (o maior p90 e o menor p10). None sem medida. `kw`: o grupo tem palavra de ênfase e a tinta leva a cor
-    do destaque (`Tinta.enfase`)."""
-    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["base"])
-    return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1, quantis=QUANTIS_LEGENDA)
+    do destaque (`Tinta.enfase`). `nchars`: o tamanho do texto do grupo, para medir só a caixa dele (`_caixa_do_texto`)."""
+    x0, x1, y0, y1 = _caixa_do_texto(classe, nchars)
+    return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1, x0, x1, quantis=QUANTIS_LEGENDA)
                                  for f in (0.2, 0.5, 0.8)], kw)
+
+
+def _nchars(g):
+    ws = g.get("words") or []
+    return sum(len(str(w["text"])) for w in ws) + max(len(ws) - 1, 0)
+
+
+def _regime_em(video, t, classe, nchars):
+    """"clara", "halo" ou None (sem medida) para o instante `t` da footage."""
+    x0, x1, y0, y1 = _caixa_do_texto(classe, nchars)
+    return _tinta_dos_percentis([_percentis_banda(video, t, y0, y1, x0, x1, quantis=QUANTIS_LEGENDA)])
+
+
+def _instante_da_troca(video, t0, t1, classe, nchars, r0, passos=4):
+    """O instante entre `t0` (regime `r0`) e `t1` (outro regime) em que o fundo troca, por bisseção."""
+    for _ in range(passos):
+        meio = (t0 + t1) / 2.0
+        r = _regime_em(video, meio, classe, nchars)
+        if r is None or r == r0:
+            t0 = meio
+        else:
+            t1 = meio
+    return (t0 + t1) / 2.0
+
+
+def _partir_na_troca(g, video, a0, profundidade=0):
+    """O grupo, ou os pedaços dele partidos onde o fundo troca de regime de halo no meio dele (um corte de insert: a página
+    branca e logo o avatar). Um halo só não lê dos dois lados: o halo forte sobre fundo escuro lê 1,1:1 e o normal sobre página
+    branca lê 1,3:1, e o gate mede os dois. Cada pedaço leva as palavras que se falam nele (a palavra que cruza a troca vai
+    nos dois: no corte o quadro muda e ela reaparece no mesmo lugar). Sem medida (footage ilegível) ou com um pedaço de menos
+    de PASSO_MIN_PARTIDA_S, o grupo fica inteiro."""
+    classe = classe_do_grupo(g)
+    n = _nchars(g)
+    ini, fim = float(g["start"]) - a0, float(g["end"]) - a0
+    if profundidade >= 3 or fim - ini < 2 * PASSO_MIN_PARTIDA_S or n == 0:
+        return [g]
+    ts = [ini + (fim - ini) * f for f in (0.1, 0.3, 0.5, 0.7, 0.9)]
+    rs = [_regime_em(video, t, classe, n) for t in ts]
+    for i in range(len(ts) - 1):
+        if rs[i] is not None and rs[i + 1] is not None and rs[i] != rs[i + 1]:
+            T = _instante_da_troca(video, ts[i], ts[i + 1], classe, n, rs[i])
+            Tov = T + a0
+            if Tov - float(g["start"]) < PASSO_MIN_PARTIDA_S or float(g["end"]) - Tov < PASSO_MIN_PARTIDA_S:
+                return [g]
+            antes = [w for w in g["words"] if float(w["start"]) < Tov]
+            depois = [w for w in g["words"] if float(w["end"]) > Tov]
+            if not antes or not depois:
+                return [g]
+            a = dict(g, words=antes, end=round(Tov, 3))
+            b = dict(g, words=depois, start=round(Tov, 3))
+            b.pop("sem_lead", None)
+            return _partir_na_troca(a, video, a0, profundidade + 1) + _partir_na_troca(b, video, a0, profundidade + 1)
+    return [g]
 
 
 def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
@@ -320,10 +400,18 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None, janelas_split=(
                   "medindo no arquivo-fonte, nao no relogio errado", flush=True)
     if _fmp4.exists() and a0 is not None:
         n = 0
+        novos = []
+        for g in groups:
+            novos.extend(_partir_na_troca(g, _fmp4, a0))
+        if len(novos) != len(groups):
+            print(f"   [fundo claro] {len(novos) - len(groups)} grupo(s) partido(s) onde o fundo troca de regime de halo",
+                  flush=True)
+        groups[:] = novos
         for g in groups:
             _kw = any(w.get("kw") for w in g.get("words") or [])
-            _r = (tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g), kw=True) if _kw
-                  else tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g)))
+            _n = _nchars(g)
+            _r = (tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g), kw=True, nchars=_n) if _kw
+                  else tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g), nchars=_n))
             if _r == "halo":
                 g["halo"] = True
                 n += 1

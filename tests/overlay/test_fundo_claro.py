@@ -185,7 +185,7 @@ def test_com_footage_mede_na_footage_na_classe_de_cada_grupo(v1, monkeypatch, ca
     (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
     chamadas = []
 
-    def falso(video, ini, fim, classe):
+    def falso(video, ini, fim, classe, **k):
         chamadas.append((video.name, ini, fim, classe))
         return "halo" if classe == "acima_cta" else "clara"
 
@@ -201,7 +201,7 @@ def test_com_footage_mede_na_footage_na_classe_de_cada_grupo(v1, monkeypatch, ca
 
 def test_footage_none_nao_marca(v1, monkeypatch):
     (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
-    monkeypatch.setattr(FC, "tinta_footage", lambda *a: None)
+    monkeypatch.setattr(FC, "tinta_footage", lambda *a, **k: None)
     grupos = [g(1.0, 2.0)]
     FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
     assert "halo" not in grupos[0]
@@ -256,7 +256,7 @@ def test_sem_footage_o_arquivo_fonte_e_arredondado_a_um_decimo(v1, monkeypatch):
 def test_m4_footage_e_amostrada_em_t_menos_a0(v1, monkeypatch):
     (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
     vistas = []
-    monkeypatch.setattr(FC, "tinta_footage", lambda video, ini, fim, classe: vistas.append((ini, fim)))
+    monkeypatch.setattr(FC, "tinta_footage", lambda video, ini, fim, classe, **k: vistas.append((ini, fim)))
     FC.marcar_grupos_claros([g(3.0, 4.0)], "ad1", "lk", [], a0=0.62)
     assert vistas == [(pytest.approx(2.38), pytest.approx(3.38))]
 
@@ -266,17 +266,74 @@ def test_m4_sem_a0_passado_le_o_a0_do_ritmo_da_footage(v1, monkeypatch):
     (v1 / "output" / "ad1_lk_footage_1x_ritmo.json").write_text(
         '{"segs": [{"s": 0.4, "e": 5.0, "tipo": "orig"}], "total": 5.0}', encoding="utf-8")
     vistas = []
-    monkeypatch.setattr(FC, "tinta_footage", lambda video, ini, fim, classe: vistas.append((ini, fim)))
+    monkeypatch.setattr(FC, "tinta_footage", lambda video, ini, fim, classe, **k: vistas.append((ini, fim)))
     FC.marcar_grupos_claros([g(3.0, 4.0)], "ad1", "lk", [])
     assert vistas == [(pytest.approx(2.6), pytest.approx(3.6))]
 
 
 def test_m4_sem_a0_nenhum_a_footage_nao_e_medida_no_relogio_errado(v1, monkeypatch, capsys):
     (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
-    monkeypatch.setattr(FC, "tinta_footage", lambda *a: pytest.fail("mediu a footage sem saber o a0"))
+    monkeypatch.setattr(FC, "tinta_footage", lambda *a, **k: pytest.fail("mediu a footage sem saber o a0"))
     vistas = []
     monkeypatch.setattr(FC, "fundo_claro", lambda arquivo, t: vistas.append(t) or False)
     mapa = [{"a": 0.0, "b": 9.0, "file": "i.mp4", "start": 0.0, "speed": 1.0, "s2": 0.0}]
     FC.marcar_grupos_claros([g(1.0, 2.0)], "ad1", "lk", mapa)
     assert vistas == [1.5]
     assert "a0" in capsys.readouterr().out
+
+
+# --- 10/10/2026: o grupo que atravessa uma troca de fundo de regime é partido nela ------------------------------------
+
+def _grupo(*palavras, **extra):
+    d = {"start": palavras[0]["start"], "end": palavras[-1]["end"], "words": list(palavras)}
+    d.update(extra)
+    return d
+
+
+def _p(t, a, b):
+    return {"text": t, "start": a, "end": b}
+
+
+def test_grupo_com_troca_de_regime_no_meio_e_partido_na_troca_e_a_palavra_que_cruza_vai_nos_dois(monkeypatch):
+    """Insert de página branca e logo o avatar no meio do grupo: o halo forte lê 1,1:1 no fundo escuro e o normal lê 1,3:1 na
+    página, então os dois pedaços ganham halo diferente. A troca é achada por bisseção entre os instantes medidos."""
+    troca = 5.0                                     # no relógio da footage
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: "halo" if t < troca else "clara")
+    g = _grupo(_p("designer", 4.3, 4.8), _p("profissional", 4.8, 5.3), _p("e", 5.3, 5.6), start=4.3, end=5.6)
+    saida = FC._partir_na_troca(g, "f.mp4", 0.0)
+    assert len(saida) == 2
+    a, b = saida
+    assert [w["text"] for w in a["words"]] == ["designer", "profissional"]          # "profissional" cruza a troca
+    assert [w["text"] for w in b["words"]] == ["profissional", "e"]
+    assert a["start"] == 4.3 and b["end"] == 5.6 and a["end"] == b["start"] and abs(a["end"] - troca) < 0.1
+
+
+def test_grupo_sem_troca_ou_sem_medida_fica_inteiro(monkeypatch):
+    g = _grupo(_p("um", 1.0, 1.5), _p("dois", 1.5, 2.2))
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: "clara")
+    assert FC._partir_na_troca(g, "f.mp4", 0.0) == [g]
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: None)
+    assert FC._partir_na_troca(g, "f.mp4", 0.0) == [g]
+
+
+def test_a_troca_colada_na_ponta_nao_parte_o_grupo_em_pedaco_de_menos_de_0_25s(monkeypatch):
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: "halo" if t < 1.1 else "clara")
+    g = _grupo(_p("um", 1.0, 1.5), _p("dois", 1.5, 2.4), start=1.0, end=2.4)
+    assert FC._partir_na_troca(g, "f.mp4", 0.0) == [g]
+
+
+def test_o_relogio_do_overlay_e_o_da_footage_mais_a0(monkeypatch):
+    vistos = []
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: vistos.append(round(t, 2)) or "clara")
+    FC._partir_na_troca(_grupo(_p("um", 3.0, 3.5), _p("dois", 3.5, 4.0), start=3.0, end=4.0), "f.mp4", 0.62)
+    assert vistos[0] == pytest.approx(3.0 - 0.62 + 0.1, abs=0.01) and max(vistos) <= 4.0 - 0.62
+
+
+def test_marcar_grupos_claros_substitui_o_grupo_pelos_pedacos(v1, monkeypatch, capsys):
+    (v1 / "output" / "ad1_lk_footage_1x.mp4").write_bytes(b"x")
+    monkeypatch.setattr(FC, "_regime_em", lambda video, t, classe, n: "halo" if t < 5.0 else "clara")
+    monkeypatch.setattr(FC, "tinta_footage", lambda video, ini, fim, classe, **k: "halo" if fim <= 5.05 else "clara")
+    grupos = [_grupo(_p("designer", 4.3, 4.8), _p("profissional", 4.8, 5.3), _p("e", 5.3, 5.6), start=4.3, end=5.6)]
+    FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
+    assert len(grupos) == 2 and grupos[0].get("halo") is True and "halo" not in grupos[1]
+    assert "1 grupo(s) partido(s) onde o fundo troca de regime de halo" in capsys.readouterr().out

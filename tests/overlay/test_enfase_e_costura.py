@@ -80,9 +80,11 @@ def test_sem_destaque_a_decisao_e_a_de_antes_e_nao_carrega_enfase():
         assert getattr(FC.decidir_tinta(p10, p90), "enfase", None) is None
 
 
-def test_destaque_num_fundo_claro_vai_para_o_halo_forte_com_a_marca():
-    t = FC.decidir_tinta(60, 160, kw=True)
+def test_destaque_num_fundo_inteiro_claro_vai_para_o_halo_forte_com_a_marca():
+    t = FC.decidir_tinta(150, 250, kw=True)
     assert t == "halo" and t.enfase == "marca"
+    misto = FC.decidir_tinta(60, 160, kw=True)                 # fundo misto: halo normal, e o destaque sai branco (nada lê)
+    assert misto == "clara" and misto.enfase == "branca"
 
 
 def test_grupo_com_palavra_de_enfase_mede_a_tinta_com_o_destaque(tmp_path, monkeypatch):
@@ -92,7 +94,7 @@ def test_grupo_com_palavra_de_enfase_mede_a_tinta_com_o_destaque(tmp_path, monke
     vistos = []
     respostas = iter([FC.Tinta("clara", enfase="clara"), FC.Tinta("clara", enfase="branca"), "clara"])
 
-    def falso(video, ini, fim, classe, kw=False):
+    def falso(video, ini, fim, classe, kw=False, **k):
         vistos.append(kw)
         return next(respostas)
 
