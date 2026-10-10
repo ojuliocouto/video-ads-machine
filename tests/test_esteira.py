@@ -59,7 +59,7 @@ class TesteNenhumCaminhoAbsoluto(unittest.TestCase):
 
     def test_ha_arquivos_de_teste_para_varrer(self):
         nomes = {p.name for p in _arquivos_de_teste()}
-        for esperado in ("test_mix_som.py", "test_mixar_sfx.py", "test_nivel_som.py",
+        for esperado in ("test_mix_som.py", "test_nivel_som.py",
                          "test_som_cortes.py", "test_folhas_contato.py",
                          "test_medir_ritmo.py", "test_esteira.py"):
             self.assertIn(esperado, nomes)
