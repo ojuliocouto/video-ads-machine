@@ -491,7 +491,8 @@ def test_cli_devolve_0_1_2(tmp_path, capsys):
 def plano_com_blocos(chave="painel", tratamento="moldura", bloco=1):
     p = plano([mapa_item(chave, blocos=(bloco,), tratamento=tratamento)])
     p["blocos"] = [{"i": 0, "tipo": "apresentador", "fala": "x", "s": 0.0, "e": 5.0},
-                   {"i": bloco, "tipo": "insert", "insert": chave, "layout": "cheio", "fala": "y", "s": 5.0, "e": 15.0}]
+                   {"i": bloco, "tipo": "insert", "insert": chave, "layout": "split" if tratamento == "split" else "cheio",
+                    "fala": "y", "s": 5.0, "e": 15.0}]
     return p
 
 
@@ -545,6 +546,45 @@ def test_insert_em_split_segue_o_layout_do_ritmo_e_o_split_vale_por_padrao_sem_l
     g2 = rodar(timeline=tl_com_chave_numerica(None), plano=plano_com_blocos(tratamento="split"), video="x.mp4",
                leitor=leitor_de(q))
     assert {i["layout"] for i in g2["medido"]["faixa_morta"]["instantes"]} == {"split"}
+
+
+def test_w7w_insert_escuro_e_liso_em_tela_cheia_nao_deixa_faixa_morta_com_a_grade_final(oficina):
+    """W7.W: terminal escuro e liso (luminância 16) em tela cheia. O fundo desfocado do 1º quadro pousava em ~30 e a grade
+    final (que esmaga o escuro) o levava a 6 a 12 níveis lisos: 200 px de preto liso em cima e embaixo do card (34,68 s da
+    prova). O offset do fundo agora levanta o asset escuro; o quadro REAL do motor, depois da grade, passa no gate."""
+    from footage import exposicao as EX
+    tmp, ff = oficina["tmp"], oficina["ff"]
+    terminal = tmp / "terminal_escuro.mp4"
+    ff("-f", "lavfi", "-i", "color=c=0x101010:s=1280x720:r=30:d=2.5", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(terminal))
+    lum = EX.luminancia_mediana_fonte(str(terminal), 0.0)
+    asp = enq.aspecto(str(terminal))
+    m, png = FI.moldura_cheia(asp, str(tmp / "molduras"))
+    fc = FI.fc_tela_cheia_moldura(1.0, EX.offset_fundo(lum), "", m, png, "", 90)
+    bruto = tmp / "cheio_terminal.png"
+    ff("-i", str(terminal), "-filter_complex", fc, "-map", "[v]", "-ss", "0.5", "-frames:v", "1", str(bruto))
+    q = meio(oficina["graduar"](bruto, "cheio_terminal"))
+    geo = gate_insert.geometria_do_card("cheio", asp)
+    assert gate_insert.faixa_morta_px(q, geo) <= gate_insert.FAIXA_MORTA_MAX_PX
+
+
+def test_w7w_mesma_chave_em_split_e_em_cheio_explicito_mede_cada_bloco_pelo_que_o_motor_fez(oficina):
+    """W7.W: `vendas` em split no bloco 1 (o 1º uso dá o tratamento `split` à CHAVE) e `| cheio` escrito no bloco 3. O motor
+    desenha tela cheia no bloco 3 (sem `split: true` no inserts.json), mas a timeline marca a fatia como `split` e o gate media
+    a geometria do split: `vendas recortado, sem a moldura` num quadro que TEM a moldura (falso negativo na prova)."""
+    q = meio(oficina["cheio"])
+    p = plano_com_blocos(chave="painel", tratamento="split", bloco=1)
+    p["mapa_inserts"][0]["blocos"] = [1, 3]
+    p["blocos"].append({"i": 3, "tipo": "insert", "insert": "painel", "layout": "cheio", "fala": "z", "s": 15.0, "e": 20.0})
+    tl = tl_com_chave_numerica("split", total=30.0)
+    for b in tl["blocos"]:
+        if b["tipo"] == "insert":
+            b["bloco"] = 3
+    for sg in tl["segmentos"]:
+        if sg["tipo"] == "insert":
+            sg["bloco"] = 3
+    g = rodar(timeline=tl, plano=p, video="x.mp4", leitor=leitor_de(q))
+    assert {i["layout"] for i in g["medido"]["faixa_morta"]["instantes"]} == {"cheio"}
+    assert g["resultado"] == "PASS", g.get("motivo")
 
 
 def test_card_da_tela_cheia_ocupa_70_por_cento_do_quadro_na_geometria_do_gate():

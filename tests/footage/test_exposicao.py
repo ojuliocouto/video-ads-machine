@@ -65,8 +65,8 @@ GOLDEN_EQ = [{'declarada': 0, 'eq': 'eq=brightness=0.412:contrast=1.247,', 'lum'
 
 # {"lum_med": ..., "offset": ...} do `_bg_offset` do original
 GOLDEN_OFFSET = [{'lum_med': None, 'offset': -0.2},
- {'lum_med': 0.0, 'offset': 0.11764705882352941},
- {'lum_med': 10.0, 'offset': 0.0784313725490196},
+ {'lum_med': 0.0, 'offset': 0.19607843137254902},            # W7.W: asset escuro levanta o fundo até 50 (era 30: 0,1176)
+ {'lum_med': 10.0, 'offset': 0.1568627450980392},            # W7.W: 10 + 0,1569 x 255 = 50 (era 0,0784)
  {'lum_med': 30.0, 'offset': 0.0},
  {'lum_med': 33.0, 'offset': -0.011764705882352941},
  {'lum_med': 64.0, 'offset': -0.13333333333333333},
@@ -140,8 +140,17 @@ def test_offset_do_fundo_e_medido_nunca_fixo():
     assert EX.offset_fundo(None) == -0.20                       # sem medida: o valor antigo e conhecido
     assert EX.offset_fundo(30.0) == pytest.approx(0.0)
     assert EX.offset_fundo(255.0) == -0.40                      # teto de escurecimento
-    assert EX.offset_fundo(0.0) == pytest.approx(30.0 / 255.0)  # nunca passa de +0,16
-    assert EX.offset_fundo(0.0) <= 0.16
+    assert EX.offset_fundo(0.0) == pytest.approx(50.0 / 255.0)  # W7.W: o asset escuro levanta o fundo até 50 e nunca passa disso
+    assert EX.offset_fundo(0.0) <= 50.0 / 255.0
+
+
+def test_w7w_asset_escuro_leva_o_fundo_a_50_e_o_caso_claro_nao_muda():
+    for lum in (0.0, 5.0, 10.0, 16.0, 17.0):
+        assert lum + EX.offset_fundo(lum) * 255.0 == pytest.approx(min(50.0, 30.0 + (30.0 - lum) * 2.0)), lum
+    assert EX.offset_fundo(16.0) * 255.0 + 16.0 == pytest.approx(50.0)           # o terminal da prova
+    for lum in (30.0, 33.0, 64.0, 150.0, 244.0):
+        assert EX.offset_fundo(lum) == pytest.approx(max(-0.40, (30.0 - lum) / 255.0)), lum
+    assert EX.offset_fundo(29.9) == pytest.approx((30.0 - 29.9) * 3.0 / 255.0, abs=1e-9)    # contínuo em 30
 
 
 def test_luminancia_roda_o_ffmpeg_uma_vez_por_arquivo(monkeypatch, tmp_path):

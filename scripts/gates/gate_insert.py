@@ -296,11 +296,15 @@ def _leitor_padrao():
     return leitor
 
 
-def layout_efetivo(layout_do_segmento, tratamento):
+def layout_efetivo(layout_do_segmento, tratamento, layout_do_bloco=None):
     """O layout que o MOTOR renderizou de verdade num segmento de insert. O ritmo marca `split` ou `cheio` em toda fatia,
     mas só o insert em `split` obedece (`render_segmentos.r_insert`): o que está em `moldura` (cheio) é tela cheia em toda
     visita, e o `split` do ritmo nele não vale; a visita única de um insert em split não traz layout e é split."""
     if tratamento == "split":
+        # W7.W: o tratamento é da CHAVE (o 1º uso decide). O MESMO insert escrito `| cheio` em outro bloco não tem
+        # `split: true` no inserts.json e o motor o desenha em tela cheia, qualquer que seja a fatia do ritmo.
+        if layout_do_bloco == "cheio":
+            return "cheio"
         return layout_do_segmento if layout_do_segmento in ("split", "cheio") else "split"
     if tratamento == "moldura":
         return "cheio"
@@ -321,6 +325,7 @@ def _avaliar_composto(video, tl, plano, leitor):
     """(motivos, medido) da faixa morta e da moldura nos 6 instantes."""
     mapa = {m["chave"]: m for m in plano["mapa_inserts"]}
     insert_do_bloco = _insert_por_bloco(plano, tl)
+    layout_do_bloco = {b["i"]: b.get("layout") for b in plano.get("blocos") or [] if b.get("tipo") == "insert"}
     instantes = instantes_de_amostra(tl)
     medido = {"instantes": [], "maior_px": 0, "limite_px": FAIXA_MORTA_MAX_PX}
     if not instantes:
@@ -334,7 +339,8 @@ def _avaliar_composto(video, tl, plano, leitor):
     for inst, q in zip(instantes, quadros):
         sg = tl["segmentos"][inst["segmento"]]
         item = mapa.get(insert_do_bloco.get(sg["bloco"]))
-        layout = layout_efetivo(inst["layout"], item.get("tratamento") if item else None) if item else inst["layout"]
+        layout = (layout_efetivo(inst["layout"], item.get("tratamento"), layout_do_bloco.get(sg["bloco"]))
+                  if item else inst["layout"])
         geo = None
         if item and _aspecto(item) >= MOLDURA_ASPECTO_MIN and layout in ("split", "cheio"):
             geo = geometria_do_card(layout, _aspecto(item))

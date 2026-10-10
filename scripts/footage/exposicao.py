@@ -45,6 +45,12 @@ TETO_LUM = 185.0
 EXPO_MIN = -0.22     # luminância média alvo do painel; os inserts bons caem entre 83 e 100
 EXPO_MAX = 0.45      # teto: acima disso a fonte escura vira cinza lavado
 ALVO_BG_CHEIO = 30.0     # luminância alvo do fundo desfocado da tela cheia, de 0 a 255
+# W7.W: o alvo SOBE para asset escuro. A grade final esmaga o escuro (um fundo liso em 30 sai a 6 a 12 níveis, medido no
+# render real) e um terminal de luminância 16 deixou 200 px de preto liso em cima e embaixo do card. Abaixo de ALVO_BG_CHEIO
+# o alvo cresce 2 níveis por nível de fonte a menos, até ALVO_BG_CHEIO_ESCURO (50: depois da grade, 19 a 29 níveis, bem
+# acima do preto liso). Em 30 ou mais nada muda: o caso claro segue como estava.
+ALVO_BG_CHEIO_ESCURO = 50.0
+INCLINACAO_BG_ESCURO = 2.0
 
 _CACHE_LUM = {}
 _CACHE_LUM_MED = {}
@@ -139,10 +145,12 @@ def offset_fundo(lum_mediana):
     (cinco de dez de um anúncio estavam entre 33 e 64) isso não escurece, zera. Medido em
     um anúncio inteiro: 12,3% do tempo com 60% a 67% do quadro em preto absoluto, dentro da janela
     que decide o scroll. Aqui o fundo pousa em ~30/255: escuro o bastante pra não competir com o
-    card e claro o bastante pra ler como cenário em vez de buraco. Sem medida, -0,20."""
+    card e claro o bastante pra ler como cenário em vez de buraco (asset escuro: ver ALVO_BG_CHEIO_ESCURO). Sem medida, -0,20."""
     if lum_mediana is None:
         return -0.20
-    return max(-0.40, min(0.16, (ALVO_BG_CHEIO - lum_mediana) / 255.0))
+    alvo = ALVO_BG_CHEIO + min(ALVO_BG_CHEIO_ESCURO - ALVO_BG_CHEIO,
+                               max(0.0, (ALVO_BG_CHEIO - lum_mediana) * INCLINACAO_BG_ESCURO))
+    return max(-0.40, min(ALVO_BG_CHEIO_ESCURO / 255.0, (alvo - lum_mediana) / 255.0))
 
 
 def bg_offset(src, cfg):
