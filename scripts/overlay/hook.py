@@ -23,6 +23,15 @@ from overlay.transcricao import SPEED
 HOOK_MAX = 3.2
 HOOK_END = round(2.5 / SPEED, 3)   # 2.174 s: o hook encolhe junto com a fala acelerada
 
+# W5.Y: GANCHO SEM FANTASMA. A dissolução de 0,4 s terminava em `hook_gone`, e a primeira legenda entra a partir de
+# `cap_gate - AVANCO_LEGENDA` (a antecipação de 0,12 s do timeline.js): aos 2,08 s as duas estavam na tela, o gancho
+# esmaecido por cima da frase. Regra: o gancho termina de sair ANTES da primeira legenda entrar. A saída dura
+# FADE_GANCHO e acaba FOLGA_GANCHO antes de `hook_gone`; com `cap_gate` até 0,05 s antes de `hook_gone` e a legenda
+# entrando 0,12 s antes do próprio início, sobra 0,03 s livres (menos de um quadro a 30 fps) entre os dois textos.
+FADE_GANCHO = 0.15
+FOLGA_GANCHO = 0.20
+AVANCO_LEGENDA = 0.12              # o mesmo número de `Math.max(0, gStart - 0.12)` em templates/_parciais/timeline.js
+
 Hook = namedtuple("Hook", "opening_insert hook_gone hook_fade hook_dur cap_gate")
 
 CSS_PUNCH = """
@@ -66,7 +75,7 @@ def calcular_hook(blocks, spans):
     ref = (spans[first_avatar_i][0] if opening_insert and first_avatar_i < len(spans)
            else (spans[1][0] if len(spans) > 1 else spans[0][1]))
     hook_gone = round(min(ref + 0.1, HOOK_MAX), 2) if opening_insert else 3.0
-    hook_fade = round(hook_gone - 0.4, 2)    # começa a dissolver
+    hook_fade = round(hook_gone - FOLGA_GANCHO - FADE_GANCHO, 2)    # começa a sair (acaba FOLGA_GANCHO antes do fim)
     hook_dur = round(hook_gone + 0.1, 2)     # janela do clipe cobre até depois do fade
     cap_gate = round(hook_gone - 0.05, 2) if opening_insert else hook_gone   # sem legenda com o hook na tela
     return Hook(opening_insert, hook_gone, hook_fade, hook_dur, cap_gate)
@@ -96,5 +105,5 @@ def aplicar_html(html, cfg_hook, h):
     html = html.replace(
         'tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);',
         'tl.to("#hook .hook-inner", { scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);\n'
-        f'      tl.to("#hook", {{ opacity: 0, duration: 0.4, ease: "power1.in" }}, {h.hook_fade});')
+        f'      tl.to("#hook", {{ opacity: 0, duration: {FADE_GANCHO}, ease: "power1.in" }}, {h.hook_fade});')
     return html

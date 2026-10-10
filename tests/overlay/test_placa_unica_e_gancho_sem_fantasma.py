@@ -132,3 +132,7 @@ def test_a_dissolucao_do_gancho_e_curta():
     html = K.aplicar_html(TEMPLATE_HOOK, {"eyebrow": "a", "l1": "b", "accent": "c"}, h)
     dur = float(re.search(r'tl\.to\("#hook", \{ opacity: 0, duration: ([0-9.]+)', html).group(1))
     assert 0 < dur <= 0.2
+
+
+def test_o_avanco_documentado_no_hook_e_o_do_timeline():
+    assert K.AVANCO_LEGENDA == _avanco_da_legenda()

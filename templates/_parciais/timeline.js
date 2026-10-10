@@ -287,3 +287,33 @@
         else caber();
         document.fonts && document.fonts.ready && document.fonts.ready.then(caber);
       })();
+
+      // ===== PLACA ÚNICA DA LEGENDA (W5.Y): uma faixa atrás da frase inteira, com a largura da linha mais larga =====
+      // O grupo `cgrp-placa` leva um `.cplaca` como primeiro filho. As palavras são inline-block centradas (flex wrap):
+      // a linha mais larga vai do menor offsetLeft ao maior offsetLeft + offsetWidth, e a altura do menor offsetTop ao
+      // maior offsetTop + offsetHeight. Mede a caixa de layout, que o pop de escala do grupo não altera.
+      (function () {
+        function placas() {
+          document.querySelectorAll("#caps .cgrp-placa").forEach(function (g) {
+            var placa = g.querySelector(".cplaca");
+            var ws = g.querySelectorAll(".cw");
+            if (!placa || !ws.length) return;
+            var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+            ws.forEach(function (w) {
+              x0 = Math.min(x0, w.offsetLeft); x1 = Math.max(x1, w.offsetLeft + w.offsetWidth);
+              y0 = Math.min(y0, w.offsetTop); y1 = Math.max(y1, w.offsetTop + w.offsetHeight);
+            });
+            var px = parseFloat(getComputedStyle(ws[0]).fontSize) || 64;
+            var fx = px * 0.30, fy = px * 0.20;
+            placa.style.left = (x0 - fx) + "px";
+            placa.style.top = (y0 - fy) + "px";
+            placa.style.width = (x1 - x0 + 2 * fx) + "px";
+            placa.style.height = (y1 - y0 + 2 * fy) + "px";
+            placa.style.borderRadius = (px * 0.22) + "px";
+          });
+        }
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', placas);
+        else placas();
+        document.fonts && document.fonts.ready && document.fonts.ready.then(placas);
+      })();

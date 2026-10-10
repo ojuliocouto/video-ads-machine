@@ -401,6 +401,10 @@ def _render_captions_html(groups: list[dict]) -> str:
             f'data-g-start="{group["start"]:.3f}" '
             f'data-g-end="{group["end"]:.3f}">'
         )
+        if group.get("placa"):
+            # W5.Y: UMA faixa escura por grupo, atras da frase inteira (era uma placa por palavra, que picotava a linha).
+            # O tamanho vem das caixas das palavras, medidas no navegador (templates/_parciais/timeline.js).
+            lines.append('    <span class="cplaca"></span>')
         for word in group["words"]:
             css_class = "cw kw" if word.get("kw") else "cw"
             # DUAS CAMADAS POR PALAVRA (29/08/2026, pedido do Julio por audio: "nao
