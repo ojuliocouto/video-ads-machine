@@ -104,6 +104,34 @@ def test_novo_cria_o_projeto_e_e_idempotente(estado_vazio, capsys):
     assert _vam(estado_vazio, "novo", "meu-ad", "--look", "estudio", "--sem-trilha", "teste sem música") == 0
 
 
+def test_novo_modo_oneshot_cria_o_projeto_sem_look_e_sem_trilha(estado_vazio, capsys):
+    assert _vam(estado_vazio, "novo", "meu-take", "--modo", "oneshot") == 0
+    pj = pastas.projeto("meu-take", estado_vazio)
+    dados = json.loads(pj.projeto_json.read_text(encoding="utf-8"))
+    assert dados["modo"] == "oneshot" and "look" not in dados and dados["aceleracao"] == 1.2
+    assert dados["trilha"]["desligada"] is True and dados["trilha"]["motivo"]
+    assert "vam oneshot meu-take" in capsys.readouterr().out          # o próximo passo do modo
+    assert _vam(estado_vazio, "novo", "meu-take", "--modo", "oneshot") == 0       # idempotente
+
+
+def test_novo_modo_gravado_e_o_mesmo_projeto_que_o_criar_do_gravado(estado_vazio):
+    assert _vam(estado_vazio, "novo", "meus-takes", "--modo", "gravado", "--sem-trilha", "sem música") == 0
+    pj = pastas.projeto("meus-takes", estado_vazio)
+    assert json.loads(pj.projeto_json.read_text(encoding="utf-8"))["modo"] == "gravado"
+    # outro modo no mesmo slug não toca no projeto
+    assert _vam(estado_vazio, "novo", "meus-takes", "--modo", "oneshot") == 2
+
+
+def test_novo_modo_de_camera_recusa_look(estado_vazio, capsys):
+    assert _vam(estado_vazio, "novo", "meu-take", "--modo", "oneshot", "--look", "estudio") == 2
+    assert "avatar" in capsys.readouterr().err
+    assert not pastas.projeto("meu-take", estado_vazio).projeto_json.exists()
+
+
+def test_novo_modo_invalido_sai_com_dois(estado_vazio):
+    assert _vam(estado_vazio, "novo", "meu-ad", "--modo", "vsl") == 2
+
+
 def test_novo_com_pedido_divergente_sai_com_dois_e_nao_toca_no_projeto(estado_vazio):
     assert _vam(estado_vazio, "novo", "meu-ad", "--look", "estudio", "--sem-trilha", "teste sem música") == 0
     pj = pastas.projeto("meu-ad", estado_vazio)
@@ -206,7 +234,7 @@ def test_aprovar_sem_plano_sai_com_um_e_grava_o_motivo_no_status(estado_vazio, t
 
 
 def test_build_composite_chamado_direto_sai_com_dois():
-    r = subprocess.run([sys.executable, str(SCRIPTS / "build_composite.py"), "ad99v2", "espuma_roxa", "9x16"],
+    r = subprocess.run([sys.executable, str(SCRIPTS / "build_composite.py"), "ad99v2", "look_a", "9x16"],
                        capture_output=True, text=True, timeout=120, cwd=str(SCRIPTS))
     assert r.returncode == 2
     assert "vam montar" in r.stderr and "Traceback" not in r.stderr
