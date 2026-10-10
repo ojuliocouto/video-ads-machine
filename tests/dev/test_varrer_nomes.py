@@ -19,7 +19,7 @@ import varrer_nomes as V  # noqa: E402
 # termo proibido -> pedaços (juntos dão o termo; separados não casam com nada)
 PLANTADOS = [("th", "ales"), ("jh", "eni"), ("jú", "lio"), ("ju", "lio"), ("oc", "c"), ("lar", "ay"),
              ("brí", "gida"), ("bri", "gida"), ("opera", "ção claude co", "de"), ("vaib", "hav"), ("sob", "ral"),
-             ("marco aur", "élio"), ("espu", "ma roxa"), ("jh", "13v2")]
+             ("mar", "co aurélio"), ("espu", "ma roxa"), ("jh", "13v2")]
 
 
 def _rodar(*args):
