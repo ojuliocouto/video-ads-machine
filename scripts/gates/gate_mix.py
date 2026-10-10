@@ -12,8 +12,9 @@ discordar. Reprova quando:
 
   loudness           o arquivo final fora de -14 LUFS (mais ou menos 1,2);
   true_peak          o true peak do arquivo final acima de -1,5 dBTP;
-  cama_nas_pausas    das 8 maiores pausas reais, a cama (final menos voz sozinha, janela de 0,5 s no meio da
-                     pausa) não sobe de +1,5 a +8,0 dB em pelo menos 75% delas;
+  cama_nas_pausas    das 8 maiores pausas reais, a cama (final menos o MAIOR entre a voz sozinha e o piso audível de
+                     -40 dBFS, janela de 0,5 s no meio da pausa) não sobe de +1,5 a +8,0 dB em pelo menos 75% delas; a
+                     pausa dentro do fade de entrada ou de saída da trilha não conta (a cama está sumindo ali);
   sob_a_fala         sob a fala contínua a cama sobe +1,5 dB ou mais;
   trilha_canta       a transcrição da trilha passa de 60 caracteres (música cantada briga com a voz);
   automacao_divergente  a automação gravada no timeline.json não é a das pausas reais da voz;
@@ -28,11 +29,13 @@ fora de qualquer pausa real (com 0,1 s de folga). A armadilha medida em 07/09 na
 de aceite tem que ser validado NA MESMA JANELA que o medidor lê, senão um ponto que cai em pausa passa por
 fala e a peça boa reprova.
 
-Limites desta régua (a do VSL, mantida por decisão do plano): o delta é "final menos voz sozinha", então ele
-depende do piso da voz. Em pausa limpa demais (piso muito abaixo de -35 dBFS) a cama sobe mais de 8 dB só
-porque a voz sozinha é quase silêncio, e o gate reprova uma mix correta; sob a fala, ele só vê a cama
-quando ela fica a menos de uns 4 dB da voz (a trilha a -20 dBFS com cama 0,42 fixa, por exemplo, passa as
-duas réguas: ela não respira, mas fica abaixo da voz). Calibrar contra voz real é o trabalho da prova (W7).
+Limites desta régua (a do VSL) e o que a prova (W7.Z) mudou: o delta era "final menos voz sozinha", então dependia do
+piso da voz. Em pausa limpa demais (a voz isolada da prova tem de -36 a -55 dBFS nas pausas) a cama subia de +11 a +21 dB só
+porque a voz sozinha era quase silêncio, e o gate reprovava mix correto. A causa estava nos dois lados: a automação dava à
+cama um nível absoluto (agora cada pausa recebe o ganho medido, `musica.cama_da_pausa`) e a régua media contra um piso que
+ninguém ouve (agora é contra o maior entre a voz na pausa e -40 dBFS, o ambiente de quem ouve, `musica.PISO_AUDIVEL_DB`).
+Sob a fala, o gate só vê a cama quando ela fica a menos de uns 4 dB da voz (a trilha a -20 dBFS com cama 0,42 fixa, por
+exemplo, passa as duas réguas: ela não respira, mas fica abaixo da voz).
 
 Resultado: `Resultado(ok, motivo, detalhes)`. `detalhes["estado"]` é PASS ou REPROVA; `falhas` traz
 {regra, motivo} de cada reprovação (o motivo junta todas); `medido` e `limiar` vão para o laudo. A CLI
@@ -63,7 +66,9 @@ Resultado = namedtuple("Resultado", "ok motivo detalhes")
 # esteira de VSL, verificar_mix.py (JAN): janela do medidor, a mesma em que se valida o ponto de fala.
 JAN = 0.5
 # verificar_mix.py: `1.5 <= d <= 8.0`. A cama sobe pelo menos 1,5 dB (se não, não respira) e no máximo 8,0 dB.
-PAUSA_DELTA_DB = (1.5, 8.0)
+PAUSA_DELTA_DB = musica.PAUSA_SOBE_DB          # a fonte única é a da automação (cinema.musica)
+# W7.Z: o piso contra o qual a subida é medida quando a voz na pausa está abaixo dele (ambiente de quem ouve).
+PISO_AUDIVEL_DB = musica.PISO_AUDIVEL_DB
 # verificar_mix.py: `pior < 1.5`.
 SOB_A_FALA_MAX_DB = 1.5
 # verificar_mix.py: `round(0.75 * len(pausas))`, aqui sem o piso de 3 (com 1 ou 2 pausas ele era inalcançável).
@@ -167,6 +172,18 @@ def _pontos_de_fala(voz, pausas):
     return pontos
 
 
+def _fades(ducking):
+    """(fade de entrada, fade de saída) em s: os do ducking gravado no timeline ou, sem ele, os padrões da automação."""
+    if ducking and not ducking.get("desligado"):
+        return float(ducking.get("fade_in_s", musica.FADE_IN_S)), float(ducking.get("fade_out_s", musica.FADE_OUT_S))
+    return musica.FADE_IN_S, musica.FADE_OUT_S
+
+
+def _no_fade(inicio_janela, duracao, fade_in, fade_out):
+    """A janela de medida da pausa [inicio, inicio + JAN] toca o fade de entrada ou o de saída da trilha."""
+    return inicio_janela < fade_in or inicio_janela + JAN > duracao - fade_out
+
+
 def _caracteres(palavras):
     textos = []
     for p in palavras:
@@ -208,8 +225,8 @@ def avaliar(final, voz, *, pausas=None, ducking=None, trilha=None, transcritor=N
         falha("true_peak", "o true peak do arquivo final é %s dBTP; o teto da entrega é -1,5 dBTP" % _n(tp))
 
     medido = {"lufs": lufs, "true_peak_dbtp": tp, "sem_trilha": trilha is None, "sem_pausas": False,
-              "pausas": [], "pausas_ok": 0, "pausas_exigidas": 0, "pior_sob_a_fala_db": None,
-              "pontos_de_fala": 0, "caracteres_na_trilha": None}
+              "pausas": [], "pausas_nos_fades": [], "piso_audivel_db": PISO_AUDIVEL_DB, "pausas_ok": 0,
+              "pausas_exigidas": 0, "pior_sob_a_fala_db": None, "pontos_de_fala": 0, "caracteres_na_trilha": None}
 
     # --- coerência do timeline com o projeto ---
     if ducking is not None:
@@ -232,12 +249,17 @@ def avaliar(final, voz, *, pausas=None, ducking=None, trilha=None, transcritor=N
                 falha("automacao_divergente", "a automação gravada no timeline (%d pausa(s)) não é a das pausas reais "
                       "da voz (%d pausa(s)): o mix foi feito de outra voz, ou o timeline está velho"
                       % (len(gravadas), len(todas)))
-        maiores = sorted(todas, key=lambda p: p[1] - p[0], reverse=True)[:MAIORES_PAUSAS]
-        medido["sem_pausas"] = not todas
+        fade_in, fade_out = _fades(ducking)
+        dur = final_faixa.duracao_s
+        nos_fades = [(a, b) for a, b in todas if _no_fade((a + b) / 2.0 - JAN / 2.0, dur, fade_in, fade_out)]
+        cobradas = [p for p in todas if p not in nos_fades]
+        medido["pausas_nos_fades"] = [{"s": round(a, 3), "e": round(b, 3)} for a, b in nos_fades]
+        maiores = sorted(cobradas, key=lambda p: p[1] - p[0], reverse=True)[:MAIORES_PAUSAS]
+        medido["sem_pausas"] = not cobradas
         ok = 0
         for a, b in maiores:
             m = (a + b) / 2.0 - JAN / 2.0
-            d = final_faixa.nivel_db(m) - voz_faixa.nivel_db(m)
+            d = final_faixa.nivel_db(m) - max(voz_faixa.nivel_db(m), PISO_AUDIVEL_DB)
             passa = PAUSA_DELTA_DB[0] - EPS <= d <= PAUSA_DELTA_DB[1] + EPS
             ok += passa
             medido["pausas"].append({"s": round(a, 3), "e": round(b, 3), "delta_db": round(d, 2), "ok": bool(passa)})
@@ -279,7 +301,8 @@ def avaliar(final, voz, *, pausas=None, ducking=None, trilha=None, transcritor=N
         "limiar": {"lufs": [round(LUFS_ALVO - LUFS_TOLERANCIA, 3), round(LUFS_ALVO + LUFS_TOLERANCIA, 3)],
                    "true_peak_max_dbtp": TP_MAX, "pausa_delta_db": list(PAUSA_DELTA_DB),
                    "pausas_minimo": PAUSAS_MINIMO, "sob_a_fala_max_db": SOB_A_FALA_MAX_DB,
-                   "trilha_caracteres_max": TRILHA_CARACTERES_MAX, "janela_s": JAN},
+                   "trilha_caracteres_max": TRILHA_CARACTERES_MAX, "janela_s": JAN,
+                   "piso_audivel_db": PISO_AUDIVEL_DB},
     }
     return Resultado(not falhas, "; ".join(f["motivo"] for f in falhas), detalhes)
 

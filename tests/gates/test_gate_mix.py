@@ -93,7 +93,7 @@ def test_o_resultado_traz_os_limiares_para_o_laudo(voz):
     r = avaliar(mixar_numerico(voz), voz)
     assert r.detalhes["limiar"] == {"lufs": [-15.2, -12.8], "true_peak_max_dbtp": -1.5,
                                     "pausa_delta_db": [1.5, 8.0], "pausas_minimo": 0.75, "sob_a_fala_max_db": 1.5,
-                                    "trilha_caracteres_max": 60, "janela_s": 0.5}
+                                    "trilha_caracteres_max": 60, "janela_s": 0.5, "piso_audivel_db": -40.0}
     assert gate_mix.NOME == "gate_mix"
 
 

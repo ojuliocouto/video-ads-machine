@@ -196,7 +196,7 @@
             "rampa_ms": {"type": "number", "minimum": 0, "maximum": 2000},
             "fade_in_s": {"type": "number", "minimum": 0},
             "fade_out_s": {"type": "number", "minimum": 0},
-            "pausas": {"type": "array", "items": {"$ref": "#/$defs/intervalo"}, "description": "Pausas reais do envelope (audio/pausas_reais): a mesma lista que o gate_mix confere."}
+            "pausas": {"type": "array", "items": {"$ref": "#/$defs/pausa_do_ducking"}, "description": "Pausas reais do envelope (audio/pausas_reais): a mesma lista que o gate_mix confere. `cama` é o ganho de ESSA pausa (o mixer o fecha sobre a voz e a trilha medidas ali); sem ele vale `cama_pausa`. `cama_pausa` é o teto."}
           }
         },
         {
@@ -217,6 +217,16 @@
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "caminho": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\x00]+$"},
     "tempo": {"type": "number", "minimum": 0},
+    "pausa_do_ducking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s", "e"],
+      "properties": {
+        "s": {"$ref": "#/$defs/tempo"},
+        "e": {"$ref": "#/$defs/tempo"},
+        "cama": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
     "intervalo": {
       "type": "object",
       "additionalProperties": false,

@@ -51,7 +51,7 @@ Densidade de 45 a 55% do tempo (piso 40, teto 65). Insert horizontal entra **int
 
 ## 5. Som: C10 a C12
 
-- **C10.** Trilha do aluno nivelada a -20 dBFS (`NIVEL_TRILHA_DBFS` em `scripts/cinema/musica.py`). Cama de 0,055 sob a fala e de 0,42 nas pausas reais do envelope (queda de 12 dB abaixo da mediana, 0,5 s ou mais), rampa de 150 ms, fade de entrada de 1,2 s e de saída de 2,2 s. Sem pausa real num monólogo denso, a cama fica constante: forçar respiro vira bombeamento ("a música fica aumentando e diminuindo do nada").
+- **C10.** Trilha do aluno nivelada a -20 dBFS (`NIVEL_TRILHA_DBFS` em `scripts/cinema/musica.py`). Cama de 0,055 sob a fala e, nas pausas reais do envelope (queda de 12 dB abaixo da mediana, 0,5 s ou mais), a cama de CADA pausa (W7.Z: o ganho que leva a subida sobre a voz ao centro de +1,5 a +8 dB, fechado sobre o nível medido da voz e da trilha ali, com 0,42 como teto; a subida é medida contra o maior entre a voz na pausa e -40 dBFS, e pausa dentro dos fades não entra na régua), rampa de 150 ms, fade de entrada de 1,2 s e de saída de 2,2 s. Sem pausa real num monólogo denso, a cama fica constante: forçar respiro vira bombeamento ("a música fica aumentando e diminuindo do nada").
 - **C11.** Riser 1,0 s antes do CTA; tick por linha de pilha; boom na KEY `gigante_atras`. Whoosh desligado. Nunca na volta ao apresentador. Peça sem efeito nenhum passa: vazio é melhor que inventar.
 - **C12.** `LUFS_ALVO` -14 e `TP_ALVO` -1,5 em `scripts/audio/loudness.py`; 48 kHz.
 

@@ -6,11 +6,17 @@ descrevia um arquivo intermediário que ninguém ouve. Por isso:
 
     1. VOZ  já normalizada a -14 LUFS (`audio.loudness.normalizar`, passo anterior do pipeline)
     2. EFEITOS  riser, tick e boom nos instantes do plano de SFX, no nível em que foram calibrados
-    3. MÚSICA   nivelada a -20 dBFS, cama 0,055 sob a fala e 0,42 nas pausas reais, rampa 150 ms
+    3. MÚSICA   nivelada a -20 dBFS, cama 0,055 sob a fala e, nas pausas reais, a cama de CADA pausa (até o teto de 0,42),
+                rampa 150 ms
     4. LIMITER  alimiter 0,97, sem auto level (o auto level sobe o sinal e muda o LUFS)
 
 O motor antigo fazia isto em três remuxes em série, cada um com um AAC novo. Aqui é UM grafo de
 filtros e UM AAC, com o vídeo copiado.
+
+A CAMA DE CADA PAUSA (W7.Z) sai do que foi medido: o nível da voz naquela pausa e o da trilha ali (com o ganho e os fades
+dela, antes da automação), para a subida sobre a voz sozinha cair no centro da faixa do `gate_mix` (+4,75 dB). Com um nível
+absoluto de 0,42 a subida era a diferença entre o piso da voz isolada (de -36 a -55 dBFS) e a dinâmica da trilha, e media de
++11 a +21 dB na prova. `cama_adaptativa=False` devolve a automação de nível absoluto (o mutante dos testes).
 
 A pausa que decide onde a cama sobe é medida na VOZ (a entrada, antes de qualquer efeito), por
 `audio.pausas_reais`, e a MESMA lista vai para a expressão de volume, para o timeline.json e, depois,
@@ -34,7 +40,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from audio import loudness, pausas_reais
+from audio import loudness, nivel, pausas_reais
 from cinema import musica
 
 SR = 48000
@@ -139,9 +145,33 @@ def _codificar(pcm, entrada, saida, tem_video, ganho_db):
     _rodar(cmd, "a codificação final")
 
 
+def camas_das_pausas(entrada, trilha, pausas, duracao, ganho_trilha, *, cama_fala, cama_pausa, rampa_s, fade_in_s,
+                     fade_out_s):
+    """`[(início, fim, cama)]`: o ganho de cada pausa, fechado sobre o nível medido da voz (`entrada`) e da trilha (com o ganho
+    e os fades, sem a automação) na janela de 0,5 s do meio da pausa. Pausa que não dá para medir fica com a cama global."""
+    if not pausas:
+        return []
+    try:
+        voz = nivel.carregar_mono(entrada)
+        filtro = musica.cadeia_da_trilha("", "", duracao, ganho_trilha, None, fade_in_s, fade_out_s)
+        som = nivel.carregar_mono(trilha, filtro=filtro, em_loop=True, duracao_s=duracao)
+    except nivel.ErroDeNivel as e:
+        raise ErroDeMix(str(e))
+    saida = []
+    for a, b in pausas:
+        meio = (a + b) / 2.0 - musica.JANELA_MEDIDA_S / 2.0
+        cama = musica.cama_da_pausa(nivel.nivel_db(voz, meio, musica.JANELA_MEDIDA_S),
+                                    nivel.nivel_db(som, meio, musica.JANELA_MEDIDA_S),
+                                    fator_rampa=musica.fator_de_rampa(a, b, rampa_s), cama_fala=cama_fala,
+                                    cama_max=cama_pausa)
+        saida.append((a, b, cama))
+    return saida
+
+
 def mixar(entrada, saida, *, efeitos=(), trilha=None, pausas=None, motivo_sem_trilha=None, voz_ref=None,
           cama_fala=musica.CAMA_FALA, cama_pausa=musica.CAMA_PAUSA, rampa_s=musica.RAMPA_S,
-          fade_in_s=musica.FADE_IN_S, fade_out_s=musica.FADE_OUT_S, nivel_trilha_dbfs=musica.NIVEL_TRILHA_DBFS):
+          fade_in_s=musica.FADE_IN_S, fade_out_s=musica.FADE_OUT_S, nivel_trilha_dbfs=musica.NIVEL_TRILHA_DBFS,
+          cama_adaptativa=True):
     """Mixa `entrada` (vídeo ou áudio, voz já normalizada) em `saida`.
 
     efeitos          [(instante no arquivo ENTREGUE em s, wav)], do `sfx_plano.eventos_para_mix`
@@ -151,6 +181,8 @@ def mixar(entrada, saida, *, efeitos=(), trilha=None, pausas=None, motivo_sem_tr
                      vazia = cama parada. É também como os testes fabricam o mutante "sem ducking".
     voz_ref          onde gravar a voz pré-mix (wav) para o gate_mix comparar (já com o ajuste de true
                      peak que o mixer aplicou ao mix, para a comparação isolar só a música)
+    cama_adaptativa  True (padrão): cada pausa recebe a cama que fecha a conta com a voz e a trilha medidas ali (o
+                     `cama_pausa` vira o teto); False: a automação de nível absoluto de antes, `cama_pausa` em todas
 
     Devolve o relatório: ducking (no formato do timeline), sfx mixados, trilha, loudness medido no
     arquivo final e o ajuste de true peak aplicado.
@@ -183,9 +215,13 @@ def mixar(entrada, saida, *, efeitos=(), trilha=None, pausas=None, motivo_sem_tr
                 pausas = pausas_reais.pausas(str(entrada))
             except pausas_reais.ErroDeAudio as e:
                 raise ErroDeMix(str(e))
-        pausas = [(float(a), float(b)) for a, b in pausas]
+        pausas = [(float(p[0]), float(p[1])) + ((float(p[2]),) if len(p) > 2 else ()) for p in pausas]
         media = musica.medir_media_db(trilha, ate_s=duracao)
         ganho_trilha = musica.ganho_para_nivel_db(media, nivel_trilha_dbfs)
+        if cama_adaptativa and pausas and all(len(p) == 2 for p in pausas):
+            pausas = camas_das_pausas(entrada, trilha, pausas, duracao, ganho_trilha, cama_fala=cama_fala,
+                                      cama_pausa=cama_pausa, rampa_s=rampa_s, fade_in_s=fade_in_s,
+                                      fade_out_s=fade_out_s)
         expressao = musica.expressao_volume(pausas, cama_fala, cama_pausa, rampa_s)
         rel["ducking"] = musica.ducking_para_timeline(pausas, cama_fala, cama_pausa, rampa_s, fade_in_s, fade_out_s)
         rel["trilha"] = {"arquivo": Path(trilha).name, "media_db": round(media, 2), "ganho_db": round(ganho_trilha, 2),
