@@ -304,10 +304,17 @@
               y0 = Math.min(y0, w.offsetTop); y1 = Math.max(y1, w.offsetTop + w.offsetHeight);
             });
             var px = parseFloat(getComputedStyle(ws[0]).fontSize) || 64;
-            var fx = px * 0.30, fy = px * 0.20;
-            placa.style.left = (x0 - fx) + "px";
+            // folga de .26em dos lados e .2em em cima e embaixo: a mesma da placa por palavra. A faixa nunca passa do
+            // recuo do grupo menos 12 px: o recuo de 130 px do 9x16 é a zona segura (x 940 é a coluna de curtir e
+            // comentar), e a 1ª tentativa, sem esse teto, levou a tinta da placa a x 944 e a x 941 (gate_safezone).
+            var fx = px * 0.26, fy = px * 0.20;
+            var est = getComputedStyle(g);
+            var min = (parseFloat(est.paddingLeft) || 0) + 12;
+            var max = g.clientWidth - (parseFloat(est.paddingRight) || 0) - 12;
+            var px0 = Math.max(x0 - fx, min), px1 = Math.min(x1 + fx, max);
+            placa.style.left = px0 + "px";
             placa.style.top = (y0 - fy) + "px";
-            placa.style.width = (x1 - x0 + 2 * fx) + "px";
+            placa.style.width = (px1 - px0) + "px";
             placa.style.height = (y1 - y0 + 2 * fy) + "px";
             placa.style.borderRadius = (px * 0.22) + "px";
           });
