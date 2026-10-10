@@ -619,7 +619,13 @@ def test_equivalencia_spans(original):
 def test_equivalencia_hook(original):
     velho = fatiar(original, [(279, 299)], ["blocks", "spans"],
                    ["opening_insert", "hook_gone", "hook_fade", "hook_dur", "cap_gate"])
-    novo = lambda blocks, spans: tuple(K.calcular_hook(blocks, spans))      # noqa: E731
+
+    def novo(blocks, spans):
+        # W5.Y: o gancho agora SAI antes da primeira legenda entrar, então `hook_fade` (o início da saída) deixou de ser
+        # hook_gone - 0,4. É a única divergência deliberada do original: confere a regra nova e devolve o valor antigo.
+        op, gone, fade, dur, gate = K.calcular_hook(blocks, spans)
+        assert fade == round(gone - K.FOLGA_GANCHO - K.FADE_GANCHO, 2)
+        return op, gone, round(gone - 0.4, 2), dur, gate
 
     def gerar(rnd):
         n = rnd.randint(1, 6)

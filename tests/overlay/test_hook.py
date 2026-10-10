@@ -32,14 +32,14 @@ def test_constantes_do_hook():
 def test_abertura_no_avatar_segura_3s_e_a_legenda_espera_o_hook():
     h = K.calcular_hook(bl("orig", "insert", "orig"), [(0, 4), (4, 8), (8, 12)])
     assert not h.opening_insert
-    assert (h.hook_gone, h.hook_fade, h.hook_dur, h.cap_gate) == (3.0, 2.6, 3.1, 3.0)
+    assert (h.hook_gone, h.hook_fade, h.hook_dur, h.cap_gate) == (3.0, 2.65, 3.1, 3.0)
 
 
 def test_abertura_em_insert_dissolve_no_retorno_do_avatar_mais_0_1():
     h = K.calcular_hook(bl("insert", "orig", "insert"), [(0, 2.0), (2.0, 9.0), (9.0, 12.0)])
     assert h.opening_insert
     assert h.hook_gone == 2.1                      # round(min(2.0 + 0.1, 3.2), 2)
-    assert h.hook_fade == 1.7                      # comeca a dissolver 0,4 s antes
+    assert h.hook_fade == 1.75                     # comeca a sair 0,35 s antes (W5.Y): acaba 0,2 s antes do fim
     assert h.hook_dur == 2.2                       # a janela do clip cobre ate depois do fade
     assert h.cap_gate == 2.05                      # sem legenda ate 0,05 antes do hook sumir
 
@@ -49,7 +49,7 @@ def test_teto_de_3_2s_no_hook_com_insert_longo_na_abertura():
     sp = [(0, 5), (5, 10), (10, 15.5), (15.5, 20)]
     h = K.calcular_hook(bl("insert", "insert", "insert", "orig"), sp)
     assert h.hook_gone == 3.2
-    assert (h.hook_fade, h.hook_dur, h.cap_gate) == (2.8, 3.3, 3.15)
+    assert (h.hook_fade, h.hook_dur, h.cap_gate) == (2.85, 3.3, 3.15)
 
 
 def test_o_retorno_do_avatar_e_o_primeiro_bloco_que_nao_e_insert_nao_spans_1():
@@ -101,7 +101,7 @@ def test_aplicar_html_troca_textos_duracao_e_agenda_o_fade():
     assert 'id="hook" class="clip" data-start="0" data-duration="2.2"' in html
     # o fade entra logo depois do tween de escala, na posicao hook_fade
     assert ('{ scale: 1.04, duration: 1.7, ease: "sine.inOut" }, 0.8);\n'
-            '      tl.to("#hook", { opacity: 0, duration: 0.4, ease: "power1.in" }, 1.7);') in html
+            '      tl.to("#hook", { opacity: 0, duration: 0.15, ease: "power1.in" }, 1.75);') in html
     assert "punch" not in html
 
 
@@ -145,5 +145,5 @@ def test_aplicar_html_nos_templates_reais(formato, pasta):
     saida = K.aplicar_html(modelo, {"eyebrow": "MEU CLAUDE", "l1": "virou", "accent": "PRO"}, hook_padrao())
     assert 'class="eyebrow">MEU CLAUDE</div>' in saida
     assert 'class="accent">PRO</div>' in saida
-    assert 'tl.to("#hook", { opacity: 0, duration: 0.4, ease: "power1.in" }, 1.7);' in saida
+    assert 'tl.to("#hook", { opacity: 0, duration: 0.15, ease: "power1.in" }, 1.75);' in saida
     assert 'id="hook" class="clip" data-start="0" data-duration="2.2"' in saida

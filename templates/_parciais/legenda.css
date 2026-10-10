@@ -37,15 +37,16 @@
       #caps .cgrp-claro .cw .base { color:rgba(18,20,26,.75); }
       #caps .cgrp-claro .cw .fill { color:#12141A; }
       #caps .cgrp-claro .cw.kw .base { color:rgba(178,67,26,.75); }
-      /* PLACA (W5.X): fundo de meio-tom ou misturado (a costura do split, o borrado do insert), onde nem a tinta clara
-         nem a invertida deixam a camada APAGADA acima de 4,5:1. Uma placa escura por palavra (não tarja: a faixa
-         inteira continua livre), com folga de .2em em volta da letra, que é o anel onde o gate mede o fundo. A cor
-         e o alfa são os de overlay.fundo_claro (PLACA_COR, PLACA_ALFA). */
-      #caps .cgrp-placa .cw { background:rgba(8,9,14,.82); border-radius:.16em; padding:.2em .26em;
-        filter:none; text-shadow:none; }
-      /* a camada acesa é absoluta na caixa da palavra: com a folga da placa ela tem que andar a mesma folga, senão
-         sai deslocada da apagada (o primeiro render da W5.X mostrou a palavra dobrada) */
-      #caps .cgrp-placa .cw .fill { left:.26em; top:.2em; }
+      /* PLACA (W5.X, faixa única na W5.Y): fundo de meio-tom ou misturado (a costura do split, o borrado do insert), onde
+         nem a tinta clara nem a invertida deixam a camada APAGADA acima de 4,5:1. UMA faixa escura por grupo (o
+         elemento `cplaca`, primeiro filho do grupo), atrás da frase inteira: a placa por palavra picotava a linha
+         (5,64 s, 9,21 s e 10,99 s do v2). Cantos discretos, folga de .2em em volta da letra (o anel onde o gate mede
+         o fundo). Posição e tamanho são medidos no navegador, nas caixas das palavras, pelo timeline.js: a largura
+         acompanha a LINHA MAIS LARGA do grupo, nunca a tela toda. A cor e o alfa são os de overlay.fundo_claro
+         (PLACA_COR, PLACA_ALFA). Sem medida ela nasce com tamanho zero: o gate de contraste acusa, nunca vaza. */
+      #caps .cplaca { position:absolute; left:0; top:0; width:0; height:0; background:rgba(8,9,14,.82);
+        border-radius:16px; pointer-events:none; }
+      #caps .cgrp-placa .cw { filter:none; text-shadow:none; }
       #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
       /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
          tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá
