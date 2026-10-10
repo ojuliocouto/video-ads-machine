@@ -293,10 +293,10 @@ def test_corte_em_duas_com_fatia_abaixo_de_0_30s_apara_tudo_pro_lado_dominante()
     assert len(saida[0]["words"]) == 3
 
 
-def test_as_duas_fatias_curtas_e_sem_lado_dominante_deixam_o_grupo_como_esta():
+def test_as_duas_fatias_curtas_e_sem_lado_dominante_tiram_o_grupo_da_tela():
+    """W7.Z: antes o grupo ficava como estava e atravessava a troca com a posição do outro layout."""
     g = grupo(pal("a", 1.0, 1.15), pal("b", 1.15, 1.3), pal("c", 1.3, 1.5))
-    saida = LT.cortar_na_fronteira([g], [(0.0, 1.25)])
-    assert saida == [g] and (saida[0]["start"], saida[0]["end"]) == (1.0, 1.5)
+    assert LT.cortar_na_fronteira([g], [(0.0, 1.25)]) == []
 
 
 def test_grupo_que_nao_atravessa_nenhuma_borda_passa_inteiro():
@@ -381,13 +381,12 @@ def test_grupo_que_nasce_antes_do_fim_do_split_nao_e_tocado():
 
 
 def test_o_piso_de_fatia_e_0_30s_nem_0_29_nem_0_31():
-    # um lado com 0,31 s puxa o grupo inteiro para ele; com 0,29 s o grupo fica como esta
+    # um lado com 0,31 s puxa o grupo inteiro para ele; com 0,29 s o grupo sai da tela (W7.Z: antes ficava como estava)
     g1 = grupo(pal("a", 10.0, 10.51))
     s1 = LT.cortar_na_fronteira([g1], [(1.0, 10.31)])
     assert (s1[0]["start"], s1[0]["end"]) == (10.0, 10.19)
     g2 = grupo(pal("a", 10.0, 10.51))
-    s2 = LT.cortar_na_fronteira([g2], [(1.0, 10.29)])
-    assert (s2[0]["start"], s2[0]["end"]) == (10.0, 10.51)
+    assert LT.cortar_na_fronteira([g2], [(1.0, 10.29)]) == []
 
 
 def test_costura_e_uma_so_a_tinta_medida_no_template():

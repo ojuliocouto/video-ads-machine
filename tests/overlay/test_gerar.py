@@ -513,8 +513,9 @@ def original():
     return r.stdout.decode("utf-8").splitlines()
 
 
-def fatiar(linhas, intervalos, entradas, saidas, subst=()):
-    """Embrulha linhas do `main` original (1-based, fechadas) numa função de `entradas` a `saidas`."""
+def fatiar(linhas, intervalos, entradas, saidas, subst=(), regex=()):
+    """Embrulha linhas do `main` original (1-based, fechadas) numa função de `entradas` a `saidas`. `subst` troca texto
+    exato; `regex` troca por expressão regular `(padrão, substituto, mínimo de trocas)`."""
     corpo = []
     for a, b in intervalos:
         corpo.extend(linhas[a - 1:b])
@@ -522,6 +523,9 @@ def fatiar(linhas, intervalos, entradas, saidas, subst=()):
     for velho, novo in subst:
         assert velho in texto, velho
         texto = texto.replace(velho, novo)
+    for padrao, novo, minimo in regex:
+        texto, n = re.subn(padrao, novo, texto)
+        assert n >= minimo, padrao
     codigo = ("def _f(%s):\n" % ", ".join(entradas) + textwrap.indent(texto, "    ")
               + "\n    return (%s,)\n" % ", ".join(saidas))
     ns = {"sys": sys, "math": math, "norm": T.norm, "build_timeline": build_timeline}
@@ -735,8 +739,16 @@ def test_equivalencia_letterings_pilha_e_trava_de_layout(original):
     assert r["ok"] > 150 and r["exit:ancora"] > 50      # inclui a ancora que nao existe
 
 
+# W7.Z: a UNICA mudança deliberada na fronteira. O grupo que atravessa a borda e não tem PISO_FATIA em nenhum dos lados
+# ficava "como está" (atravessando a troca de layout, com a posição do outro layout sobre o rosto); agora sai da tela. O
+# resto do trecho é o original, caractere a caractere.
+SEM_LADO_QUE_CHEGUE_ORIGINAL = r"else:\n(\s+)_saida\.append\(_f\)\n"
+SEM_LADO_QUE_CHEGUE_W7Z = r"else:\n\1_cortados += 1\n"
+
+
 def test_equivalencia_fronteira_de_split_e_costura(original):
-    velho = fatiar(original, [(745, 915)], ["groups", "janelas_split"], ["groups"])
+    velho = fatiar(original, [(745, 915)], ["groups", "janelas_split"], ["groups"],
+                   regex=[(SEM_LADO_QUE_CHEGUE_ORIGINAL, SEM_LADO_QUE_CHEGUE_W7Z, 3)])
 
     def novo(groups, janelas_split):
         if janelas_split:

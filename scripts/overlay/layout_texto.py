@@ -187,8 +187,10 @@ def baixar_no_look_fechado(groups, avatar, medir=None, plano_do_look=None):
 
 
 def _aparar_no_lado_dominante(f, b):
-    """(grupo, cortou). Apara o grupo INTEIRO para o lado da fronteira `b` onde ele vive mais, parando
-    GUARDA_MOTOR antes da borda. Se nenhum lado chega ao piso, deixa como está.
+    """(grupo ou None, cortou). Apara o grupo INTEIRO para o lado da fronteira `b` onde ele vive mais, parando
+    GUARDA_MOTOR antes da borda. Se nenhum lado chega ao piso o grupo SAI da tela (devolve None): deixá-lo como estava
+    era atravessar a troca com a posição do outro layout (W7.Z: 0,25 s de um lado e 0,28 s do outro, a legenda de tela
+    cheia pousou no rosto do painel de baixo); a fatia que sobraria (menos de 0,30 s menos a guarda) não se lê.
 
     As duas posições machucam nesse caso (a costura cai no rosto do avatar cheio, a baixa cai no rosto
     do split), então a saída não é escolher: é a palavra ficar menos tempo na tela, inteira de um
@@ -202,7 +204,7 @@ def _aparar_no_lado_dominante(f, b):
         return {**f, "end": round(b - GUARDA_MOTOR, 3)}, True
     if _depois > _antes and _depois >= PISO_FATIA:
         return {**f, "start": round(b + GUARDA_MOTOR, 3)}, True
-    return f, False
+    return None, True
 
 
 def cortar_na_fronteira(groups, janelas_split):
@@ -235,7 +237,8 @@ def cortar_na_fronteira(groups, janelas_split):
                 # 0,12 s), mas também não pode deixar atravessar. Apara.
                 if not (_f["start"] + PONTA_MIN < _b < _f["end"] - PONTA_MIN):
                     peca, cortou = _aparar_no_lado_dominante(_f, _b)
-                    _saida.append(peca)
+                    if peca is not None:
+                        _saida.append(peca)
                     _cortados += cortou
                     continue
                 _ini = [w for w in _f["words"] if (w["start"] + w["end"]) / 2 < _b]
@@ -243,14 +246,16 @@ def cortar_na_fronteira(groups, janelas_split):
                 if not _ini or not _fim:
                     # não dá para cortar: uma palavra só, ou todas do mesmo lado
                     peca, cortou = _aparar_no_lado_dominante(_f, _b)
-                    _saida.append(peca)
+                    if peca is not None:
+                        _saida.append(peca)
                     _cortados += cortou
                     continue
                 _fim_ini = round(min(_ini[-1]["end"], _b - GUARDA_MOTOR), 3)
                 _ini_fim = round(max(_fim[0]["start"], _b + GUARDA_MOTOR), 3)
                 if (_fim_ini - _f["start"] < PISO_FATIA) or (_f["end"] - _ini_fim < PISO_FATIA):
                     peca, cortou = _aparar_no_lado_dominante(_f, _b)
-                    _saida.append(peca)
+                    if peca is not None:
+                        _saida.append(peca)
                     _cortados += cortou
                     continue
                 _saida.append({**_f, "words": _ini, "start": _f["start"], "end": _fim_ini})
