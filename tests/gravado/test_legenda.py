@@ -346,7 +346,7 @@ def test_queimar_de_verdade_com_a_inter_do_repo_escreve_texto_na_faixa_da_legend
     a, b = np.asarray(Image.open(antes).convert("L"), float), np.asarray(Image.open(quadro).convert("L"), float)
     assert a.shape == b.shape
     h = b.shape[0]
-    faixa = slice(int(h * 0.55), int(h * 0.75))                  # onde a legenda mora (y 1300 de 1920 é 68%)
+    faixa = slice(int(h * 0.80), int(h * 0.90))                  # onde a legenda mora (a caixa termina em y 1682 de 1920: 88%)
     assert np.abs(a[faixa] - b[faixa]).mean() > 1.0              # a legenda desenhou alguma coisa
     assert np.abs(a[: int(h * 0.3)] - b[: int(h * 0.3)]).mean() < 3.0     # e só ali
 

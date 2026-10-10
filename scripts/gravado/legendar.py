@@ -6,8 +6,13 @@ dentro deste arquivo; ele virou o glossário do projeto. Legenda errada é pior 
 nenhuma: o espectador lê e ouve ao mesmo tempo, e o ASR chegou a inserir um "não" que INVERTIA o
 sentido. Por isso o texto nunca é inventado aqui: só se quebra em linhas, nunca se reescreve.
 
+Padrão visual (dono, 10/10/2026, "Sim pros 2"; o mesmo do motor de avatar): texto BRANCO com halo escuro delicado, sem caixa
+nem faixa e sem contorno duro, na BASE do quadro (a caixa termina em y 1682, o centro da linha perto de y 1650, dentro da
+zona segura y <= 1690), nunca sobre o peito nem as mãos. O estilo `Base` tem Outline 0 e Shadow 0; o halo é uma borda (`bord`)
+largo, translúcido e muito borrado (`HALO`, o de 23/09 da Claudia: "mais delicada e mais abaixo"), posto em cada evento.
+
 Regras de linha (medidas no material de origem):
-  - no máximo MAX_CHARS caracteres e MAX_PALAVRAS palavras por linha;
+  - no máximo MAX_CHARS caracteres e MAX_PALAVRAS palavras por linha (3 a 4 palavras: o dono reprova palavra solta);
   - quebra em pausa maior que QUEBRA_PAUSA_S e depois de fim de frase (. ! ?);
   - a linha fica na tela ATÉ a próxima entrar (teto de SEGURA_MAX_S de sobra), senão a tela fica
     sem texto na pausa entre frases e o gate de legenda reprova; a última segura CAUDA_S;
@@ -56,9 +61,14 @@ from projeto import glossario as _glossario  # noqa: E402
 from projeto import status as _status  # noqa: E402
 
 LARGURA, ALTURA = 1080, 1920
-Y_LEGENDA = 1300               # baseline da legenda, acima da faixa de UI do Reels
-MAX_CHARS = 30
-MAX_PALAVRAS = 5
+Y_LEGENDA = 1682               # fim da caixa da legenda: a base do quadro, 8 px de folga para o halo antes de y 1690 (UI do Reels)
+CORPO = 56                     # corpo da legenda (o do motor de avatar): 24 letras cabem em x 140 a 940 numa linha só
+MARGEM_LATERAL = 140           # x 140 a 940: a coluna de curtir e comentar começa em 940
+MAX_CHARS = 24
+MAX_PALAVRAS = 4
+# O halo: borda larga (9), muito borrada (13) e translúcida (alfa 0x60 de 0xFF = 62% de transparência), preta. É halo, não
+# contorno: o blur é maior que a borda e o alfa deixa o fundo passar. O estilo `Base` segue com Outline 0.
+HALO = r"{\bord9\blur13\3c&H000000&\3a&H60&}"
 QUEBRA_PAUSA_S = 0.45
 SEGURA_MAX_S = 1.6
 CAUDA_S = 0.5
@@ -85,10 +95,10 @@ def cabecalho():
         "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, "
         "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Base,%s,66,&H00FFFFFF,&H00000000,&H78000000,1,0,0,0,100,100,0.6,0,1,0,3,2,70,70,%d,1\n\n"
+        "Style: Base,%s,%d,&H00FFFFFF,&H00000000,&H00000000,1,0,0,0,100,100,0.4,0,1,0,0,2,%d,%d,%d,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
-        % (LARGURA, ALTURA, FONTE, ALTURA - Y_LEGENDA))
+        % (LARGURA, ALTURA, FONTE, CORPO, MARGEM_LATERAL, MARGEM_LATERAL, ALTURA - Y_LEGENDA))
 
 
 def tempo(t):
@@ -169,7 +179,7 @@ def eventos(ls, destacar=frozenset()):
 def ass_texto(palavras, destacar=frozenset(), omitir=()):
     """(texto do arquivo ASS, linhas)."""
     ls = linhas(omitir_palavras(palavras, omitir))
-    dialogos = ["Dialogue: 0,%s,%s,Base,,0,0,0,,%s" % (tempo(a), tempo(b), txt)
+    dialogos = ["Dialogue: 0,%s,%s,Base,,0,0,0,,%s%s" % (tempo(a), tempo(b), HALO, txt)
                 for a, b, txt in eventos(ls, destacar)]
     return cabecalho() + "\n".join(dialogos) + "\n", ls
 

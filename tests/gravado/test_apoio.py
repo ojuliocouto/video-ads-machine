@@ -245,17 +245,17 @@ def test_tempo_ass_em_centesimos_e_sem_estourar_60_segundos():
 def test_cabecalho_tem_a_resolucao_a_fonte_e_a_margem_da_legenda():
     cab = legendar.cabecalho()
     assert "PlayResX: 1080" in cab and "PlayResY: 1920" in cab
-    assert "Style: Base,Inter,66," in cab
-    assert ",%d,1\n" % (1920 - legendar.Y_LEGENDA) in cab
+    assert "Style: Base,Inter,56," in cab
+    assert ",2,140,140,%d,1\n" % (1920 - legendar.Y_LEGENDA) in cab           # base do quadro, recuo de 140 px dos dois lados
 
 
 def test_linhas_quebram_por_caracteres_palavras_pausa_e_fim_de_frase():
     ps = [w("um", 0.0, 0.2), w("dois", 0.2, 0.4), w("tres", 0.4, 0.6), w("quatro", 0.6, 0.8),
           w("cinco", 0.8, 1.0), w("seis", 1.0, 1.2)]
     ls = legendar.linhas(ps)
-    assert [len(x) for x in ls] == [5, 1]                                   # no máximo 5 palavras
+    assert [len(x) for x in ls] == [4, 2]                                   # no máximo 4 palavras (3 a 4: padrão de 10/10/2026)
     longas = [w("abcdefghij", 0, 0.2), w("abcdefghij", 0.2, 0.4), w("abcdefghij", 0.4, 0.6)]
-    assert [len(x) for x in legendar.linhas(longas)] == [2, 1]               # 21 + 10 > 30 caracteres
+    assert [len(x) for x in legendar.linhas(longas)] == [2, 1]               # 21 + 10 > 24 caracteres
     pausa = [w("antes", 0.0, 0.3), w("depois", 1.0, 1.3)]
     assert len(legendar.linhas(pausa)) == 2                                  # pausa de 0,7 s > 0,45 s
     fim = [w("acabou.", 0.0, 0.3), w("recomeça", 0.31, 0.6)]
@@ -289,14 +289,14 @@ def test_destaque_vale_para_numero_preco_e_termo_do_glossario_nao_para_o_resto()
 
 
 def test_ass_com_destaque_tem_a_tag_de_cor_e_o_texto_continua_o_mesmo(tmp_path):
-    ps = [w("abra", 0.0, 0.2), w("a", 0.2, 0.3), w("Fluxa", 0.3, 0.6), w("por", 0.6, 0.8), w("100", 0.8, 1.0)]
+    ps = [w("abra", 0.0, 0.2), w("a", 0.2, 0.3), w("Fluxa", 0.3, 0.6), w("100", 0.6, 1.0)]
     destacar = legendar.destaques_do_glossario({"versao": 1, "termos": [{"grafia": "Fluxa", "tipo": "marca"}]})
     texto, _ = legendar.ass_texto(ps, destacar=destacar)
     linhas = [l for l in texto.splitlines() if l.startswith("Dialogue")]
     assert len(linhas) == 1
     assert r"{\c&H4E7DE8&}Fluxa{\c&HFFFFFF&}" in linhas[0] and r"{\c&H4E7DE8&}100{\c&HFFFFFF&}" in linhas[0]
     sem_tag = legendar.sem_tags(linhas[0].split(",", 9)[9])
-    assert sem_tag == "abra a Fluxa por 100"
+    assert sem_tag == "abra a Fluxa 100"
 
 
 def test_omitir_tira_so_as_palavras_pedidas_da_legenda():

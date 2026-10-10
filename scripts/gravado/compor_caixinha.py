@@ -13,7 +13,7 @@ Sem arte pronta do diretor, a caixa nasce do TEXTO: `gerar_png` pede a `caixa_le
 canto reto que imita o widget de texto nativo do Instagram (PT Serif do REPO, três colorways, nunca um
 quarto), no topo do quadro (abaixo da faixa de UI do Reels), e `compor_texto` a põe sobre a peça. O texto da
 caixa é exatamente o que o apresentador lê; a caixa não leva legenda por baixo dela porque a legenda mora
-mais abaixo (y 1300).
+na base do quadro (a caixa termina em y 1682).
 
     python3 scripts/gravado/compor_caixinha.py PECA caixinha.png [--sombra] [--x 40] [--y 210]
                                                [--topo 200] [--teto-y 557] [--projeto DIR]
