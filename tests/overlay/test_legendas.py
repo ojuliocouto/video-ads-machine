@@ -7,7 +7,7 @@ Defeitos do `gen_ad_v2.py` original reproduzidos aqui:
   - o eco (a mesma frase na legenda e no lettering) é descartado por inteiro, inclusive o grupo
     que só ENCOSTA no lettering ("o pulo do" fechava 0,05 s antes de "o pulo do gato");
   - legenda e lettering não dividem a tela: folga de 0,35 s de cada lado, e sobra de legenda
-    com menos de 0,60 s não entra (um piscar de duas palavras é ruído);
+    com menos de 0,50 s não entra (um piscar de duas palavras é ruído);
   - o eco parcial foi REVERTIDO (31/08/2026): cortar só as palavras repetidas deixava a frase muda.
 """
 from pathlib import Path
@@ -36,7 +36,7 @@ def lett(lead, key, start, dur, linhas=None):
 
 
 def test_constantes():
-    assert (G.FOLGA_LETT, G.PECA_MIN, G.LETT_LOOKBACK, G.MAX_PALAVRAS, G.MAX_CHARS) == (0.35, 0.60, 2.6, 4, 24)
+    assert (G.FOLGA_LETT, G.PECA_MIN, G.LETT_LOOKBACK, G.MAX_PALAVRAS, G.MAX_CHARS) == (0.35, 0.50, 2.6, 4, 24)
 
 
 # --- agrupar ---------------------------------------------------------------------------------
@@ -188,7 +188,7 @@ def test_grupo_curto_dentro_da_folga_do_lettering_some():
     assert G.aparar_nos_letterings([grupo(pal("a", 10.1, 10.8))], ls, [(10.0, 11.0)]) == []
 
 
-def test_pedaco_de_legenda_com_menos_de_0_60s_nao_entra():
+def test_pedaco_de_legenda_com_menos_de_0_50s_nao_entra():
     # um piscar de duas palavras entre dois letterings e ruido, nao informacao
     ls = [lett("x", "Y", 10.0, 1.0)]
     assert G.aparar_nos_letterings([texto_longo(9.2, 10.4, 0.3)], ls, [(10.0, 11.0)]) == []
@@ -233,13 +233,13 @@ def test_html_sem_grupos_e_um_wrapper_vazio():
                           'data-track-index="30"></div>')
 
 
-def test_pedaco_de_0_55s_tambem_nao_entra_e_o_de_0_65s_entra():
+def test_pedaco_de_0_45s_nao_entra_e_o_de_0_55s_entra():
     ls = [lett("x", "Y", 10.0, 1.0)]
-    # a sobra antes do lettering vai de 9,1 a 9,65: 0,55 s, abaixo do piso de 0,60 s
-    assert G.aparar_nos_letterings([texto_longo(9.1, 10.3, 0.3)], ls, [(10.0, 11.0)]) == []
-    # de 9,0 a 9,65 sobram 0,65 s: entra
-    saida = G.aparar_nos_letterings([texto_longo(9.0, 10.3, 0.3)], ls, [(10.0, 11.0)])
-    assert len(saida) == 1 and (saida[0]["start"], saida[0]["end"]) == (9.0, 9.65)
+    # a sobra antes do lettering vai de 9,2 a 9,65: 0,45 s, abaixo do piso de 0,50 s
+    assert G.aparar_nos_letterings([texto_longo(9.2, 10.3, 0.3)], ls, [(10.0, 11.0)]) == []
+    # de 9,1 a 9,65 sobram 0,55 s: entra (era o piso de 0,60 s que deixava 3 palavras faladas sem texto depois do lettering)
+    saida = G.aparar_nos_letterings([texto_longo(9.1, 10.3, 0.3)], ls, [(10.0, 11.0)])
+    assert len(saida) == 1 and (saida[0]["start"], saida[0]["end"]) == (9.1, 9.65)
 
 
 def test_janela_retroativa_do_eco_e_de_2_6s():

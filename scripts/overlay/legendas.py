@@ -28,8 +28,9 @@ MAX_PALAVRAS = 4        # palavras por grupo de legenda (3 a 4: o dono reprova p
 MAX_CHARS = 24          # letras (sem espaço) por grupo: a linha de 56 px cabe em x 140 a 940 e não quebra em duas
 FOLGA_LETT = 0.35       # a folga de 0,05 s era menor que a animação do lettering: a legenda ainda
                         # estava na tela quando o lettering subia
-PECA_MIN = 0.60         # sobra de legenda com menos que isso não entra: um piscar de duas palavras
-                        # entre dois letterings é ruído, não informação
+PECA_MIN = 0.50         # sobra de legenda com menos que isso não entra: um piscar de duas palavras
+                        # entre dois letterings é ruído, não informação. Era 0,60; os grupos de até 4 palavras (10/10/2026)
+                        # deixaram uma sobra de 0,57 s ("qual é o", 3 palavras faladas) sem texto depois do lettering
 LETT_LOOKBACK = 2.6     # janela retroativa do eco: o grupo logo ANTES do lettering
 PISO_GRUPO = 0.20       # legenda com menos que isso na tela não é lida: é um piscar
 FOLGA_ECO_ADIADO = 0.40 # lettering ADIADO (não coube antes da troca de layout): só é eco o grupo que encosta nele

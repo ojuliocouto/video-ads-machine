@@ -25,14 +25,20 @@
       #caps .cw .base, #caps .cw .fill { display:block; }
       #caps .cw .fill { position:absolute; left:0; top:0; white-space:pre;
         clip-path:inset(0 100% 0 0); }
-      /* HALO NORMAL: quatro camadas de sombra difusa, todas centradas na letra (sem deslocamento horizontal e com 2 px
-         de queda só na última), do mais perto e mais forte ao mais longe e mais fraco: a letra ganha um chão escuro
-         suave, não uma borda. O raio mínimo é de 4 px. MEDIDO no contraste_texto.py com este CSS renderizado: 16:1 sobre
-         fundo 22, 5,0:1 sobre 110, e cruza 4,5:1 perto de 118 (overlay.fundo_claro.LIMIAR_HALO_FORTE). */
-      #caps .cw .base { text-shadow:0 0 4px rgba(0,0,0,.70), 0 0 10px rgba(0,0,0,.60), 0 0 22px rgba(0,0,0,.50), 0 2px 30px rgba(0,0,0,.40); }
-      /* HALO FORTE (fundo claro na base, acima de 118 de cinza): o MESMO halo com muito mais camadas e opacidade cheia, sem
-         caixa e sem borda dura (o raio de 8 px dissolve a borda). MEDIDO: 4,3:1 sobre 116, 4,9:1 sobre 125 e 17:1 sobre
-         245 no contraste_texto.py; a tinta (alfa >= 190) desce 17 px abaixo da letra: com a caixa em y 1682 fica dentro da zona segura (y 1690). */
+      /* HALO NORMAL: uma nuvem escura e suave, oito camadas da MESMA sombra larga (raio de 40 px, 30% de preto, sem
+         deslocamento nenhum): sem borda, sem contorno, só um chão escuro difuso em volta da frase. A conta é do gate de
+         contraste (contraste_texto.py), que exclui da vizinhança da letra tudo que tem 39% de preto ou mais: o halo foi
+         calibrado para a vizinhança (4 a 12 px) ficar perto desse teto sem passar dele. MEDIDO com este CSS renderizado,
+         na camada APAGADA do karaokê (a pior: 0,65 de luminância): 12:1 sobre fundo 22, 5,6:1 sobre 100, 4,7:1 sobre 115
+         e 4,5:1 em 118. Com 10 camadas ou mais a nuvem passa de 39% e o gate passa a ler a própria sombra como letra
+         (1,1:1 em qualquer fundo); com 9 ainda lê, daí as 8. NÃO acrescentar camada sem refazer a medida. */
+      #caps .cw .base { text-shadow:0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3),
+        0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3), 0 0 40px rgba(0,0,0,.3); }
+      /* HALO FORTE (fundo claro na base, acima de 118 de cinza no p90 da faixa): muito mais camadas e opacidade cheia,
+         sem caixa e sem borda dura (o raio de 8 px dissolve a borda). Aqui o gate lê a mancha escura contra o fundo:
+         4,5:1 em 118 a 120, 5,2:1 sobre 130 e 17:1 sobre 245. É por isso que o halo normal não serve acima de 118 e
+         este não serve abaixo (sobre fundo escuro a mancha some no fundo: 1,1:1). A tinta (alfa >= 190) desce ~7 px
+         abaixo da letra: com a caixa em y 1682 fica dentro da zona segura (y 1690). */
       #caps .cgrp-halo .cw .base { text-shadow:0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
         0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,
         0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000, 0 0 8px #000,

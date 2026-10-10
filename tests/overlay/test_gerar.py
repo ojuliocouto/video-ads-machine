@@ -749,8 +749,13 @@ def test_equivalencia_letterings_pilha_e_trava_de_layout(original):
 # test_legendas.py (fechar_grupos), test_layout_texto.py e test_legenda_halo_na_base.py.
 
 
+# 10/10/2026: a UNICA mudança deliberada no aparo é o piso da sobra de legenda, de 0,60 s para 0,50 s: com grupos de até 4
+# palavras uma sobra de 0,57 s (3 palavras faladas depois do lettering) ficava sem texto. O resto é o original.
+PECA_MIN_ORIGINAL = ("FOLGA_LETT, PECA_MIN = 0.35, 0.60", "FOLGA_LETT, PECA_MIN = 0.35, 0.50")
+
+
 def test_equivalencia_eco_e_aparo_nos_letterings(original):
-    velho = fatiar(original, [(975, 1032)], ["groups", "letts", "lett_windows"], ["groups"])
+    velho = fatiar(original, [(975, 1032)], ["groups", "letts", "lett_windows"], ["groups"], subst=[PECA_MIN_ORIGINAL])
     novo = lambda groups, letts, lett_windows: (LG.aparar_nos_letterings(groups, letts, lett_windows),)   # noqa: E731
 
     def gerar(rnd):

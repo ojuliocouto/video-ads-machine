@@ -29,13 +29,15 @@ _CACHE_FUNDO = {}
 
 # --- 10/10/2026: o halo pelo fundo LOCAL, medido no render real (o gate de contraste é a régua) ------------------------
 # Medido com a legenda do repo renderizada em RGBA e passada pelo `contraste_texto.medir_quadro` sobre fundos lisos de
-# 22 a 245 de cinza: o halo NORMAL (4 camadas de sombra difusa, `legenda.css`) lê 16:1 sobre 22, 5,0:1 sobre 110 e cruza 4,5:1
-# perto de 118; acima disso o gate lê a letra contra o fundo claro que o halo não alcança e reprova. O halo FORTE (36 camadas
-# de sombra de 8 px, `.cgrp-halo`) passa a ler a mancha escura contra o fundo: 4,3:1 sobre 116, 4,9:1 sobre 125, 17:1 sobre
-# 245, e cruza 4,5:1 também perto de 118. Os dois se encontram em LIMIAR_HALO_FORTE: abaixo dele o halo normal, acima o forte.
-# A conta antiga (as duas camadas do karaokê contra o p90 do fundo, WCAG) valia para a tinta invertida e a placa, que
-# morreram; esta é a do gate e tem o número medido.
-LIMIAR_HALO_FORTE = 118       # cinza (0 a 255) do fundo crítico da faixa da legenda: acima disso, `cgrp-halo`
+# 22 a 245 de cinza, na camada APAGADA do karaokê (a pior, 0,65 de luminância): o halo NORMAL (`legenda.css`, nuvem de 8
+# camadas) lê 12:1 sobre 22, 5,6:1 sobre 100 e cruza 4,5:1 em 118; acima disso o gate lê a letra contra o fundo claro que
+# o halo não alcança (o gate exclui da vizinhança da letra tudo com 39% de preto ou mais) e reprova. O halo FORTE (36
+# camadas de sombra de 8 px, `.cgrp-halo`) passa a ler a mancha escura contra o fundo: 4,6:1 em 120, 5,2:1 sobre 130 e 17:1
+# sobre 245, e abaixo de 118 ele reprova (a mancha some no fundo escuro: 1,1:1 sobre 22). Os dois se encontram em
+# LIMIAR_HALO_FORTE: abaixo dele o halo normal, acima o forte. O 1º remontar com o p99 da faixa errou por isso: raros pontos
+# claros (a mão, a lâmpada) elevavam o p99 a 150 num fundo que o gate lê a 0,05 e o halo forte reprovava em 96 amostras; o
+# gate mede o p90 da vizinhança da letra, então a decisão usa o p90 da faixa (`QUANTIS_LEGENDA`).
+LIMIAR_HALO_FORTE = 118       # cinza (0 a 255) do p90 da faixa da legenda: acima disso, `cgrp-halo`
 META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel), para a cor do destaque
 APAGADA_CLARA_ALFA = 0.88                   # legenda.css: rgba(245,239,230,.88) (era .70 e .80: 3,6:1 e 3,97:1, W7.Z)
 CAIXA_X = (140, 940)                        # a largura útil da legenda (o recuo do .cgrp)
@@ -43,12 +45,11 @@ FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render d
 CAIXA_X_HOOK = (160, 920)
 LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
 
-# --- W7.W (A4): o fundo crítico da LEGENDA é o 1% mais crítico da faixa, não o p10/p90 -------------------------------
-# Sobre a interface branca do Claude, as linhas "Web" da tabela passavam atrás das letras e a legenda saiu com tinta escura
-# SEM proteção (8,6 s da prova): o p10 da faixa era 201 (papel) e as linhas, ~1% dos pixels, só aparecem no p01 (135 a 154;
-# mínimo 50). Um fundo que tem estrutura clara em 1% da faixa já cruza as letras brancas: halo forte.
-# O gancho NÃO usa isto: a regra dele é o p90 contra LIMIAR_HOOK_P90.
-QUANTIS_LEGENDA = (0.01, 0.99)
+# --- o fundo crítico da LEGENDA é o p90 da faixa (era o p01/p99 da W7.W, para a tinta escura da inversão) -----------------
+# O gate de contraste lê o p90 do fundo na vizinhança da letra. O p99 da W7.W existia para a letra ESCURA sobre papel com
+# linhas finas; com letra branca e halo ele superestima o fundo (raros pontos claros), e o halo forte sobre fundo escuro lê
+# 1,1:1. O p10 não entra mais na decisão do halo (só na cor do destaque).
+QUANTIS_LEGENDA = (0.10, 0.90)
 
 
 # --- W7.Z: a cor do DESTAQUE (palavra de ênfase) também se decide pelo fundo local ---------------------------------------
@@ -109,7 +110,7 @@ def decidir_enfase(tinta, p10, p90):
 
 def decidir_tinta(p10, p90, kw=False):
     """"clara" (halo normal) ou "halo" (halo forte) para o fundo de percentis (p10, p90), em cinza 0 a 255: o forte
-    quando o fundo crítico (`p90`, na prática o p99 da faixa) passa de LIMIAR_HALO_FORTE. Com `kw` (o grupo tem
+    quando o fundo crítico (`p90` da faixa) passa de LIMIAR_HALO_FORTE. Com `kw` (o grupo tem
     palavra de ênfase) o resultado é uma `Tinta` que leva a cor do destaque em `.enfase` (W7.Z)."""
     tinta = "halo" if p90 > LIMIAR_HALO_FORTE else "clara"
     if not kw:

@@ -1,11 +1,11 @@
-"""W7.W (A4), refeito em 10/10/2026: a decisão do halo da legenda enxerga a textura CLARA esparsa atrás das letras.
+"""W7.W (A4), refeito em 10/10/2026: a decisão do halo da legenda usa o p90 da faixa (o que o gate de contraste lê).
 
 O defeito original (anúncio da prova, 8,6 s): a legenda ficou sem proteção sobre a interface branca do Claude, mas as linhas
-"Web" da tabela passavam atrás das letras. O fundo crítico era o p10/p90 da faixa e a estrutura que cruza a letra era só
-~1% dos pixels: o percentil largo não a via. O fundo crítico da LEGENDA é o 1% mais crítico da faixa (p01 e p99); o do
-gancho continua sendo o p90 (a regra dele é outra e mede a placa do gancho). Hoje a legenda é BRANCA com halo escuro: o que
-a apaga é fundo CLARO atrás das letras, e o halo forte (`cgrp-halo`) entra quando o p99 da faixa passa de
-`LIMIAR_HALO_FORTE`.
+"Web" da tabela passavam atrás das letras: a decisão precisava enxergar estrutura esparsa (era o p01/p99, para a letra
+escura). Hoje a letra é BRANCA com halo escuro e o gate lê o p90 do fundo na vizinhança dela: o halo forte (`cgrp-halo`)
+entra quando o p90 da faixa passa de `LIMIAR_HALO_FORTE`. Raros pontos claros (1 a 5% da faixa: a mão, a lâmpada) NÃO pedem
+o halo forte: o 1º remontar da prova com o p99 achou 150 de cinza num fundo que o gate lia a 0,05 e o halo forte reprovou em
+96 amostras (o gancho tem outra regra: p90 contra LIMIAR_HOOK_P90).
 """
 import subprocess
 
@@ -33,18 +33,19 @@ def test_fundo_branco_liso_pede_o_halo_forte(tmp_path):
     assert FC.decisao_do_quadro(v, "base")["legenda"] == "halo"
 
 
-def test_linhas_claras_atras_da_legenda_em_fundo_escuro_pedem_o_halo_forte(tmp_path):
-    """Duas tarjas de 4 px claras (190) na faixa de 128 px: ~6% da área, bem acima do 1%. O p99 é 190: a letra branca
-    some nelas, e o halo normal (16:1 sobre fundo escuro liso) não as cobre."""
-    v = video_9x16(tmp_path / "linhas.mp4", 20, marcas=[(1580, 4, 190), (1630, 4, 190)])
+def test_uma_faixa_clara_larga_atras_da_legenda_em_fundo_escuro_pede_o_halo_forte(tmp_path):
+    """Metade da faixa de 128 px clara (190): o p90 é 190, a letra branca some nela e o halo normal não a cobre."""
+    v = video_9x16(tmp_path / "faixa.mp4", 20, marcas=[(1554, 64, 190)])
     assert FC.tinta_footage(v, 0.2, 0.8, "base") == "halo"
     assert FC.decisao_do_quadro(v, "base")["legenda"] == "halo"
 
 
-def test_um_risco_de_menos_de_1_por_cento_nao_pede_o_halo_forte(tmp_path):
-    """Uma tarja de 1 px: 0,8% da área. Ruído de compressão e fio de UI não mudam o halo de um trecho inteiro."""
-    v = video_9x16(tmp_path / "risco.mp4", 20, marcas=[(1600, 1, 190)])
+def test_linhas_claras_finas_de_ate_5_por_cento_nao_pedem_o_halo_forte(tmp_path):
+    """Duas tarjas de 4 px (6% da faixa) e um risco de 1 px: o p99 da W7.W as via e pedia o halo forte, que sobre fundo
+    escuro lê 1,1:1 no gate. O p90 não as vê, e o gate também não."""
+    v = video_9x16(tmp_path / "linhas.mp4", 20, marcas=[(1580, 4, 190), (1630, 4, 190), (1600, 1, 190)])
     assert FC.tinta_footage(v, 0.2, 0.8, "base") == "clara"
+    assert FC.decisao_do_quadro(v, "base")["legenda"] == "clara"
 
 
 def test_fundo_escuro_liso_fica_no_halo_normal(tmp_path):
@@ -53,7 +54,7 @@ def test_fundo_escuro_liso_fica_no_halo_normal(tmp_path):
     assert FC.decisao_do_quadro(v, "base")["legenda"] == "clara"
 
 
-def test_p01_e_p99_so_valem_para_a_legenda_o_gancho_segue_no_p90(tmp_path, monkeypatch):
+def test_p10_e_p90_so_valem_para_a_legenda_o_gancho_segue_no_p90_proprio(tmp_path, monkeypatch):
     chamadas = []
     real = FC._percentis_banda
 

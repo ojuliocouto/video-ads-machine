@@ -2,11 +2,11 @@
 
 O invariante do gate (gates/contraste_texto) vale para as duas camadas da legenda (a acesa e a apagada do karaokê) e
 para o gancho. A legenda é BRANCA com halo escuro, sem caixa (dono, "Sim pros 2"). O motor decide, por grupo de legenda
-e no instante dele, medindo a footage na caixa do texto (o 1% mais claro, p99):
+e no instante dele, medindo a footage na caixa do texto (o p90, o que o gate lê):
 
-  - halo NORMAL (`clara`) quando o fundo crítico é de até `LIMIAR_HALO_FORTE` (118 de cinza): medido no render real,
-    o gate lê 16:1 sobre 22 e 5,0:1 sobre 110;
-  - halo FORTE (`halo`, a classe `cgrp-halo`) acima disso: medido, 4,9:1 sobre 125 e 17:1 sobre 245. Nunca caixa,
+  - halo NORMAL (`clara`) quando o fundo crítico é de até `LIMIAR_HALO_FORTE` (118 de cinza): medido no render real
+    na camada apagada do karaokê, o gate lê 12:1 sobre 22, 5,6:1 sobre 100 e 4,5:1 em 118;
+  - halo FORTE (`halo`, a classe `cgrp-halo`) acima disso: medido, 4,6:1 em 120, 5,2:1 sobre 130 e 17:1 sobre 245. Nunca caixa,
     faixa, placa, nem tinta invertida (escura sobre fundo claro: contradiz "texto branco com halo");
   - a cor do destaque (a palavra de ênfase) cai para o amarelo e, se nem ele lê, sai BRANCA (`cgrp-kwbranco`).
 
