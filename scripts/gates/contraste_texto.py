@@ -302,7 +302,10 @@ def medir_quadro(ov, quadro, piso=PISO):
         if dentro.max() < ESPESSURA_MIN / 2.0:
             continue
         fora = ndi.distance_transform_edt(~preench)
-        anel = (fora > d0) & (fora <= d1) & ~todos[y0:y1, x0:x1]
+        # LETRA, GRANDE OU PEQUENA, NUNCA É FUNDO (W7.Z): o pingo do "?" e os acentos são componentes de menos de AREA_MIN, não
+        # viram pedaço e ficavam fora de `todos`; o anel da letra vizinha os contava como fundo (0,85) e o percentil 90 do anel
+        # subia de 0,014 para 0,19 (18,0 s da prova: 2,97:1 numa legenda que lê a 12:1). A máscara de texto inteira sai do anel.
+        anel = (fora > d0) & (fora <= d1) & ~todos[y0:y1, x0:x1] & ~masc[y0:y1, x0:x1]
         lum_c = lum[y0:y1, x0:x1]
         pior = None
         for ty in range(0, y1 - y0, LADRILHO_PX):

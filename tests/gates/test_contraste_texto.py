@@ -125,3 +125,30 @@ class TestRelogio:
 def test_amostragem_densa():
     """Pelo menos 4 amostras por segundo na janela em que o texto existe (o gate antigo usava 2)."""
     assert C.PASSO_S <= 0.25
+
+
+class TestPartesPequenasDeLetraNaoSaoFundo:
+    """W7.Z (18,0 e 18,2 s da prova): o pingo do "?" e os acentos são componentes de menos de AREA_MIN (150 px): não viram
+    pedaço de texto e ficavam FORA do preenchimento, então o anel de 4 a 12 px da letra vizinha os contava como FUNDO (luminância
+    0,85) e o percentil 90 do anel subia de 0,014 para 0,19: a camada apagada lia 2,97:1 numa legenda que lê a 12:1. Letra, grande
+    ou pequena, nunca é fundo."""
+
+    def _quadro(self, com_pingos):
+        ov = T.retangulo(T.vazio(ALT, LARG), 120, 110, 960, 250, (8, 9, 14), 0.88, raio=16)
+        ov = legenda(ov, "verdade", alfa=0.88, y=180, contorno=0)
+        if com_pingos:
+            for k in range(10):                      # 20 pingos de 10x10 px (menos que AREA_MIN), a 5 a 15 px do texto
+                x = 390 + 30 * k
+                for y0 in (136, 214):                # acima do topo (151) e abaixo da base (209)
+                    ov[y0:y0 + 10, x:x + 10, :3] = (245, 239, 230)
+                    ov[y0:y0 + 10, x:x + 10, 3] = 255
+        return ov
+
+    def test_sem_pingos_a_camada_apagada_le(self):
+        r = medir(self._quadro(False), T.fundo(ALT, LARG, 200))
+        assert r and all(p["ok"] for p in r), r
+
+    def test_pingos_de_letra_acima_nao_derrubam_a_leitura_da_letra_vizinha(self):
+        r = medir(self._quadro(True), T.fundo(ALT, LARG, 200))
+        grandes = [p for p in r if p["area"] >= 150]
+        assert grandes and all(p["ok"] for p in grandes), grandes
