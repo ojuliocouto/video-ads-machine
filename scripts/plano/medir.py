@@ -367,7 +367,10 @@ def cortes_previstos(segmentos, blocos):
             continue
         if a["tipo"] == "insert" and b["tipo"] == "insert" and ba is bb:
             continue
-        if a["tipo"] == "insert" and b["tipo"] != "insert" and (ba or {}).get("layout") == "split":
+        if a["tipo"] == "insert" and b["tipo"] != "insert" and (ba or {}).get("layout") == "split" \
+                and (a.get("layout") or "split") == "split":
+            # saída de uma visita em SPLIT (o layout é o da visita: o ritmo alterna split e cheio dentro de um bloco split;
+            # em bloco cheio escrito o motor ignora o `split` do ritmo e a saída é corte)
             continue
         cortes.append(round(b["s"], 3))
     return cortes

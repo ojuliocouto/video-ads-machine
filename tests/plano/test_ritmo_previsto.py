@@ -42,3 +42,37 @@ def test_salto_de_escala_entre_apresentadores_nao_e_corte():
 def test_previsao_do_plano_fica_a_ate_15_por_cento_do_render():
     r = M._ritmo_entregue(SEGS, 17.68 - A0, ACEL, BLOCOS)
     assert abs(r["cortes_min"] - MEDIDO_NO_RENDER) / MEDIDO_NO_RENDER <= 0.15, r
+
+
+# --- W7.Z: o layout é o do SEGMENTO, não só o do bloco --------------------------------------------------------------
+# Com o split por padrão, todo insert horizontal é bloco `split`, mas o ritmo alterna as visitas entre split e cheio. A
+# visita em tela cheia que volta ao apresentador É corte (o apresentador não estava na tela); a em split não é. Contar pelo
+# bloco inteiro derrubou a previsão de 19,5 para 11,1 cortes/min e acendeu uma pendência de ritmo que o render não tem.
+
+def _insert_alternado(layout_do_bloco, layout_da_visita):
+    blocos = [{"i": 0, "tipo": "insert", "layout": layout_do_bloco, "s": 0.0, "e": 4.0},
+              {"i": 1, "tipo": "apresentador", "s": 4.0, "e": 6.0}]
+    segs = [{"tipo": "insert", "s": 0.0, "e": 4.0, "layout": layout_da_visita, "bloco": 0},
+            {"tipo": "orig", "s": 4.0, "e": 6.0, "bloco": 1}]
+    return segs, blocos
+
+
+def test_visita_em_tela_cheia_de_um_bloco_split_conta_como_corte_ao_voltar_ao_apresentador():
+    segs, blocos = _insert_alternado("split", "cheio")
+    assert M.cortes_previstos(segs, blocos) == [4.0]
+
+
+def test_visita_em_split_de_um_bloco_split_nao_conta():
+    segs, blocos = _insert_alternado("split", "split")
+    assert M.cortes_previstos(segs, blocos) == []
+
+
+def test_bloco_cheio_escrito_conta_mesmo_que_o_ritmo_marque_split_na_visita():
+    segs, blocos = _insert_alternado("cheio", "split")
+    assert M.cortes_previstos(segs, blocos) == [4.0]
+
+
+def test_visita_sem_layout_vale_o_do_bloco():
+    segs, blocos = _insert_alternado("split", None)
+    segs[0].pop("layout")
+    assert M.cortes_previstos(segs, blocos) == []
