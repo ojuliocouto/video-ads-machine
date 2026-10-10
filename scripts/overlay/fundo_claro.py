@@ -107,15 +107,26 @@ def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
         return None
 
 
+def _tinta_dos_percentis(percentis):
+    """A tinta ("clara", "invertida" ou "placa") para as medidas (p10, p90) de um ou mais instantes, pelo pior fundo
+    deles (o maior p90 e o menor p10). None sem medida. É a REGRA da tinta: o build (`tinta_footage`, no instante de
+    cada grupo) e a prancha (`decisao_do_quadro`, num quadro) passam por aqui."""
+    ps = [x for x in percentis if x is not None]
+    if not ps:
+        return None
+    return decidir_tinta(min(p[0] for p in ps), max(p[1] for p in ps))
+
+
+def _gancho_pede_placa(p90s):
+    """A REGRA da placa do gancho: o p90 do fundo atrás dele passa de LIMIAR_HOOK_P90 em algum instante medido."""
+    return bool(p90s) and max(p90s) > LIMIAR_HOOK_P90
+
+
 def tinta_footage(video, ini, fim, classe):
     """A tinta do grupo ("clara", "invertida" ou "placa") medida na footage, em 3 instantes dentro dele, com o pior
     fundo dos três (o maior p90 e o menor p10). None sem medida."""
     y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
-    ps = [x for x in (_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8))
-          if x is not None]
-    if not ps:
-        return None
-    return decidir_tinta(min(p[0] for p in ps), max(p[1] for p in ps))
+    return _tinta_dos_percentis(_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8))
 
 
 def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
@@ -130,7 +141,25 @@ def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
         p = _percentis_banda(video, fim * k / 5.0, faixa[0], faixa[1], CAIXA_X_HOOK[0], CAIXA_X_HOOK[1])
         if p is not None:
             p90s.append(p[1])
-    return bool(p90s) and max(p90s) > LIMIAR_HOOK_P90
+    return _gancho_pede_placa(p90s)
+
+
+def decisao_do_quadro(imagem, classe="padrao", formato="9x16"):
+    """A decisão do overlay para UM quadro de footage (um PNG ou um vídeo, lido no instante 0):
+    {"legenda": "clara" | "invertida" | "placa" | None, "gancho": "placa" | "fino"}.
+
+    É a função que a PRANCHA de direção chama para dizer o que o motor faz naquele fundo: a mesma regra de
+    `tinta_footage` (legenda) e `hook_pede_placa` (gancho), aplicadas a um quadro só. Uma regra, dois chamadores:
+    a prancha nunca desenha legenda ou gancho por uma regra própria."""
+    y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
+    legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1)])
+    faixa = FAIXA_HOOK.get(formato)
+    p90s = []
+    if faixa:
+        p = _percentis_banda(imagem, 0.0, faixa[0], faixa[1], CAIXA_X_HOOK[0], CAIXA_X_HOOK[1])
+        if p is not None:
+            p90s.append(p[1])
+    return {"legenda": legenda, "gancho": "placa" if _gancho_pede_placa(p90s) else "fino"}
 
 
 def _mediana_banda(video, t, y0, y1):

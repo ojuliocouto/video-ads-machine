@@ -27,7 +27,7 @@ Tabela montada a partir do topo de cada gate em `scripts/gates/`, `scripts/grava
 | `gate_fidelidade_roteiro` | antes | insert sem arquivo em `inserts/` (ou arquivo sobrando); KEY, lista, hook, bloco ou fala do roteiro que não chegou ao plano; lettering inventado; âncora ambígua | igualdade exata com o roteiro |
 | `gate_fidelidade_doc` | antes | só roda se o roteiro veio de Google Doc: comentário com N links que virou menos de N assets; âncora em mais de um bloco sem `nth`; pipoca com menos de 2 peças | N links = N assets |
 | `gate_fala_roteiro` | antes | a voz limpa não cobre o roteiro | mais de 2% das palavras faltando, ou 3 palavras seguidas sumidas |
-| `gate_entrada` | antes | respiro audível; ritmo achatado; fala comida pela higienização; avatar de outro áudio | energia acima de -34 dB em pausa de 0,62 s ou mais; voz de mais de 30 s com menos de 4 pausas acima de 0,60 s; trecho do bruto com menos de 0,60 das letras no limpo; avatar e voz limpa diferindo mais de 1,0 s |
+| `gate_entrada` | antes | respiro audível; ritmo achatado; fala comida pela higienização; avatar de outro áudio | energia acima de -34 dB em pausa de 0,62 s ou mais; voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s de fala (mínimo 2); trecho do bruto com menos de 0,60 das letras no limpo; avatar e voz limpa diferindo mais de 1,0 s |
 | `gate_look` | antes | look inexistente, sem aprovação vigente (a conferência mudou), horizontal ou com conferência reprovada | aprovação amarrada ao sha256 da conferência |
 
 ## 3. Modo avatar: sobre o plano e durante o build

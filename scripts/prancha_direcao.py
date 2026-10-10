@@ -46,6 +46,8 @@ if __package__ in (None, ""):
 import analise_inserts as AI                     # noqa: E402
 import build_composite as BC                     # noqa: E402
 from caminhos import V1                          # noqa: E402  (com VAM_DADOS do projeto: render/motor)
+# A decisão de tinta, placa e faixa é a do overlay, uma função só (W7.X): a prancha não tem regra própria de fundo claro.
+from overlay.fundo_claro import decisao_do_quadro   # noqa: E402,F401
 
 HF = str(BC.hyperframes())
 
@@ -83,6 +85,15 @@ def luminancia_faixa(im, y0_frac, y1_frac):
     y0, y1 = int(a.shape[0] * y0_frac), int(a.shape[0] * y1_frac)
     faixa = a[max(y0, 0):min(y1, a.shape[0])]
     return float(faixa.mean()) if faixa.size else 0.0
+
+
+_TINTA = {"clara": "tinta clara", "invertida": "tinta invertida", "placa": "placa escura", None: "sem medida"}
+
+
+def texto_da_decisao(decisao):
+    """A decisão do overlay (fundo_claro.decisao_do_quadro) em uma linha para o rótulo do quadro."""
+    return "legenda: %s | gancho: %s" % (_TINTA[decisao["legenda"]],
+                                         "placa" if decisao["gancho"] == "placa" else "branco fino")
 
 
 def rotular(im, texto, sub=""):
@@ -131,12 +142,16 @@ def pasta_de_saida(pj):
     return pj.prancha_dir
 
 
-def preparar(motor):
-    """Só as etapas que NÃO renderizam vídeo: arquivos do motor, timeline, overlay HTML e o projeto do HyperFrames."""
+def preparar_arquivos(motor):
+    """Arquivos do motor e timeline (relógio único). Não renderiza nada."""
     print("[1/5] arquivos do motor e timeline (relógio único)...", flush=True)
     motor.escrever_arquivos_do_motor()
     motor.construir_timeline()
-    print("[2/5] overlay HTML (gen_ad_v2 com a timeline) e o transparente...", flush=True)
+
+
+def preparar_overlay(motor):
+    """Overlay HTML (gen_ad_v2 com a timeline e a FOOTAGE) e o projeto do HyperFrames que o snapshot lê."""
+    print("[3/5] overlay HTML (gen_ad_v2 com a timeline e a footage) e o transparente...", flush=True)
     if motor.gerar_overlay() is None:
         raise BC.ErroDoMotor("overlay", (motor.saida_overlay or (None, ""))[1].strip()[-600:])
     only = motor.projeto_do_overlay()
@@ -147,10 +162,20 @@ def preparar(motor):
 def footage(motor, reaproveitar=False):
     """A footage a 1x (o único passo pesado da prancha, de 1 a 2 min por anúncio)."""
     if reaproveitar and motor.footage.exists():
-        print("[3/5] footage: reaproveitando a existente", flush=True)
+        print("[2/5] footage: reaproveitando a existente", flush=True)
         return motor.footage
-    print("[3/5] footage (sem texto)...", flush=True)
+    print("[2/5] footage (sem texto)...", flush=True)
     return motor.montar_footage()
+
+
+def construir(motor, reaproveitar=False):
+    """Timeline, footage e overlay, NESSA ordem (a do build, produzir_ad): o overlay decide a tinta invertida, a placa
+    da legenda e a placa do gancho medindo o fundo NA footage; sem ela cai no arquivo-fonte e decide pelo fundo errado
+    (a prancha desenhava legenda e gancho do jeito antigo). Devolve (prancha.json, projeto do overlay, footage)."""
+    preparar_arquivos(motor)
+    foot = footage(motor, reaproveitar)
+    pr, only = preparar_overlay(motor)
+    return pr, only, foot
 
 
 def _variante_fundo(only, cor, nome):
@@ -258,7 +283,33 @@ def compor(foot_png, par):
     return Image.fromarray((out * 255).astype(np.uint8), "RGB")
 
 
-def regua(pr, dst):
+def linhas_de_medida(plano):
+    """As linhas de RITMO e DENSIDADE da régua, lidas do plano.json (plano.medir), nunca contadas de novo.
+
+    O plano.medir é a fonte única: `cortes_previstos` foi calibrada contra o render real (W5.X), enquanto a régua
+    antiga contava toda fronteira de plano como corte e media a densidade pela janela do insert (23,6 cortes/min e 49%
+    onde o plano_edicao.md dizia 9,8 e 42,7%). Sem plano.json a régua não inventa número: manda rodar `vam plano`."""
+    from plano.checklist import numero
+    if not plano:
+        return ["RITMO e densidade: sem plano/plano.json; rode vam plano <slug> (a medida vem de lá)"]
+    r, d = plano["ritmo"], plano["densidade"]
+    ritmo = "RITMO (plano.json): %s cortes por minuto no arquivo entregue" % numero(r["cortes_min"])
+    if "plano_medio_s" in r:
+        ritmo += ", plano médio %s s" % numero(r["plano_medio_s"])
+    return [ritmo + "   (referência: 18,9 a 27,8 cortes/min, plano 2,16 a 3,17 s)",
+            "densidade de insert (plano.json): %s%% do tempo" % numero(d["fracao_insert"] * 100)]
+
+
+def ler_plano(pj):
+    """O plano/plano.json do projeto, ou None se ainda não foi medido (vam plano)."""
+    from projeto import status
+    try:
+        return status.ler_json(pj.plano_json)
+    except (OSError, ValueError):
+        return None
+
+
+def regua(pr, dst, plano=None):
     """Regua de tempo: insert x avatar, letterings, legendas e vaos sem texto."""
     L, alt_l = 1600, 34
     total = pr["total"]
@@ -307,18 +358,10 @@ def regua(pr, dst):
             _vao_img, _vao_img_em = b - a, a
     dr.text((20, y + 52), f"maior vao SEM CORTE DE IMAGEM: {_vao_img:.2f}s em "
                           f"{_vao_img_em:.2f}s", fill=(255, 140, 60), font=fonte(17))
-    t_ins = sum(i["d"] for i in pr["inserts"])
-    _np = len(pr.get("_planos_ritmo") or [])
-    if _np:
-        _ac = pr.get("accel", 1.35)
-        _dur_ent = total / _ac
-        dr.text((20, y + 76), f"RITMO: {_np} planos = "
-                              f"{(_np - 1) / (_dur_ent / 60):.1f} cortes/min, plano medio "
-                              f"{_dur_ent / _np:.2f}s   (referencia: 18,9 a 27,8 cortes/min, "
-                              f"plano 2,16 a 3,17s)", fill=(120, 220, 140), font=fonte(17))
-    dr.text((20, y + 28), f"densidade de insert: {t_ins / total:.0%} do tempo "
-                          f"({t_ins:.1f}s de {total:.1f}s)",
-            fill=(200, 200, 200), font=fonte(17))
+    linhas = linhas_de_medida(plano)
+    dr.text((20, y + 76), linhas[0], fill=(120, 220, 140), font=fonte(17))
+    if len(linhas) > 1:
+        dr.text((20, y + 28), linhas[1], fill=(200, 200, 200), font=fonte(17))
     im.save(dst)
     return dst
 
@@ -514,14 +557,13 @@ def _montar(pj, rap):
     ad = motor.slug
     out = pasta_de_saida(pj)
     out.mkdir(parents=True, exist_ok=True)
-    pr, only = preparar(motor)
+    pr, only, foot = construir(motor, rap)
     # aritmetica de fonte ANTES de escolher os pontos: e ela que diz onde congela
     pr["_congelamento"] = AI.analisar(ad, pr)
     print("  congelamento por insert (fonte x consumo):", flush=True)
     AI.imprimir(pr["_congelamento"])
     pr["_emendas"] = emendas_pipoca(pr)
     pr["_planos_ritmo"] = _plano_de_ritmo_do_ad(ad, pr)
-    foot = footage(motor, rap)
     ts, marcas = pontos(pr)
     pngs = snapshots(only, ts, rap)
     if len(pngs) != len(ts):
@@ -541,12 +583,12 @@ def _montar(pj, rap):
             continue
         im = compor(fp, pngs[i])
         im = marcar_safe(im.convert("RGB"))
-        # luminancia das duas faixas onde texto mora: hook (14-42%) e legenda/lettering
-        # (62-88%). Acima de 180, texto branco some.
+        # luminancia das duas faixas onde texto mora: hook (14-42%) e legenda/lettering (62-88%), so como numero.
+        # A DECISAO (tinta, placa) nao e da prancha: e a do overlay, medida no quadro da footage (W7.X).
         _lh = luminancia_faixa(im, 0.14, 0.42)
         _ll = luminancia_faixa(im, 0.62, 0.88)
-        _alerta = "  <<< FUNDO CLARO: texto branco some" if (_lh > 180 or _ll > 180) else ""
-        im = rotular(im, tit, f"{sub}  |  L topo {_lh:.0f} / L baixo {_ll:.0f}{_alerta}")
+        _dec = texto_da_decisao(decisao_do_quadro(fp))
+        im = rotular(im, tit, f"{sub}  |  L topo {_lh:.0f} / L baixo {_ll:.0f}  |  o motor aplica: {_dec}")
         grupos.setdefault(sec, []).append(im)
 
     feitas = []
@@ -554,7 +596,7 @@ def _montar(pj, rap):
         d = out / f"{sec.lower()}.png"
         folha(ims, d, cols=4 if sec == "HOOK" else 6)
         feitas.append(d)
-    feitas.append(regua(pr, out / "regua.png"))
+    feitas.append(regua(pr, out / "regua.png", ler_plano(pj)))
     (out / "prancha.json").write_text(json.dumps(pr, ensure_ascii=False, indent=2))
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"\nPRANCHA de {ad} pronta em {out}")

@@ -27,6 +27,10 @@ Regras que o código garante:
   - o aspecto vem do projeto.json (`formato`: 9x16 padrão), nunca cravado.
   - WAV vira mp3 (ffmpeg) antes do upload.
   - poll a cada 10 s no mínimo, teto de 30 min; 429 tem 1 retry, esperando o Retry-After (ou 5 s).
+  - o poll sobrevive a um tropeço de rede: falha de rede ou 5xx na consulta tem até 3 tentativas
+    (espera 5 s e depois 10 s) antes de desistir. O job já foi pago no submit; por isso quem chama
+    recebe o `video_id` em `ao_submeter` LOGO depois do submit e pode retomar sem pagar de novo
+    (`status_e_baixar`, ou `vam avatar <slug> --retomar`).
   - a chave vem de HEYGEN_API_KEY ou do .env da RAIZ do repo; nunca de DADOS/.env. Ela vai só no
     header, nunca em argv, log ou exceção (toda mensagem passa por `_limpar`). A URL presignada do
     vídeo é baixada SEM a chave.
@@ -34,9 +38,9 @@ Regras que o código garante:
 Tudo que toca o mundo é injetável (`http`, `executar`, `dormir`, `agora`): os testes não usam
 rede nem ffmpeg.
 
-CLI (a mesma do antigo heygen_av5.py):
-    python3 scripts/heygen_av5.py gerar <voz> <avatar_id> <saida> [engine]
-    python3 scripts/heygen_av5.py status <video_id> [saida]
+CLI (este arquivo roda direto, e scripts/heygen_av5.py é o mesmo comando; o caminho do aluno é `vam avatar`):
+    python3 scripts/avatar/heygen_cliente.py gerar <voz> <avatar_id> <saida> [engine]
+    python3 scripts/avatar/heygen_cliente.py status <video_id> [saida]
 """
 import json
 import os
@@ -54,6 +58,8 @@ MANDATORY_ENGINE = "avatar_v"
 RESOLUCAO = "1080p"
 POLL_INTERVALO_S = 10
 POLL_TETO_S = 30 * 60
+REDE_TENTATIVAS = 3          # tentativas de UMA consulta do poll antes de desistir
+BACKOFF_REDE_S = 5           # espera antes da 2ª tentativa; dobra a cada falha (5 s, 10 s)
 BACKOFF_429_S = 5
 BACKOFF_429_MAX_S = 60
 LIMITE_UPLOAD_BYTES = 32 * 1024 * 1024
@@ -71,6 +77,10 @@ class HeyGenErro(Exception):
 
 class HeyGenSemChave(HeyGenErro):
     pass
+
+
+class HeyGenRede(HeyGenErro):
+    """Falha de rede (sem resposta do HeyGen). O job que já foi aceito continua valendo."""
 
 
 class EngineBloqueado(HeyGenErro):
@@ -138,7 +148,7 @@ def http_real(metodo, url, headers, corpo, timeout):
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers.items()) if e.headers else {}, e.read()
     except (urllib.error.URLError, OSError, ValueError) as e:
-        raise HeyGenErro("sem rede ou HeyGen fora do ar (%s)" % getattr(e, "reason", e))
+        raise HeyGenRede("sem rede ou HeyGen fora do ar (%s)" % getattr(e, "reason", e))
 
 
 def executar_real(argv, timeout=600):
@@ -261,13 +271,27 @@ class ClienteHeyGen(object):
             raise self._erro("sem video_id na resposta: %s" % json.dumps(d)[:300])
         return video_id
 
+    def _consultar_video(self, video_id):
+        """Uma consulta do poll, com até REDE_TENTATIVAS tentativas se a rede cai ou o HeyGen devolve 5xx."""
+        for tentativa in range(1, REDE_TENTATIVAS + 1):
+            try:
+                return self._requisitar("GET", "/v3/videos/" + video_id).get("data") or {}
+            except HeyGenErro as e:
+                passageiro = isinstance(e, HeyGenRede) or (e.status is not None and e.status >= 500)
+                if not passageiro or tentativa == REDE_TENTATIVAS:
+                    raise
+                espera = BACKOFF_REDE_S * (2 ** (tentativa - 1))
+                print("      consulta falhou (%s): tentativa %d de %d, espero %d s"
+                      % (self._limpar(e), tentativa, REDE_TENTATIVAS, espera), flush=True)
+                self._dormir(espera)
+
     def aguardar_video(self, video_id, intervalo=POLL_INTERVALO_S, teto=POLL_TETO_S):
         """Consulta GET /v3/videos/{id} até `completed`. Devolve o `data`."""
         if intervalo < POLL_INTERVALO_S:
             raise ValueError("intervalo de poll abaixo de %d s não é aceito (rate limit)" % POLL_INTERVALO_S)
         t0 = self._agora()
         while True:
-            data = self._requisitar("GET", "/v3/videos/" + video_id).get("data") or {}
+            data = self._consultar_video(video_id)
             st = data.get("status")
             print("      status=%s" % st, flush=True)
             if st == "completed":
@@ -298,8 +322,11 @@ class ClienteHeyGen(object):
         return self._requisitar("GET", "/v3/users/me").get("data") or {}
 
     def gerar_avatar(self, audio, avatar_id, saida, engine=None, projeto=None, env=None,
-                     engine_resolvido=False):
-        """voz -> (mp3) -> upload -> job -> poll -> mp4. Devolve {video_id, saida, duracao_s, engine}."""
+                     engine_resolvido=False, ao_submeter=None):
+        """voz -> (mp3) -> upload -> job -> poll -> mp4. Devolve {video_id, saida, duracao_s, engine}.
+
+        `ao_submeter(video_id, engine)` roda LOGO depois do submit (antes do poll): é onde quem chama grava
+        o job pago, para uma queda de rede no poll não obrigar a pagar de novo."""
         eng = engine if engine_resolvido else resolver_engine(engine, env)
         aspecto = aspecto_do_projeto(projeto)
         print("[1/3] subindo o áudio...")
@@ -307,6 +334,8 @@ class ClienteHeyGen(object):
         print("[2/3] disparando /v3/videos (avatar %s, engine %s, %s)..." % (avatar_id, eng, aspecto))
         video_id = self.criar_video(avatar_id, asset_id, aspecto, eng)
         print("      video_id = %s" % video_id)
+        if ao_submeter is not None:
+            ao_submeter(video_id, eng)
         print("[3/3] aguardando o render (checa a cada %d s)..." % POLL_INTERVALO_S)
         return self._finalizar(video_id, saida, eng)
 
@@ -349,3 +378,9 @@ def main_cli(argv, cliente=None, env=None, raiz=None):
 def _saida_padrao(nome):
     import caminhos
     return str(Path(caminhos.DADOS) / "inputs" / nome)
+
+
+if __name__ == "__main__":
+    _RAIZ = Path(__file__).resolve().parent.parent.parent
+    sys.path.insert(0, str(_RAIZ / "scripts"))      # rodando o arquivo direto, `scripts/` não está no path
+    sys.exit(main_cli(sys.argv[1:], raiz=_RAIZ))

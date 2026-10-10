@@ -69,6 +69,14 @@ O roteiro tem uma linha por bloco, com a direção entre colchetes e a fala depo
 [cta | LEAD: toque em | KEY: SAIBA MAIS | logo] Toque em saiba mais e veja como montar a sua.
 ```
 
+**Gravou a voz antes de escrever o roteiro?** Tire a transcrição verbatim da própria gravação:
+
+```
+python3 scripts/vam.py roteiro tres-horas --de-audio minha-voz.m4a
+```
+
+Ele transcreve (aplicando o seu glossário, para nome próprio e termo técnico saírem certos), junta em parágrafos nas pausas e grava um **rascunho** do `roteiro.md` como roteiro livre. Leia contra a gravação, corrija o que o transcritor errou (e declare no glossário o que vai se repetir) e ponha a direção entre colchetes onde quiser insert, KEY ou hook. Se já existe um `roteiro.md`, ele não troca sem `--sobrescrever`.
+
 O último bloco é sempre `cta`. Sem nenhum colchete, é roteiro livre: o plano propõe as direções e você aprova. Se o roteiro estiver fora da convenção, o comando sai com 1 e diz a linha e o motivo. A convenção inteira, com exemplos, está em `contratos/roteiro-convencao.md`.
 
 ## 5. A voz

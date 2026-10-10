@@ -1,11 +1,13 @@
 # Dependências Python do video-ads-machine. O `bash scripts/setup.sh` cria o .venv do repo e
 # instala isto lá (o Python do Homebrew recusa `pip install` fora de um ambiente virtual).
-# Sem fixar versão de propósito: o pip escolhe a última que o seu Python aceita (o 3.9 do
-# macOS cai numa linha mais antiga do numpy e do scipy, e funciona do mesmo jeito).
-numpy
-opencv-python-headless
-pillow
-scipy
+# Faixas testadas (piso = a linha com que a suíte roda; teto = antes da próxima versão maior, que quebra):
+#   numpy 2.0.2, opencv-python-headless 4.13.0.92, pillow 10.4.0, scipy 1.13.1 (Python 3.9, macOS arm64).
+# O teto do opencv é obrigatório: o opencv 5.0.0 saiu SEM `cv2.CascadeClassifier`, e a medição do rosto
+# (medir_rosto, gate_cor, enquadramento) falha. O `vam doctor` confere esse atributo.
+numpy>=2.0,<3
+opencv-python-headless>=4.13,<5
+pillow>=10.4,<13
+scipy>=1.13,<2
 
 # --- Extras opcionais (descomente e rode: .venv/bin/python -m pip install -r requirements.txt)
 # Transcrição local. O motor escolhe sozinho o primeiro que existir: parakeet (Apple Silicon),

@@ -20,6 +20,15 @@ SONDA = (
     "import sys, importlib.util\n"
     "print(sys.version_info[0], sys.version_info[1])\n"
     "print(','.join(m for m in %r if importlib.util.find_spec(m) is None))\n"
+    # 3ª linha: a versão do opencv SE ele não tem o que o motor usa (CascadeClassifier e o XML do rosto); vazia se ok.
+    # O opencv 5.0.0 saiu sem CascadeClassifier e a medição do rosto quebrou na prova de aluno.
+    "try:\n"
+    "    import os, cv2\n"
+    "    ok = hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'data') and os.path.isfile(\n"
+    "        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')\n"
+    "    print('' if ok else cv2.__version__)\n"
+    "except ImportError:\n"
+    "    print('')\n"
 ) % (tuple(m for m, _ in MODULOS),)
 
 
@@ -35,6 +44,7 @@ def checar(amb):
         if m:
             versao = (int(m.group(1)), int(m.group(2)))
             faltando = linhas[i + 1].strip() if i + 1 < len(linhas) else ""
+            cv2_ruim = linhas[i + 2].strip() if i + 2 < len(linhas) else ""
             break
     if rc != 0 or versao is None:
         return Resultado(NOME, FAIL, "não consegui rodar o Python (%s): %s"
@@ -49,5 +59,10 @@ def checar(amb):
         pacotes = dict(MODULOS)
         return Resultado(NOME, FAIL, "faltam no Python %s (%s): %s"
                          % (ver, onde, ", ".join(pacotes.get(m, m) for m in ausentes)), SETUP)
+    if cv2_ruim:
+        return Resultado(NOME, FAIL, "opencv %s (%s) sem cv2.CascadeClassifier: a medição do rosto falha"
+                         % (cv2_ruim, onde),
+                         'instale o opencv que o motor usa: %s -m pip install "opencv-python-headless>=4.13,<5"'
+                         % ("`.venv/bin/python`" if venv else "python3"))
     return Resultado(NOME, OK, "Python %s (%s) com %s" % (ver, onde,
                                                          ", ".join(p for _, p in MODULOS)))

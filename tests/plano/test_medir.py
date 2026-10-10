@@ -341,7 +341,7 @@ def test_cinco_letterings_com_o_tempo_da_palavra_ancora(exemplo):
         (4, "você perde a venda"), (6, "SAIBA MAIS")]
     assert ls[0]["s"] == pytest.approx(t[2][0], abs=1e-3)
     assert [l["s"] for l in ls[1:4]] == pytest.approx([t[4][2], t[4][5], t[4][9]], abs=1e-3)
-    assert ls[4]["s"] == pytest.approx(t[6][0], abs=1e-3)
+    assert ls[4]["s"] == pytest.approx(t[6][2], abs=1e-3)      # o CTA pousa em "saiba", a 1a palavra do KEY
 
 
 def test_ancoras_lead_e_pilha(exemplo):
@@ -352,7 +352,7 @@ def test_ancoras_lead_e_pilha(exemplo):
     assert [l["lead"] for l in ls[1:4]] == ["enquanto isso", None, None]
     assert [l["ancora"] for l in ls[1:4]] == [{"palavra": "a", "n": 1}, {"palavra": "o", "n": 1},
                                               {"palavra": "você", "n": 1}]
-    assert ls[4]["lead"] == "toque em" and ls[4]["ancora"] == {"palavra": "Toque", "n": 1}
+    assert ls[4]["lead"] == "toque em" and ls[4]["ancora"] == {"palavra": "saiba", "n": 1}
 
 
 def test_duracoes_key_pilha_e_cta(exemplo):

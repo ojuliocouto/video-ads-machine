@@ -21,7 +21,7 @@ Encurta só as pausas grandes (respiração) e preserva o ritmo. Ela não retira
 | Conferência | Reprova quando | Por que existe |
 |---|---|---|
 | respiro | energia acima de -34 dB dentro de uma pausa de 0,62 s ou mais | o Avatar V faz lipsync da respiração e a boca mexe no vazio |
-| ritmo achatado | voz de mais de 30 s com menos de 4 pausas acima de 0,60 s | higienização que corta toda pausa picota a fala |
+| ritmo achatado | voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s de fala (mínimo 2) | higienização que corta toda pausa picota a fala |
 | fala preservada | trecho do bruto com menos de 0,60 das letras no limpo | o corte já comeu 4 palavras e só apareceu no vídeo pronto |
 | fala x roteiro | mais de 2% das palavras do roteiro faltando, ou 3 seguidas sumidas | a voz gravada tem que cobrir o roteiro aprovado |
 

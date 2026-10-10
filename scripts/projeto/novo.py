@@ -31,8 +31,8 @@ def _avisos(projeto, estado):
     avisos = []
     look = projeto.get("look")
     if look and look not in looks.nomes(estado):
-        avisos.append("o look %r ainda não está em looks.json: cadastre com projeto.looks.adicionar "
-                      "antes de montar" % look)
+        avisos.append("o look %r ainda não está em looks.json: cadastre com `vam avatar %s --avatar-id <id do look no "
+                      "HeyGen> --plano medio` antes de montar" % (look, projeto.get("slug", "<slug>")))
     arq = projeto.get("trilha", {}).get("arquivo")
     if arq and not pastas.trilha(arq, estado).is_file():
         avisos.append("a trilha %r ainda não está em %s" % (arq, pastas.trilhas_dir(estado)))

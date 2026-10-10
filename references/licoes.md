@@ -45,7 +45,7 @@ Este arquivo é a memória do motor. Cada item abaixo existe porque um anúncio 
 O avatar fala o áudio que recebeu. Defeito no áudio descoberto depois do avatar custa um job novo e um build inteiro.
 
 - **Respiro audível vira boca mexendo no vazio.** O lipsync do avatar acompanha a respiração. Mede-se energia dentro da pausa (acima de -34 dB numa pausa de 0,62 s ou mais reprova), não a duração da pausa.
-- **Higienização que corta toda pausa picota a fala.** Voz de mais de 30 s com menos de 4 pausas acima de 0,60 s reprova por ritmo achatado.
+- **Higienização que corta toda pausa picota a fala.** Voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s de fala (mínimo 2) reprova por ritmo achatado.
 - **O corte comeu fala: re-transcreva.** Em um caso o corte tirou 4 palavras e só apareceu no vídeo pronto. O bruto e o limpo são transcritos de novo e comparados; trecho do bruto com menos de 0,60 das letras no limpo reprova.
 - **Duração do avatar contra a voz limpa: tolerância de 1,0 s.** Um avatar de 92,8 s gerado de uma voz de 78,0 s era o áudio errado.
 - **O silêncio se mede na faixa de voz, não no arquivo final.** A música sobe nas pausas (cama de 0,42) e mascara o silêncio.

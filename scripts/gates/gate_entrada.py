@@ -14,7 +14,8 @@ reprovaram):
   respiro         energia acima de -34 dB DENTRO de uma pausa de 0,62 s ou mais. O Avatar V lipsynca a
                   respiração e a boca mexe no vazio (sorrisos estranhos medidos em agosto/2026). Mede energia, não
                   duração: pausa longa e limpa é ritmo, e é boa.
-  ritmo achatado  voz de mais de 30 s com menos de 4 pausas acima de 0,60 s. Higienização que corta
+  ritmo achatado  voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s de fala
+                  (mínimo 2). Higienização que corta
                   toda pausa deixa a fala picotada (reclamação real: "o áudio foi todo picotado").
   fala preservada voz/bruto.* e voz/limpo.mp3 são transcritos de novo; trecho do bruto que sobra com
                   menos de 0,60 das letras no limpo é fala que o corte comeu. Elisão natural (vamos
@@ -60,9 +61,16 @@ BIG_SIL_GATE = 0.62
 RESPIRO_DB_GATE = -34.0
 # produzir_ad.py:145 (AVATAR_DUR_TOL). Avatar e voz limpa têm que casar em duração.
 AVATAR_DUR_TOL = 1.0
-# auditar_audio.py (MIN_PAUSAS_LONGAS, PAUSA_LONGA) e produzir_ad.py:225. "Pausa longa" é acima de 0,60 s.
-MIN_PAUSAS_LONGAS = 4
+# auditar_audio.py (PAUSA_LONGA) e produzir_ad.py:225. "Pausa longa" é acima de 0,60 s.
 PAUSA_LONGA = 0.60
+# Quantas pausas longas a voz TEM que ter é proporcional à duração (W7.X): a régua fixa de 4 reprovava voz real
+# normal (a gravação da prova de aluno: 56,6 s de fala limpa e 3 pausas de fim de parágrafo). Derivação: um anúncio
+# fala ~2,5 palavras por segundo e uma ideia (2 frases) leva ~15 s, então há uma pausa de fim de ideia a cada
+# ~15 s; abaixo disso a fala está sem respiração de fim de frase. Mínimo 2 para a voz de 30 a 45 s: uma pausa
+# sozinha não faz ritmo. Resultado: 30 a 44 s pedem 2, 45 a 59 s pedem 3, 60 s pedem 4. O aluno nunca regula isso
+# (o gate lê a duração da própria voz).
+PAUSA_A_CADA_S = 15.0
+MIN_PAUSAS_LONGAS = 2
 # produzir_ad.py:285 (`d_limpo > 30`). Só voz de mais de 30 s tem que ter pausa de fim de frase.
 DUR_MIN_RITMO_S = 30.0
 # auditar_audio.py (`x < 5.0`, "ignora cauda"). Pausa de 5 s ou mais é cauda, não respiração.
@@ -141,10 +149,15 @@ def respiros(pausas, db, jan):
     return achados
 
 
+def pausas_exigidas(duracao_s):
+    """Quantas pausas longas uma voz de `duracao_s` precisa ter: 1 a cada PAUSA_A_CADA_S s, no mínimo MIN_PAUSAS_LONGAS."""
+    return max(MIN_PAUSAS_LONGAS, int(duracao_s // PAUSA_A_CADA_S))
+
+
 def ritmo_achatado(duracao_s, duracoes_das_pausas):
     """(achatado, quantas pausas longas). Pausa longa é a que passa de PAUSA_LONGA e não é cauda."""
     longas = [d for d in duracoes_das_pausas if PAUSA_LONGA < d < PAUSA_CAUDA_S]
-    return (duracao_s > DUR_MIN_RITMO_S and len(longas) < MIN_PAUSAS_LONGAS), len(longas)
+    return (duracao_s > DUR_MIN_RITMO_S and len(longas) < pausas_exigidas(duracao_s)), len(longas)
 
 
 def trechos_com_dano(bruto, limpo):
@@ -259,8 +272,9 @@ def rodar(pastas_projeto, asr=None, so_voz=False):
     achatado, n_longas = ritmo_achatado(d_limpo, [f - i for i, f in internas])
     if achatado:
         falhas.append({"regra": "ritmo_achatado", "motivo": "ritmo achatado: só %d pausa(s) acima de %.2f s em %.0f s "
-                       "de fala (mínimo %d). A fala fica sem respiração de fim de frase e soa picotada: "
-                       "higienize preservando o ritmo" % (n_longas, PAUSA_LONGA, d_limpo, MIN_PAUSAS_LONGAS)})
+                       "de fala (mínimo %d: 1 a cada %.0f s). A fala fica sem respiração de fim de frase e soa "
+                       "picotada: grave com uma pausa curta entre as ideias e rode vam audio de novo"
+                       % (n_longas, PAUSA_LONGA, d_limpo, pausas_exigidas(d_limpo), PAUSA_A_CADA_S)})
 
     danos, suspeitas = [], []
     bruto = pj.voz_bruto()
@@ -279,7 +293,7 @@ def rodar(pastas_projeto, asr=None, so_voz=False):
                 "respiros": [{"inicio_s": i, "duracao_s": d, "nivel_db": n} for i, d, n in achados],
                 "danos": [list(x) for x in danos], "suspeitas": len(suspeitas), "avisos": avisos,
                 "limiares": {"pausa_respiro_s": BIG_SIL_GATE, "respiro_db": RESPIRO_DB_GATE,
-                             "avatar_dur_tol_s": AVATAR_DUR_TOL, "min_pausas_longas": MIN_PAUSAS_LONGAS,
+                             "avatar_dur_tol_s": AVATAR_DUR_TOL, "min_pausas_longas": pausas_exigidas(d_limpo),
                              "pausa_longa_s": PAUSA_LONGA, "fracao_letras_dano": FRACAO_LETRAS_DANO}}
 
     if modo == "avatar" and not so_voz:

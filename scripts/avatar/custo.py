@@ -70,7 +70,11 @@ def medir_job(cliente, job, pastas, minutos=None, teto_usd=None, etapa=ETAPA):
     try:
         retorno = job()
     except Exception as erro:
-        r = _calcular(antes, ler_saldo(cliente), minutos, teto_usd)
+        try:
+            depois = ler_saldo(cliente)
+        except Exception:      # a rede que derrubou o job pode derrubar a leitura: o erro original é o que vale
+            depois = Saldo(None, None, False)
+        r = _calcular(antes, depois, minutos, teto_usd)
         status.registrar(pastas, etapa, "falhou", "o job falhou: %s" % str(erro)[:200], detalhes=r)
         raise
     if minutos is None and _duracao_s(retorno) is not None:
