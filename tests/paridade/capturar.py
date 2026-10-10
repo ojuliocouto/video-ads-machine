@@ -87,7 +87,7 @@ except ImportError:  # rodando como script: python3 tests/paridade/capturar.py .
 
 AD = "ad99v2"
 LOOK = "espuma_roxa"
-LK = "espuma"          # nome do look nos arquivos de config (ads_v2_configs.LOOKS)
+LK = "espuma"          # nome do look nos arquivos de config 
 VERSAO_GOLDEN = 1
 ETAPAS_TODAS = ("timeline", "overlay", "overlay_1x1", "footage", "timeline_footage", "overlay_convergido")
 ETAPAS_DA_TIMELINE = ("overlay", "overlay_1x1", "timeline_footage")   # leem a timeline quando o motor tem

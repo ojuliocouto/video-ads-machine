@@ -3,7 +3,7 @@
 Substitui o trabalho manual feito no reelC: casa a fala verbatim do roteiro
 (grafia/acentuacao corretas) com os timestamps de um transcript word-level
 (que pode ter erro de grafia), agrupa em legendas word-by-word e posiciona
-os letterings LEAD/KEY no timestamp certo da fala. Ver DESIGN.md secao 6.
+os letterings LEAD/KEY no timestamp certo da fala.
 
 Convencao de marcacao no roteiro (arquivo .txt lido por `build`):
     - Trechos entre colchetes sao DIRECOES, nunca fazem parte da fala:
@@ -339,7 +339,7 @@ def get_transcript(voz_path: str) -> list[dict]:
     """Gera o transcript word-level a partir do audio da voz.
 
     STUB: a integracao real com o transcript do HyperFrames (whisper
-    word-level, ver DESIGN.md secao 6 passo 1) ainda nao foi feita. Quem
+    word-level) ainda nao foi feita. Quem
     chamar `build()` fora de teste precisa substituir esta funcao por uma
     implementacao real (que roda o transcriber do HyperFrames sobre
     `voz_path` e devolve uma lista de dicts no formato
@@ -348,7 +348,7 @@ def get_transcript(voz_path: str) -> list[dict]:
     Em teste, mocke com `monkeypatch.setattr(build_timeline, "get_transcript", ...)`.
     """
     raise NotImplementedError(
-        "get_transcript ainda nao integra com o HyperFrames (DESIGN.md secao 6). "
+        "get_transcript ainda nao integra com o HyperFrames. "
         "Substitua esta funcao pela integracao real ou mocke em teste."
     )
 

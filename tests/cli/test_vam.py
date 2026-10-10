@@ -431,13 +431,6 @@ def test_e2e_sem_midia_sai_com_dois(tmp_path):
 
 # --- varreduras estáticas -------------------------------------------------------------------------------
 
-# Arquivos que a seção 2.5 do plano tira do repo na W6.D (código de cliente e caminhos mortos). Eles não são
-# chamados por nenhum comando do produto; a varredura de nomes da W6 cobre o resto.
-SAEM_NA_W6 = {"ads_v2_configs.py", "parse_sheet.py", "drive_push.py", "verificar_fidelidade.py", "travas.py",
-              "previa_bloco.py", "vam_build.py", "produzir_roteiro_h.py", "submagic_run.py", "gerar_capcut_draft.py",
-              "check_assets.py", "check_overlap.py", "conferir_recortes.py", "acelerar.py", "audit_ad.py",
-              "add_pip.py", "sample_lettering.py", "chrome_lettering.py", "tay_captions.py", "caption_styles.py",
-              "heygen_avatar.py", "criar_look_avatar.py", "mixar_sfx.py"}
 PROIBIDOS = (re.compile(r"LOOK_POR_AD"), re.compile(r"LOOKS_OK_9X16"), re.compile(r"audios_leva"),
              re.compile(r"""startswith\(\s*["']jh["']"""), re.compile(r"""replace\(\s*["']jh["']"""),
              re.compile(r"""["']jh["']\s+if\b"""), re.compile(r"""\bif\b[^\n]*\.startswith\(["']jh"""))
@@ -445,7 +438,7 @@ PROIBIDOS = (re.compile(r"LOOK_POR_AD"), re.compile(r"LOOKS_OK_9X16"), re.compil
 
 def _codigo_do_produto():
     for p in sorted(SCRIPTS.rglob("*.py")):
-        if p.name in SAEM_NA_W6 or p.name.startswith("test_") or "__pycache__" in p.parts:
+        if p.name.startswith("test_") or "__pycache__" in p.parts:
             continue
         yield p
 

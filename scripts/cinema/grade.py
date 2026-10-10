@@ -15,7 +15,7 @@ string, e a string é o que a paridade com o dono compara caractere a caractere.
                 contraste 1,04, saturação 0,95, vinheta um pouco mais forte (PI/6).
   pb            Preto e branco: `hue=s=0`, contraste leve 1,08, vinheta PI/6.
 
-As intenções vêm dos CSS do caminho antigo (`presets/grade/*.css`): natural, frio-teal e pb só
+As intenções vêm do caminho antigo: natural, frio-teal e pb só
 mudam quando o projeto os escolhe (`estilo.grade` do projeto.json).
 
 ## Vinheta

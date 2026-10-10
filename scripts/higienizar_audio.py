@@ -62,7 +62,7 @@ def silences(mp3):
     de dB por uma fracao de frame) sao MESCLADAS antes de qualquer corte: senao cada uma vira
     um cut independente que so deixa KEEP_PAUSE na sua propria borda, e a pausa combinada no
     audio final fica maior que qualquer BIG_SIL/KEEP_PAUSE isolado (silencio residual escapa
-    do gate sem_respiro_grande do vam_build.py)."""
+    do gate sem_respiro_grande)."""
     r = subprocess.run(["ffmpeg","-i",mp3,"-af",f"silencedetect=noise={SIL_DB}dB:d={MINDET}","-f","null","-"],
                        capture_output=True, text=True)
     raw = []; start = None
