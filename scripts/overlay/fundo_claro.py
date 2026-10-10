@@ -47,6 +47,13 @@ FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render d
 CAIXA_X_HOOK = (160, 920)
 LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
 
+# --- W7.W (A4): o fundo crítico da LEGENDA é o 1% mais crítico da faixa, não o p10/p90 -------------------------------
+# Sobre a interface branca do Claude, as linhas "Web" da tabela passavam atrás das letras e a legenda saiu com tinta escura
+# SEM placa (8,6 s da prova): o p10 da faixa era 201 (papel) e as linhas, ~1% dos pixels, só aparecem no p01 (135 a 154;
+# mínimo 50). Um fundo que tem estrutura escura (ou clara, para a tinta clara) em 1% da faixa já cruza as letras: placa.
+# O gancho NÃO usa isto: a regra dele é o p90 contra LIMIAR_HOOK_P90.
+QUANTIS_LEGENDA = (0.01, 0.99)
+
 
 # --- W7.Z: a cor do DESTAQUE (palavra de ênfase) também se decide pelo fundo local ---------------------------------------
 # A terracota (#E87D4E, luminância 0,32) sobre a camisa laranja do avatar media 1,01:1, e a camada apagada dela (alfa .62)
@@ -146,8 +153,9 @@ def decidir_tinta(p10, p90, kw=False):
     return Tinta(tinta, enfase)
 
 
-def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
-    """(p10, p90) da luminância (0 a 255) da caixa [x0, x1) x [y0, y1) do vídeo no instante `t`; None sem quadro."""
+def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1], quantis=(0.10, 0.90)):
+    """(p10, p90) da luminância (0 a 255) da caixa [x0, x1) x [y0, y1) do vídeo no instante `t`; None sem quadro.
+    Com `quantis` ((baixo, alto), frações) devolve esses dois percentis no lugar do p10 e do p90."""
     try:
         with tempfile.TemporaryDirectory() as td:
             q = str(Path(td) / "b.pgm")
@@ -167,7 +175,7 @@ def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
             px = sorted(dados[corte:])
             if not px:
                 return None
-            return px[int(0.10 * (len(px) - 1))], px[int(0.90 * (len(px) - 1))]
+            return px[int(quantis[0] * (len(px) - 1))], px[int(quantis[1] * (len(px) - 1))]
     except Exception:
         return None
 
@@ -192,7 +200,8 @@ def tinta_footage(video, ini, fim, classe, kw=False):
     fundo dos três (o maior p90 e o menor p10). None sem medida. `kw`: o grupo tem palavra de ênfase e a tinta leva a cor
     do destaque (`Tinta.enfase`)."""
     y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
-    return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8)], kw)
+    return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1, quantis=QUANTIS_LEGENDA)
+                                 for f in (0.2, 0.5, 0.8)], kw)
 
 
 def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
@@ -218,7 +227,7 @@ def decisao_do_quadro(imagem, classe="padrao", formato="9x16", kw=False):
     `tinta_footage` (legenda) e `hook_pede_placa` (gancho), aplicadas a um quadro só. Uma regra, dois chamadores:
     a prancha nunca desenha legenda ou gancho por uma regra própria."""
     y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
-    legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1)], kw)
+    legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1, quantis=QUANTIS_LEGENDA)], kw)
     faixa = FAIXA_HOOK.get(formato)
     p90s = []
     if faixa:
