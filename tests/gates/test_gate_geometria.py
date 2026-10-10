@@ -601,7 +601,7 @@ def test_no_split_a_costura_passa_com_o_rosto_embaixo(tmp_path):
 
 
 def test_detector_cego_no_split_cai_na_geometria_do_plano(tmp_path):
-    """Texto em cima da cara quebra o Haar, e o gate aprovava o pior caso (jh13, 27/08). No split o apresentador
+    """Texto em cima da cara quebra o Haar, e o gate aprovava o pior caso (anúncio de referência, 27/08). No split o apresentador
     mora no painel de baixo por construção: com `rosto_split` do plano, a tinta ali é colisão mesmo sem detecção."""
     cena = Cena(tl_com_legendas(), dict(TINTA_CERTA, split=(200, 1290, 880, 1500)))
     cego = lambda v, t: []

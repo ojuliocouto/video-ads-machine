@@ -50,7 +50,7 @@ O `gate-colisao-texto` amostra o vídeo todo a cada 1,5 s com o Haar. Este gate 
 definição de núcleo (inset de 12%, 78% da altura) e de tinta (alfa acima de 120 e cor acima de 150), e acrescenta
 duas coisas: (1) a mesma amostra de 6 instantes da zona segura, para o laudo ler os dois gates no mesmo quadro;
 (2) a geometria do PLANO quando o detector fica cego em tela dividida (texto em cima da cara quebra o Haar, e o gate
-aprovava o pior caso: jh13, 27/08). No split o apresentador mora no painel de baixo por construção; com `rosto_split`
+aprovava o pior caso: anúncio de referência, 27/08). No split o apresentador mora no painel de baixo por construção; com `rosto_split`
 a tinta ali é colisão mesmo sem detecção. Sem `rosto_split` e sem detecção o instante não é medido e vira relato.
 O detector padrão é o do `gate-colisao-texto` (carregado do arquivo dele: o nome tem hífen), com o filtro de pele;
 no split só vale o rosto cujo centro está no painel de baixo (rosto no painel de cima é conteúdo do insert).
