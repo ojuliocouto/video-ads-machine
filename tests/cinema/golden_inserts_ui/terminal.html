@@ -19,11 +19,13 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116
 </style>
 <style>
 #root{background:linear-gradient(135deg,#0c1116,#131a22)}
-.win{width:min(1460px,92%);background:#0d1117;border-radius:14px;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden;border:1px solid #1f2830}
+/* A janela ocupa pelo menos 60% da altura útil (a do palco) com o insert em cheio: na prova de 10/10/2026 ela era só o
+   tamanho das linhas e ficava 89% vazia por 3,7 s. O corpo estica (flex) e as linhas ficam no alto, como num terminal. */
+.win{width:min(1460px,92%);min-height:62%;display:flex;flex-direction:column;background:#0d1117;border-radius:14px;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden;border:1px solid #1f2830}
 .bar{height:44px;background:#161b22;display:flex;align-items:center;padding:0 18px;gap:8px}
 .dot{width:13px;height:13px;border-radius:50%}
 .tit{color:#8b949e;font-size:15px;margin-left:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.body{padding:26px 30px 30px;font:500 19px/1.95 "SF Mono","Menlo","Consolas","DejaVu Sans Mono",monospace;color:#c9d1d9;min-height:520px}
+.body{flex:1;padding:26px 30px 30px;font:500 19px/1.95 "SF Mono","Menlo","Consolas","DejaVu Sans Mono",monospace;color:#c9d1d9;min-height:520px}
 .lin{opacity:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .g{display:inline-block;width:1.4em}
 .comando .g{color:#79c0ff}.ok .g{color:#7ee787}.passo .g{color:#8b949e}.passo{color:#8b949e}
@@ -53,10 +55,12 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0c1116
 <script>
 (function(){
   var lin=document.querySelectorAll(".lin"), cur=document.getElementById("cur");
+  /* ENTRA CHEIO, NÃO VAZIO (10/10/2026): metade das linhas (arredondada para cima) já está na tela no primeiro quadro e o
+     resto chega em ordem, a última em no máximo 1,0 s (ou na metade da duração, se o insert for mais curto que 2 s). Antes
+     as linhas subiam uma a uma até 80% da duração e a janela passava 3,7 s quase vazia. */
   window.vamQuadro=function(t,DUR){
-    var n=lin.length, ini=0.15, passo=VAM.passo(n,ini,0.8,0.5), i;
-    for(i=0;i<n;i++) lin[i].style.opacity=(t>=ini+i*passo)?1:0;
-    var fim=ini+(n-1)*passo;
+    var n=lin.length, meio=Math.ceil(n/2), resto=n-meio, fim=Math.min(1.0,DUR*0.5), i;
+    for(i=0;i<n;i++) lin[i].style.opacity=(i<meio||t>=(i-meio+1)*fim/resto)?1:0;
     cur.style.opacity=(t>=fim&&(Math.floor(t*3)%2===0))?1:0;
   };
 })();

@@ -708,3 +708,57 @@ def test_render_real_sai_na_proporcao_e_na_duracao(nome, tmp_path):
     largura, altura, quadros = int(sonda[0]), int(sonda[1]), int(sonda[2])
     assert (largura, altura) == (1080, 1150)
     assert abs(quadros - res.quadros) <= 1
+
+
+# --- 10/10/2026: o terminal entra cheio, não vazio (A7 da prova) -------------------------------------------
+
+def _opacidades_do_terminal(html, t, dur):
+    """As opacidades das linhas do terminal em `t`, rodando o script REAL do template no node com um DOM de mentira."""
+    import json
+    import re
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("sem node para rodar o script do template")
+    scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
+    js = next(x for x in scripts if "vamQuadro" in x)
+    n = html.count('class="lin ')
+    prog = """
+var linhas = []; for (var i = 0; i < %d; i++) linhas.push({style: {opacity: ""}});
+var cur = {style: {opacity: ""}};
+var document = {querySelectorAll: function (s) { return linhas; }, getElementById: function (id) { return cur; }};
+var window = {};
+var VAM = {passo: function (n, ini, fr, mx) { return Math.min(mx, (%s * fr - ini) / Math.max(1, n)); }};
+%s
+window.vamQuadro(%s, %s);
+console.log(JSON.stringify(linhas.map(function (l) { return Number(l.style.opacity); })));
+""" % (n, dur, js, t, dur)
+    r = subprocess.run([node, "-"], input=prog, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def test_o_terminal_entra_com_metade_das_linhas_e_completa_em_ate_1s():
+    """Na prova de 10/10/2026 a janela ficava 89% vazia por 3,7 s: as linhas subiam uma a uma até 80% da duração.
+    Agora metade (arredondada para cima) já está na tela no primeiro quadro e a última chega em no máximo 1,0 s."""
+    dados = insert_ui.exemplo("terminal")
+    n = len(dados["linhas"])
+    html = _gerar("terminal", dados, dur=3.7)
+    assert n >= 5
+    primeiro = _opacidades_do_terminal(html, 0.0, 3.7)
+    assert sum(primeiro) == (n + 1) // 2 and primeiro[: (n + 1) // 2] == [1] * ((n + 1) // 2), primeiro
+    assert _opacidades_do_terminal(html, 1.0, 3.7) == [1] * n                  # completa em até 1,0 s
+    ultimos = [_opacidades_do_terminal(html, t, 3.7) for t in (0.25, 0.5, 0.75)]
+    assert all(sum(a) <= sum(b) for a, b in zip([primeiro] + ultimos, ultimos)), ultimos   # só enche, nunca esvazia
+    curto = _gerar("terminal", dados, dur=1.2)
+    assert _opacidades_do_terminal(curto, 0.6, 1.2) == [1] * n                  # insert curto: completa na metade da duração
+
+
+def test_a_janela_do_terminal_ocupa_pelo_menos_60_por_cento_da_altura_util_em_cheio():
+    import re
+    for tamanho in ("normal", "grande"):
+        dados = dict(insert_ui.exemplo("terminal"), tamanho=tamanho)
+        html = _gerar("terminal", dados)
+        win = re.search(r"\.win\{([^}]*)\}", html).group(1)
+        minimo = float(re.search(r"min-height:(\d+(?:\.\d+)?)%", win).group(1))
+        assert minimo >= 60.0, (tamanho, win)
+        assert "display:flex" in win and re.search(r"\.body\{[^}]*flex:1", html), tamanho   # o corpo estica com a janela
