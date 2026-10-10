@@ -34,6 +34,11 @@ class ErroParakeet(RuntimeError):
     pass
 
 
+# Teto de uma transcrição: sem ele, o download do modelo sem rede deixa o processo parado para sempre
+# (medido em 09/10/2026: a suíte travou 30 min com o parakeet a 0% de CPU sob HOME vazio).
+TETO_S = 900
+
+
 def achar_executavel(amb):
     """Caminho do `parakeet-mlx` no PATH ou nos scripts do venv; None se não existe."""
     achado = amb.which(EXECUTAVEL)
@@ -101,7 +106,7 @@ def transcrever(audio, *, amb, workdir, prompt="", idioma="pt", executar=None, p
                            "`python3 -m pip install parakeet-mlx`")
     audio, workdir = Path(audio), Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
-    rodar = executar or (lambda c: subprocess.run(c, capture_output=True, text=True))
+    rodar = executar or (lambda c: subprocess.run(c, capture_output=True, text=True, timeout=TETO_S))
     if perfil == "alinhamento":
         entrada, extra = workdir / WAV_ALINHAMENTO, []
         r = rodar(["ffmpeg", "-y", "-i", str(audio), "-vn", "-ac", "1", "-ar", "16000", str(entrada)])
@@ -111,7 +116,11 @@ def transcrever(audio, *, amb, workdir, prompt="", idioma="pt", executar=None, p
     else:
         entrada, extra = audio, ["--chunk-duration", str(CHUNK_S), "--overlap-duration", str(OVERLAP_S)]
     cmd = [exe, str(entrada), "--output-format", "json", "--output-dir", str(workdir), *extra]
-    r = rodar(cmd)
+    try:
+        r = rodar(cmd)
+    except subprocess.TimeoutExpired:
+        raise ErroParakeet(f"parakeet-mlx passou de {TETO_S} s e foi parado. Na primeira vez ele baixa o "
+                           "modelo (cerca de 1 GB): rode com rede, ou aponte HF_HOME para um cache que já tenha o modelo.")
     if r.returncode != 0:
         raise ErroParakeet(f"parakeet-mlx saiu com {r.returncode}: "
                            f"{(r.stderr or r.stdout or '').strip()[-300:]}")

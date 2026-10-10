@@ -472,8 +472,24 @@ def test_parakeet_real_no_apple_silicon(tmp_path):
     if not PK.disponivel(a):
         pytest.skip("parakeet-mlx não está instalado nesta máquina "
                     "(python3 -m pip install parakeet-mlx)")
+    import os
+    hf = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")) / "hub"
+    if not any(hf.glob("models--*parakeet*")):
+        pytest.skip(f"modelo do parakeet não está em cache em {hf}: o teste real não baixa 1 GB")
     audio = fx.tom_com_pausas(tmp_path / "tom.wav", dur=2.0, pausas=())
     palavras = PK.transcrever(audio, amb=a, workdir=tmp_path / "t")
     assert isinstance(palavras, list)                    # um tom não tem fala: pode vir vazio
     for p in palavras:
         assert set(p) == {"text", "start", "end"}
+
+
+def test_parakeet_parado_vira_erro_com_conserto(tmp_path, monkeypatch):
+    """Processo pendurado não trava o build: vira ErroParakeet com a mensagem do conserto."""
+    import subprocess as sp
+    a = T.Ambiente.real()
+    monkeypatch.setattr(PK, "achar_executavel", lambda amb=None: "/bin/parakeet-falso")
+    def pendura(c):
+        raise sp.TimeoutExpired(c, PK.TETO_S)
+    audio = fx.tom_com_pausas(tmp_path / "tom.wav", dur=0.5, pausas=())
+    with pytest.raises(PK.ErroParakeet, match="HF_HOME"):
+        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=pendura)
