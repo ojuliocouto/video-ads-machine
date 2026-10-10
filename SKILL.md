@@ -46,7 +46,7 @@ A ordem das fases é fixa. Nunca gere avatar antes de o áudio passar.
 | Fase | Comando | Entra | Sai | Gate que barra |
 |---|---|---|---|---|
 | 0 Entrada | `vam novo <slug> --look <look> --sem-trilha "<motivo>"` (ou `--trilha <arquivo>`) | nome, look, trilha | `projeto.json`, `status.json` | contrato do projeto |
-| 0 Entrada | `vam roteiro <slug> --texto "<roteiro colado>"` (ou `--de roteiro.md`) | roteiro | `roteiro.md` | convenção `contratos/roteiro-convencao.md` |
+| 0 Entrada | `vam roteiro <slug> --texto "<roteiro colado>"` (ou `--de roteiro.md`; ou `--de-audio voz.m4a`, que transcreve a gravação em um rascunho para revisar) | roteiro | `roteiro.md` | convenção `contratos/roteiro-convencao.md` |
 | 0.5 Áudio | `vam audio <slug> --bruto voz.m4a` | voz bruta | `voz/limpo.mp3`, `voz/auditoria.json` | respiro, ritmo, fala preservada, fala x roteiro |
 | 1 Avatar | `vam avatar <slug> --avatar-id <id> --plano medio` (1ª vez), depois `vam avatar <slug> --aprovar-look` | voz limpa, look | `avatar/avatar.mp4`, `boca.png`, `custo.json` | conferência: 1080x1920, fração útil 0,93 ou mais, duração da voz mais ou menos 1,0 s |
 | 2 Plano | `vam plano <slug>` | roteiro, voz, inserts | `plano/plano.json`, `plano_edicao.md` | 6 seções e checklist |
@@ -108,7 +108,7 @@ As 14 capacidades cinematográficas, com gate e limiar, estão em `references/ci
 
 ## 9. Roteiro sem planilha
 
-Nenhum caminho lê planilha. O roteiro entra por, em ordem: (1) texto colado no chat, gravado verbatim por `vam roteiro <slug> --texto "..."`; (2) arquivo `.md` ou `.txt` (`--de`); (3) opcional, Google Doc com comentários pelo token OAuth do próprio aluno (`GOOGLE_OAUTH_ACCESS_TOKEN`), e só então liga o `gate_fidelidade_doc`.
+Nenhum caminho lê planilha. O roteiro entra por, em ordem: (1) texto colado no chat, gravado verbatim por `vam roteiro <slug> --texto "..."`; (2) arquivo `.md` ou `.txt` (`--de`); a voz gravada antes do texto entra por `--de-audio voz.m4a` (transcrição verbatim com o glossário do aluno, em parágrafos nas pausas, como RASCUNHO que o aluno revisa); (3) opcional, Google Doc com comentários pelo token OAuth do próprio aluno (`GOOGLE_OAUTH_ACCESS_TOKEN`), e só então liga o `gate_fidelidade_doc`.
 
 Uma linha por bloco, direção entre colchetes e a fala depois: `[insert: painel | hook: VOCÊ PERDE | 3 horas por dia | NISSO AQUI] Você perde...`. Tipos: `apresentador`, `insert: <chave>`, `lista`, `cta` (sempre o último). Sem nenhum colchete é roteiro livre: o plano propõe as direções e o aluno aprova. Convenção completa, âncora e exemplos em `contratos/roteiro-convencao.md`.
 
