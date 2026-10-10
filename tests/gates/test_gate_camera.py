@@ -433,3 +433,127 @@ def test_render_de_verdade_punch_declarado_e_nao_renderizado_reprova(tmp_path):
     g = gate_camera.rodar(sem_punch, tl_do_render_sintetico(True))
     assert g["resultado"] == "REPROVA"
     assert "punch" in g["motivo"] and g["medido"]["punches"][0]["ok"] is False
+
+
+# =================================================================================== W7.Z: camisa lisa, rastreio no rosto
+
+def _sem_textura(serie):
+    return [1.0] + [None] * (len(serie) - 1)
+
+
+def test_plano_de_camisa_lisa_rastreia_no_rosto_e_nao_da_erro(tmp_path):
+    """O quadro inteiro de um plano fechado em camisa lisa não tem cantos: o gate dava ERRO num anúncio que se mexia.
+    Com a região do rosto e do cabelo rastreável, o plano é medido por ela e o laudo diz isso."""
+    tl = tl_padrao()
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), estimador=_sem_textura, estimador_rosto=estimador_virtual())
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert all(p.get("regiao") == "rosto" for p in g["medido"]["planos"] if p["variacao"] is not None)
+    assert formato_do_laudo(g) == []
+
+
+def test_sem_textura_nem_no_rosto_continua_erro(tmp_path):
+    tl = tl_padrao()
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), estimador=_sem_textura, estimador_rosto=_sem_textura)
+    assert g["resultado"] == "ERRO" and g["saida"] == 2
+    assert "rosto" in g["motivo"] and "textura" in g["motivo"]
+
+
+def test_regiao_do_rosto_pega_o_cabelo_e_cabe_no_quadro():
+    x0, y0, x1, y1 = gate_camera.caixa_rosto_ampliada((100, 150, 60, 70), (480, 270))
+    assert x0 < 100 and x1 > 160                     # mais larga que a pele
+    assert y0 < 150 - 70 * 0.25 + 1 and y1 > 220     # sobe para o cabelo e desce além do queixo
+    assert (x0, y0) >= (0, 0) and x1 <= 270 and y1 <= 480
+    # rosto encostado na borda: a região é recortada ao quadro
+    x0, y0, x1, y1 = gate_camera.caixa_rosto_ampliada((5, 2, 60, 70), (480, 270))
+    assert (x0, y0) == (0, 0)
+
+
+def test_estimador_do_rosto_so_olha_dentro_da_regiao_do_rosto():
+    """Fundo com textura PARADA (a parede) e, na região do rosto, uma textura que cresce 10%: o quadro inteiro vê a
+    parede e mede 1,00; a região do rosto mede o zoom."""
+    base = textura(seed=3)
+    caixa = (95, 140, 80, 100)
+    x0, y0, x1, y1 = gate_camera.caixa_rosto_ampliada(caixa, base.shape)
+    patch = textura(seed=7, largura=x1 - x0, altura=y1 - y0)
+    serie = []
+    for k in range(13):
+        q = base.copy()
+        q[y0:y1, x0:x1] = ampliada(patch, 1.0 + 0.10 * k / 12.0)
+        serie.append((k / 12.0, q))
+    no_rosto = gate_camera._estimador_rosto_padrao(detectar=lambda q: caixa)(serie)
+    inteiro = gate_camera._estimador_padrao()(serie)
+    assert no_rosto[-1] == pytest.approx(1.10, abs=0.03)
+    assert inteiro[-1] < 1.04
+
+
+def test_estimador_do_rosto_sem_rosto_nao_inventa_uma_escala():
+    serie = [(k / 12.0, textura()) for k in range(5)]
+    saida = gate_camera._estimador_rosto_padrao(detectar=lambda q: None)(serie)
+    assert saida[0] == 1.0 and all(e is None for e in saida[1:])
+
+
+def test_estimador_do_rosto_nunca_levanta_com_quadro_que_nao_e_imagem():
+    serie = [(0.0, 1.0), (0.1, 1.1)]                  # o leitor virtual dos outros testes devolve números
+    saida = gate_camera._estimador_rosto_padrao()(serie)
+    assert saida == [1.0, None]
+
+
+# =================================================================================== W7.Z: registro contra o avatar cru
+
+def test_escala_por_registro_mede_o_zoom_do_filtro_e_nao_o_balanco_da_pessoa():
+    cru = textura(seed=11)
+    assert gate_camera.escala_por_registro(cru, ampliada(cru, 1.12)) == pytest.approx(1.12, abs=0.015)
+    balanco = ampliada(cru, 1.06)                 # a pessoa se inclinou para a câmera; o cru já vem assim
+    assert gate_camera.escala_por_registro(balanco, ampliada(balanco, 1.12)) == pytest.approx(1.12, abs=0.015)
+
+
+def test_registro_de_quadros_sem_nada_em_comum_nao_inventa_uma_escala():
+    liso = np.full((480, 270), 90, dtype=np.uint8)
+    assert gate_camera.escala_por_registro(liso, liso) is None
+
+
+def _plano_com_avatar_que_se_inclina(zoom, tmp_path, fps_amostra=12):
+    """Um plano de avatar de 6 s a 1x. O avatar CRU se inclina (a escala dele oscila 7%); o entregue é o cru visto
+    pelo filtro (`zoom`: função do instante). Devolve (timeline, leitor do entregue, leitor do cru)."""
+    base = textura(seed=21)
+
+    def cru_em(t):
+        return ampliada(base, 1.0 + 0.07 * np.sin(2 * np.pi * t / 2.5))
+
+    tl = timeline([seg_avatar(0.0, 6.0, 0)], [{"t": 0.0, "tipo": "zoom", "de": 1.0, "para": 1.16, "dur": 6.0}])
+
+    def leitor(video, fps):
+        for k in range(int(6.0 * fps)):
+            td = k / float(fps)
+            yield td, ampliada(cru_em(td), zoom(td))
+
+    def leitor_cru(avatar, t0, n, fps):
+        return [cru_em(t0 + j / float(fps)) for j in range(n)]
+    return tl, leitor, leitor_cru
+
+
+def test_plano_medido_contra_o_cru_acha_o_zoom_mesmo_com_a_pessoa_se_inclinando(tmp_path):
+    tl, leitor, leitor_cru = _plano_com_avatar_que_se_inclina(lambda t: 1.0 + 0.16 * t / 6.0, tmp_path)
+    g = rodar(tl, tmp_path, leitor=leitor, avatar=tmp_path / "avatar.mp4", leitor_avatar=leitor_cru,
+              estimador=estimador_virtual())
+    assert g["resultado"] == "PASS", g.get("motivo")
+    plano = g["medido"]["planos"][0]
+    assert plano["metodo"] == "registro contra o avatar cru"
+    assert plano["variacao"] == pytest.approx(0.15, abs=0.04)
+
+
+def test_mutante_sem_zoom_reprova_mesmo_com_a_pessoa_se_inclinando(tmp_path):
+    """O avatar oscila 7%, o filtro não fez nada: contra o cru a câmera está parada, e o gate tem que dizer."""
+    tl, leitor, leitor_cru = _plano_com_avatar_que_se_inclina(lambda t: 1.0, tmp_path)
+    g = rodar(tl, tmp_path, leitor=leitor, avatar=tmp_path / "avatar.mp4", leitor_avatar=leitor_cru,
+              estimador=estimador_virtual())
+    assert g["resultado"] == "REPROVA" and "câmera está parada" in g["motivo"]
+    assert g["medido"]["planos"][0]["variacao"] < 0.04
+
+
+def test_cru_que_nao_registra_volta_ao_rastreio_entre_vizinhos(tmp_path):
+    tl = tl_padrao()
+    g = rodar(tl, tmp_path, leitor=leitor_virtual(tl), avatar=tmp_path / "avatar.mp4",
+              leitor_avatar=lambda avatar, t0, n, fps: [])
+    assert g["resultado"] == "PASS", g.get("motivo")
+    assert all("metodo" not in p for p in g["medido"]["planos"])

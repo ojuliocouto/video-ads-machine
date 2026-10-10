@@ -50,6 +50,25 @@ não é câmera.
 
 Todos os tempos da timeline estão no relógio da footage a 1x; o entregue é (t - a0) / aceleração.
 
+## Contra o avatar cru: a câmera é o que o filtro ACRESCENTOU (W7.Z)
+
+Num avatar que fala e se inclina, a escala da imagem entregue mistura o zoom do filtro com o balanço da própria pessoa:
+no avatar da prova (HeyGen, look laranja) o zoom de 16% media de 2% a 5% em planos onde a pessoa se inclinava para trás,
+e o gate dizia "câmera parada" numa câmera que se mexia (o avatar cru, sozinho, mediu 0% a 3% nos mesmos planos). Com o
+avatar cru (`avatar=`, o arquivo da fonte) a escala do plano deixa de ser rastreada entre quadros vizinhos: em cada amostra
+o quadro entregue é REGISTRADO contra o quadro cru do mesmo instante (SIFT + RANSAC, `escala_por_registro`), e o que sai é a
+escala que o filtro aplicou, sem o balanço da pessoa nem o texto do overlay (a máscara do texto vale no quadro entregue).
+No mesmo avatar real o zoom mediu de 11% a 13% nos planos que o rastreio entre vizinhos dava 2% a 5%. Sem o avatar
+cru (o gate chamado sem ele) vale o rastreio de antes.
+
+## Plano de camisa lisa: o rastreio cai para o rosto e o cabelo (W7.Z)
+
+Num plano de avatar fechado em roupa lisa (a camisa laranja do look da prova) o quadro inteiro quase não tem cantos:
+o rastreador perdia a imagem e o gate dava ERRO num anúncio que se mexia. A escala não depende de onde se mede: quando o
+quadro inteiro não tem textura, o gate rastreia só na região do rosto e do cabelo (a caixa do rosto achada no próprio
+plano, ampliada para pegar o cabelo), que é onde a imagem tem textura. O plano que usou a região leva `regiao: "rosto"`
+no `medido`. ERRO só quando nem o rosto tem textura (ou não há rosto para achar): sem a medida o gate não aprova.
+
 ## Formato do resultado
 
 `rodar` devolve um dict no formato de gate do laudo (`contratos/laudo.schema.json`): `nome`, `etapa`,
@@ -86,6 +105,15 @@ LK_CANTOS, LK_QUALIDADE, LK_DIST_MIN = 300, 0.01, 7
 LK_JANELA, LK_NIVEIS = 21, 3
 RANSAC_PX = 1.5
 RASTREADOS_MIN, INLIERS_MIN = 12, 10
+# Rosto e cabelo (rastreio quando o quadro inteiro é liso): a caixa do Haar é só a pele; o cabelo e o contorno da cabeça,
+# onde mora a textura, ficam FORA dela. Ampliada 2,0 em largura e 1,9 em altura em torno do centro, com o topo subindo mais.
+REGISTRO_MIN_FRACAO = 0.6        # fração dos quadros do plano que precisam registrar contra o cru para o plano valer
+REGISTRO_INLIERS_MIN = 8
+REGISTRO_PAR_MAX = 0.75          # razão do teste de Lowe nos pares de pontos SIFT
+REGISTRO_RANSAC_PX = 3.0
+ROSTO_MIN_PX = 36                # menor rosto aceito no quadro de 270 px de largura
+ROSTO_AMPLIA_X, ROSTO_AMPLIA_Y = 2.0, 1.9
+ROSTO_TOPO_EXTRA = 0.25          # fração da altura da caixa acrescentada para CIMA (o cabelo passa da testa)
 _EPS = 1e-9
 
 
@@ -235,6 +263,138 @@ def _estimador_mascarado(mascaras):
     return estimador
 
 
+def caixa_rosto_ampliada(caixa, forma):
+    """A região de rosto e cabelo (x0, y0, x1, y1, em px do quadro `forma` = (altura, largura)): a caixa do rosto
+    ampliada em torno do centro e com mais folga em cima, recortada ao quadro."""
+    x, y, w, h = [float(v) for v in caixa]
+    cx = x + w / 2.0
+    larg = w * ROSTO_AMPLIA_X
+    alt = h * ROSTO_AMPLIA_Y
+    x0, x1 = cx - larg / 2.0, cx + larg / 2.0
+    y0 = y + h / 2.0 - alt / 2.0 - h * ROSTO_TOPO_EXTRA
+    y1 = y + h / 2.0 + alt / 2.0
+    return (max(0, int(x0)), max(0, int(y0)), min(forma[1], int(x1)), min(forma[0], int(y1)))
+
+
+def _detectar_rosto_padrao(quadro):
+    """A maior caixa de rosto (x, y, w, h) no quadro cinza, pelo Haar do OpenCV; None se não achar."""
+    import cv2
+    casc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    achados = casc.detectMultiScale(quadro, 1.1, 4, minSize=(ROSTO_MIN_PX, ROSTO_MIN_PX))
+    if not len(achados):
+        return None
+    x, y, w, h = max(achados, key=lambda b: b[2] * b[3])
+    return int(x), int(y), int(w), int(h)
+
+
+def _estimador_rosto_padrao(detectar=None):
+    """`estimador(serie)` que rastreia só na região do rosto e do cabelo do plano, quando o quadro inteiro não tem textura.
+
+    A região vem do rosto achado em até 3 quadros da série (o do meio primeiro) e vale para a série toda: a pessoa
+    quase não sai do lugar dentro de um plano. Sem rosto, ou sem textura nele, devolve None nos quadros (o gate
+    então dá ERRO: nem o rosto tem o que medir). Nunca levanta."""
+    detectar = detectar or _detectar_rosto_padrao
+
+    def estimador(serie):
+        if not serie:
+            return []
+        falha = [1.0] + [None] * (len(serie) - 1)
+        try:
+            import cv2
+            import numpy as np
+            meio = len(serie) // 2
+            caixa = None
+            for k in (meio, 0, len(serie) - 1):
+                caixa = detectar(serie[k][1])
+                if caixa:
+                    break
+            if not caixa:
+                return falha
+            forma = serie[0][1].shape
+            x0, y0, x1, y1 = caixa_rosto_ampliada(caixa, forma)
+            if x1 - x0 < 8 or y1 - y0 < 8:
+                return falha
+            mascara = np.zeros(forma, dtype=np.uint8)
+            mascara[y0:y1, x0:x1] = 255
+            saida, total = [1.0], 1.0
+            for (_t0, q0), (_t1, q1) in zip(serie, serie[1:]):
+                s = escala_entre(q0, q1, mascara) if total is not None else None
+                total = None if (s is None or total is None) else total * s
+                saida.append(total)
+            return saida
+        except Exception:        # sem OpenCV, quadro que não é imagem: a região não ajuda, o gate dá ERRO
+            return falha
+    return estimador
+
+
+def escala_por_registro(cru, entregue, mascara=None):
+    """A escala (similaridade) que leva o quadro CRU do avatar ao quadro ENTREGUE do mesmo instante, por pontos SIFT
+    casados e RANSAC. É o zoom que o filtro aplicou, sem o balanço da pessoa (o cru já o traz). `mascara` (uint8, 255 onde
+    vale) restringe os pontos do quadro entregue: sem o texto do overlay. None quando não casa pontos suficientes."""
+    import cv2
+    import numpy as np
+    sift = cv2.SIFT_create(nfeatures=1500)
+    k0, d0 = sift.detectAndCompute(cru, None)
+    k1, d1 = sift.detectAndCompute(entregue, mascara)
+    if d0 is None or d1 is None or len(k0) < 10 or len(k1) < 10:
+        return None
+    pares = cv2.BFMatcher().knnMatch(d0, d1, k=2)
+    bons = [p[0] for p in pares if len(p) == 2 and p[0].distance < REGISTRO_PAR_MAX * p[1].distance]
+    if len(bons) < REGISTRO_INLIERS_MIN:
+        return None
+    p0 = np.float32([k0[m.queryIdx].pt for m in bons])
+    p1 = np.float32([k1[m.trainIdx].pt for m in bons])
+    m, inliers = cv2.estimateAffinePartial2D(p0, p1, method=cv2.RANSAC, ransacReprojThreshold=REGISTRO_RANSAC_PX)
+    if m is None or inliers is None or int(inliers.sum()) < REGISTRO_INLIERS_MIN:
+        return None
+    return float(np.hypot(m[0, 0], m[0, 1]))
+
+
+def _leitor_avatar_padrao():
+    """`leitor_avatar(avatar, t0, n, fps)`: `n` quadros cinza do avatar cru a partir de `t0` (s da fonte), a `fps`
+    quadros por segundo da FONTE, na mesma largura do quadro entregue medido."""
+    import numpy as np
+
+    def leitor(avatar, t0, n, fps):
+        larg, alt = _sondar(avatar)
+        pw = min(larg, LARGURA_AMOSTRA)
+        ph = max(2, int(round(alt * pw / float(larg))) // 2 * 2)
+        cmd = ["ffmpeg", "-v", "error", "-nostdin", "-ss", "%.4f" % max(0.0, t0), "-i", str(avatar), "-an", "-vf",
+               "fps=%.6f,scale=%d:%d,format=gray" % (fps, pw, ph), "-frames:v", str(int(n)), "-f", "rawvideo",
+               "-pix_fmt", "gray", "pipe:1"]
+        r = subprocess.run(cmd, capture_output=True, timeout=300)
+        tam = pw * ph
+        if r.returncode != 0 and not r.stdout:
+            raise OSError("ffmpeg não decodificou %s: %s" % (avatar, r.stderr.decode("utf-8", "replace").strip()[-200:]))
+        k = len(r.stdout) // tam
+        return [np.frombuffer(r.stdout[i * tam:(i + 1) * tam], dtype=np.uint8).reshape(ph, pw) for i in range(k)]
+    return leitor
+
+
+def _escalas_contra_o_cru(serie, avatar, rel, leitor_avatar, overlay=None):
+    """A escala que o filtro aplicou em cada quadro da `serie` ([(t_entregue, quadro)]): cada quadro entregue
+    registrado contra o quadro cru do mesmo instante. Devolve (escalas relativas ao primeiro quadro válido, tempos) ou
+    None quando menos de REGISTRO_MIN_FRACAO dos quadros registra (o chamador volta ao rastreio entre vizinhos)."""
+    acel, a0 = float(rel["aceleracao"]), float(rel.get("a0", 0.0))
+    if len(serie) < 3:
+        return None
+    t0 = serie[0][0] * acel + a0
+    crus = leitor_avatar(avatar, t0, len(serie), AMOSTRA_FPS / acel)
+    n = min(len(crus), len(serie))
+    mascaras = [None] * n
+    if overlay is not None:
+        mascaras = mascaras_sem_texto(overlay, [t for t, _q in serie[:n]], rel, serie[0][1].shape)
+    escalas, tempos = [], []
+    for k in range(n):
+        s = escala_por_registro(crus[k], serie[k][1], mascaras[k])
+        if s is not None:
+            escalas.append(s)
+            tempos.append(serie[k][0])
+    if len(escalas) < max(3, REGISTRO_MIN_FRACAO * len(serie)):
+        return None
+    return [e / escalas[0] for e in escalas], tempos
+
+
 # --- a medição ---------------------------------------------------------------------------------------------
 
 def _segmento_em(segmentos, t):
@@ -265,17 +425,25 @@ def _planos(tl):
     return saida
 
 
-def _escalas(estimador, serie, onde):
-    """Escala de cada quadro da `serie`; ERRO de insumo quando o rastreador perde a imagem."""
+def _escalas(estimador, serie, onde, estimador_rosto=None, usou=None):
+    """Escala de cada quadro da `serie`. Quando o quadro inteiro não tem textura, tenta a região do rosto e do cabelo
+    (`estimador_rosto`); ERRO de insumo só quando nem ela rastreia. `usou` (lista) recebe "rosto" se a região foi usada."""
     escalas = estimador(serie)
-    if len(escalas) != len(serie) or any(e is None for e in escalas):
-        raise InsumoInvalido("não consegui rastrear a imagem %s: poucos pontos de textura entre quadros vizinhos. O "
-                             "gate mede a escala por pontos de textura; confira se o vídeo tem imagem "
-                             "(ou passe outro `estimador` ao gate)" % onde)
-    return escalas
+    if len(escalas) == len(serie) and not any(e is None for e in escalas):
+        return escalas
+    if estimador_rosto is not None:
+        escalas = estimador_rosto(serie)
+        if len(escalas) == len(serie) and not any(e is None for e in escalas):
+            if usou is not None:
+                usou.append("rosto")
+            return escalas
+    raise InsumoInvalido("não consegui rastrear a imagem %s: poucos pontos de textura entre quadros vizinhos, nem na "
+                         "região do rosto e do cabelo. O gate mede a escala por pontos de textura; confira se o vídeo "
+                         "tem imagem (ou passe outro `estimador` ao gate)" % onde)
 
 
-def medir(video, timeline, estimador=None, leitor=None, overlay=None):
+def medir(video, timeline, estimador=None, leitor=None, overlay=None, estimador_rosto=None, avatar=None,
+          leitor_avatar=None):
     """Mede planos, punches e movimento; levanta InsumoInvalido."""
     _timeline_ok(timeline)
     rel = timeline["relogio"]
@@ -286,8 +454,10 @@ def medir(video, timeline, estimador=None, leitor=None, overlay=None):
 
     # 1. os quadros, só dentro do miolo dos planos que interessam
     leitor = leitor or _leitor_padrao()
+    estimador_injetado = estimador is not None
     if planos:
         estimador = estimador or _estimador_padrao()
+        estimador_rosto = estimador_rosto or _estimador_rosto_padrao()
     series = {p["segmento"]: [] for p in planos}        # segmento -> [(t_entregue, quadro)]
     n_quadros = 0
     for td, quadro in leitor(video, AMOSTRA_FPS):
@@ -312,8 +482,25 @@ def medir(video, timeline, estimador=None, leitor=None, overlay=None):
             linha["dispensado"] = "plano com punch: o punch medido prova que o filtro de câmera rodou"
         else:
             serie = series[p["segmento"]]
-            escalas = _escalas(estimador, serie, "no plano de avatar de %.2f a %.2f s" % (p["inicio"], p["fim"]))
-            v = camera.variacao_da_escala(escalas, [t for t, _q in serie])
+            usou = []
+            contra_o_cru = None
+            if avatar is not None and serie:
+                contra_o_cru = _escalas_contra_o_cru(serie, avatar, rel, leitor_avatar or _leitor_avatar_padrao(), overlay)
+            est = estimador
+            if contra_o_cru is None and overlay is not None and not estimador_injetado and serie:
+                # SEM O TEXTO DO OVERLAY (W7.Z): numa camisa lisa o texto parado da legenda e da placa eram os cantos
+                # mais fortes do quadro, o rastreador seguia o texto (que não cresce) e media 2% a 5% num zoom de 16%.
+                est = _estimador_mascarado(mascaras_sem_texto(overlay, [t for t, _q in serie], rel, serie[0][1].shape))
+            if contra_o_cru is not None:
+                escalas, tempos = contra_o_cru
+                linha["metodo"] = "registro contra o avatar cru"
+            else:
+                escalas = _escalas(est, serie, "no plano de avatar de %.2f a %.2f s" % (p["inicio"], p["fim"]),
+                                   estimador_rosto, usou)
+                tempos = [t for t, _q in serie]
+                if usou:
+                    linha["regiao"] = "rosto"
+            v = camera.variacao_da_escala(escalas, tempos)
             if v is None:
                 raise InsumoInvalido("poucos quadros para medir o plano de avatar de %.2f a %.2f s"
                                      % (p["inicio"], p["fim"]))
@@ -325,7 +512,7 @@ def medir(video, timeline, estimador=None, leitor=None, overlay=None):
     medido_punches = []
     for ev in cam:
         if ev.get("tipo") == "punch":
-            medido_punches.append(_medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay))
+            medido_punches.append(_medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay, estimador_rosto))
 
     # o plano dispensado vale o que valem os punches dele
     ok_do_punch = {round(m["t"], 3): m["ok"] for m in medido_punches}
@@ -342,7 +529,7 @@ def medir(video, timeline, estimador=None, leitor=None, overlay=None):
             "parado": {"maior_s": round(maior, 3), "de": round(de, 3), "ate": round(ate, 3)}}
 
 
-def _medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay=None):
+def _medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay=None, estimador_rosto=None):
     t_d = camera.para_entregue(ev["t"], rel)
     saida = {"t": round(float(ev["t"]), 3), "t_entregue": round(t_d, 3), "ganho": None, "ok": False}
     k, sg = _segmento_em(segs, ev["t"])
@@ -367,7 +554,7 @@ def _medir_punch(ev, rel, segs, janelas_split, series, estimador, overlay=None):
     if overlay is not None:
         estimador = _estimador_mascarado(mascaras_sem_texto(overlay, [t for t, _q in corrente], rel,
                                                             corrente[0][1].shape))
-    escalas = _escalas(estimador, corrente, "ao redor do punch de %.2f s" % float(ev["t"]))
+    escalas = _escalas(estimador, corrente, "ao redor do punch de %.2f s" % float(ev["t"]), estimador_rosto)
     por_t = {t: e for (t, _q), e in zip(corrente, escalas)}
     g = camera.ganho_do_punch([por_t[t] for t in antes], [por_t[t] for t in depois])
     saida["ganho"] = round(g, 4)
@@ -448,7 +635,8 @@ def _gate(resultado, saida, etapa, medido=None, motivo=None, duracao=None):
     return g
 
 
-def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=ETAPA, overlay=None):
+def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=ETAPA, overlay=None,
+          estimador_rosto=None, avatar=None, leitor_avatar=None):
     """Confere a câmera de `video` contra a `timeline` (dict). `projeto` é aceito por simetria com os outros gates:
     o C3 não tem exceção. `leitor(video, fps)` e `estimador(serie)` são injetáveis (padrão: ffmpeg e rastreador de
     textura). Devolve o gate no formato do laudo; insumo ruim vira ERRO (saída 2), nunca traceback."""
@@ -457,7 +645,8 @@ def rodar(video, timeline, projeto=None, *, estimador=None, leitor=None, etapa=E
         _timeline_ok(timeline)
         if leitor is None and not Path(str(video)).is_file():
             raise InsumoInvalido("o vídeo não existe: %s" % video)
-        medido = medir(video, timeline, estimador=estimador, leitor=leitor, overlay=overlay)
+        medido = medir(video, timeline, estimador=estimador, leitor=leitor, overlay=overlay,
+                       estimador_rosto=estimador_rosto, avatar=avatar, leitor_avatar=leitor_avatar)
     except InsumoInvalido as e:
         return _gate("ERRO", 2, etapa, motivo=str(e))
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
@@ -475,13 +664,15 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Confere a câmera do vídeo entregue (zoom, punch, trecho parado).")
     ap.add_argument("video")
     ap.add_argument("--timeline", required=True, help="render/timeline.json do projeto")
+    ap.add_argument("--avatar", help="avatar cru (avatar/avatar.mp4): a escala sai do registro contra ele")
+    ap.add_argument("--overlay", help="overlay .mov: o texto dele fica fora do rastreio")
     args = ap.parse_args(argv)
     try:
         tl = json.loads(Path(args.timeline).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         print("ERRO de insumo: %s" % e, file=sys.stderr)
         return 2
-    g = rodar(args.video, tl)
+    g = rodar(args.video, tl, avatar=args.avatar, overlay=args.overlay)
     if g["resultado"] == "PASS":
         m = g["medido"]
         print("PASSA: %d plano(s) de avatar com câmera viva, %d punch(es) medidos, maior trecho parado %.1f s"

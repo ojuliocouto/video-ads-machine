@@ -392,7 +392,9 @@ def _g_hook_visual(ctx):
 
 def _g_camera(ctx):
     from gates import gate_camera
-    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto, overlay=str(ctx.motor.overlay_mov))
+    # o avatar cru (W7.Z): a escala do plano sai do registro contra ele, sem o balanço da pessoa que fala
+    return gate_camera.rodar(str(ctx.motor.final), ctx.timeline(), ctx.projeto, overlay=str(ctx.motor.overlay_mov),
+                             avatar=str(ctx.pj.avatar_mp4))
 
 
 def _g_cor(ctx):
