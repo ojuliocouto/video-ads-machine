@@ -380,7 +380,19 @@ def test_roda_como_script_e_sai_2_sem_projeto(tmp_path):
 
 # --- a voz real da prova de aluno (W7.X item 4) --------------------------------------------------------
 
-VOZ_REAL = Path("/Users/ojuliocouto/Downloads/Nova Gravação 62.m4a")
+NOME_VOZ_REAL = "Nova Gravação 62.m4a"
+
+
+def _voz_real():
+    """A gravação real da prova de aluno: na pasta de paridade (VAM_PARIDADE_MIDIA) ou em Downloads do usuário real
+    (o HOME de verdade, não o falso do testar_limpo). None se não está nesta máquina."""
+    import os
+    import pwd
+    pastas_ = []
+    if os.environ.get("VAM_PARIDADE_MIDIA"):
+        pastas_.append(Path(os.environ["VAM_PARIDADE_MIDIA"]))
+    pastas_.append(Path(pwd.getpwuid(os.getuid()).pw_dir) / "Downloads")
+    return next((p / NOME_VOZ_REAL for p in pastas_ if (p / NOME_VOZ_REAL).is_file()), None)
 
 
 @pytest.mark.lento
@@ -388,8 +400,9 @@ VOZ_REAL = Path("/Users/ojuliocouto/Downloads/Nova Gravação 62.m4a")
 def test_voz_real_de_57_s_higienizada_pelo_vam_passa_na_regra_de_ritmo(tmp_path):
     """A gravação real normal (61 s bruta, 56,6 s limpa, 3 pausas acima de 0,60 s) reprovava com a régua fixa de 4.
     Mede só o ritmo (sem transcritor): higieniza como o `vam audio` e aplica a MESMA regra do gate."""
-    if not VOZ_REAL.is_file():
-        pytest.skip("a gravação real da prova (Nova Gravação 62.m4a) não está nesta máquina")
+    VOZ_REAL = _voz_real()
+    if VOZ_REAL is None:
+        pytest.skip("a gravação real da prova (%s) não está nesta máquina" % NOME_VOZ_REAL)
     from audio import pausas_reais
     from cli import audio as cli_audio
     limpo = cli_audio.higienizar(VOZ_REAL, tmp_path / "limpo.mp3", 1.35)
