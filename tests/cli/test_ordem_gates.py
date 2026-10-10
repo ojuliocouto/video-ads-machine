@@ -13,7 +13,8 @@ O montador (`produzir_ad.montar`) roda, nesta ordem:
   motor    composição, aceleração, loudness e mix -> entrega/final_9x16.mp4
   durante  gate_template (o template não mudou do começo ao fim do build)
   prévia   entrega/final_whatsapp.mp4, ANTES do primeiro gate de saída
-  depois   gate-ad, medir_ritmo, gate-colisao-texto, gate-contraste-legenda, auditar_ad, gate_hook_visual,
+  depois   gate-ad, medir_ritmo, gate-colisao-texto, gate-contraste-legenda, gate_cobertura_legenda, auditar_ad,
+           gate_hook_visual,
            gate_camera, gate_cor, gate_mix, gate_sfx, gate_insert, gate_lettering_depois, gate_safezone_depois,
            gate_geometria_depois, gate_texto_atras (em paralelo, no máximo 4)
   laudo    entrega/laudo.json, no contrato
@@ -34,7 +35,8 @@ from projeto import novo, pastas, status
 
 ANTES = ["gate_aprovacao", "gate_fidelidade_roteiro", "gate_fala_roteiro", "gate_entrada", "gate_look"]
 PLANO = ["gate_geometria", "gate_safezone", "gate_lettering", "gate_congelamento"]
-DEPOIS = ["gate-ad", "medir_ritmo", "gate-colisao-texto", "gate-contraste-legenda", "auditar_ad", "gate_hook_visual",
+DEPOIS = ["gate-ad", "medir_ritmo", "gate-colisao-texto", "gate-contraste-legenda", "gate_cobertura_legenda", "auditar_ad",
+          "gate_hook_visual",
           "gate_camera", "gate_cor", "gate_mix", "gate_sfx", "gate_insert", "gate_lettering_depois",
           "gate_safezone_depois", "gate_geometria_depois", "gate_texto_atras"]
 ESPERADO = (ANTES + ["motor:preparar"] + PLANO + ["motor:footage", "motor:overlay", "gate_tela_vazia",

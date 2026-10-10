@@ -27,7 +27,7 @@ build direto, sem auditar nenhum, e a auditoria depois deu média 5,2: a leva in
   motor    composição, aceleração, loudness e mix -> entrega/final_9x16.mp4
   durante  gate_template (o template e os parciais não mudaram do começo ao fim)
   prévia   entrega/final_whatsapp.mp4, ANTES do primeiro gate de saída, e as folhas de contato
-  depois   os 15 gates de saída em paralelo (no máximo 4 por vez): todos rodam, o laudo precisa de todos
+  depois   os 16 gates de saída em paralelo (no máximo 4 por vez): todos rodam, o laudo precisa de todos
   laudo    entrega/laudo.json (contrato), amarrado ao sha256 do final
 
 Saídas: 0 laudo PASS · 1 algum gate reprovou · 2 insumo inválido, gate que morreu ou motor que não rodou.
@@ -58,7 +58,8 @@ ANTES = ("gate_aprovacao", "gate_fidelidade_roteiro", "gate_fidelidade_doc", "ga
          "gate_look")
 PLANO = ("gate_geometria", "gate_safezone", "gate_lettering", "gate_congelamento")
 DURANTE = ("gate_tela_vazia", "gate_congelamento_build", "gate_relogio", "gate_template")
-DEPOIS = ("gate-ad", "medir_ritmo", "gate-colisao-texto", "gate-contraste-legenda", "auditar_ad", "gate_hook_visual",
+DEPOIS = ("gate-ad", "medir_ritmo", "gate-colisao-texto", "gate-contraste-legenda", "gate_cobertura_legenda", "auditar_ad",
+          "gate_hook_visual",
           "gate_camera", "gate_cor", "gate_mix", "gate_sfx", "gate_insert", "gate_lettering_depois",
           "gate_safezone_depois", "gate_geometria_depois", "gate_texto_atras")
 NOMES_DOS_GATES = ANTES + PLANO + DURANTE + DEPOIS
@@ -378,6 +379,14 @@ def _g_contraste(ctx):
     return _cli(ctx, "gate-contraste-legenda", argv)
 
 
+def _g_cobertura_legenda(ctx):
+    """Toda palavra falada fora de lettering, gancho e CTA tem legenda; o CTA nunca entra antes do bloco cta (W7.W, A2)."""
+    from gates import gate_cobertura_legenda
+    al = status.ler_json(ctx.pj.alinhamento)
+    return gate_cobertura_legenda.rodar(ctx.timeline(), al.get("palavras") if isinstance(al, dict) else None,
+                                        projeto=ctx.projeto)
+
+
 def _g_auditar(ctx):
     from audio import mix_final
     return _cli(ctx, "auditar_ad", [GATES / "auditar_ad.py", ctx.motor.final, "--projeto", ctx.pj.slug, "--estado",
@@ -469,7 +478,8 @@ GATES_PADRAO = {
     "gate_lettering": _g_lettering, "gate_congelamento": _g_congelamento, "gate_tela_vazia": _g_tela_vazia,
     "gate_congelamento_build": _g_congelamento_build, "gate_relogio": _g_relogio, "gate_template": _g_template,
     "gate-ad": _g_gate_ad, "medir_ritmo": _g_ritmo, "gate-colisao-texto": _g_colisao,
-    "gate-contraste-legenda": _g_contraste, "auditar_ad": _g_auditar, "gate_hook_visual": _g_hook_visual,
+    "gate-contraste-legenda": _g_contraste, "gate_cobertura_legenda": _g_cobertura_legenda,
+    "auditar_ad": _g_auditar, "gate_hook_visual": _g_hook_visual,
     "gate_camera": _g_camera, "gate_cor": _g_cor, "gate_mix": _g_mix, "gate_sfx": _g_sfx, "gate_insert": _g_insert,
     "gate_lettering_depois": _g_lettering_depois, "gate_safezone_depois": _g_safezone_depois,
     "gate_geometria_depois": _g_geometria_depois, "gate_texto_atras": _g_texto_atras,

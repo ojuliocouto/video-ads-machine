@@ -13,8 +13,8 @@ Ordem dos gates (tabela em `gates.md`):
 
 1. **Antes (sem render):** aprovação, fidelidade ao roteiro (e ao Doc, se houver), fala x roteiro, entrada (voz e avatar), look; depois de montar a `timeline.json`: geometria, zona segura, lettering e congelamento sobre o plano. O primeiro que reprova interrompe, com o motivo no `status.json`.
 2. **Durante:** tela vazia, congelamento real, relógio, template.
-3. **A prévia de WhatsApp sai assim que o render termina**, antes dos gates de saída. Mostre-a ao aluno cedo: ele vê o anúncio enquanto os 15 gates de saída rodam.
-4. **Depois, em paralelo (até 4):** os 15 gates sobre o arquivo final. O laudo amarra tudo ao sha256 do final.
+3. **A prévia de WhatsApp sai assim que o render termina**, antes dos gates de saída. Mostre-a ao aluno cedo: ele vê o anúncio enquanto os 16 gates de saída rodam.
+4. **Depois, em paralelo (até 4):** os 16 gates sobre o arquivo final. O laudo amarra tudo ao sha256 do final.
 
 ## Quando um gate reprova
 

@@ -3,7 +3,7 @@
 Antes do build: aprovação vigente, fidelidade ao roteiro, fala x roteiro, entrada (voz e avatar) e look; depois de
 montar a timeline (o relógio único): geometria, zona segura, lettering e congelamento sobre o plano. Durante: tela
 vazia, congelamento real, relógio e template. A prévia de WhatsApp (entrega/final_whatsapp.mp4) sai assim que o render
-termina; então os 15 gates de saída rodam sobre o arquivo final e o laudo (entrega/laudo.json) amarra tudo ao sha256
+termina; então os 16 gates de saída rodam sobre o arquivo final e o laudo (entrega/laudo.json) amarra tudo ao sha256
 dele. O primeiro gate que reprova antes ou durante o build interrompe, com o motivo no status.json.
 
 Saídas: 0 laudo PASS · 1 algum gate reprovou · 2 insumo inválido ou ferramenta que morreu.

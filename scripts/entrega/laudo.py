@@ -35,7 +35,7 @@ CAPACIDADES = {
     "C3": ("gate_camera",),
     "C4": ("auditar_ad", "gate-ad"),
     "C5": ("gate_cor",),
-    "C6": ("gate-ad", "gate-contraste-legenda", "gate-colisao-texto", "gate_safezone", "gate_geometria",
+    "C6": ("gate-ad", "gate-contraste-legenda", "gate_cobertura_legenda", "gate-colisao-texto", "gate_safezone", "gate_geometria",
            "gate_safezone_depois", "gate_geometria_depois"),
     "C7": ("gate_lettering", "gate_lettering_depois"),
     "C8": ("gate_insert", "gate_congelamento", "gate_congelamento_build"),
