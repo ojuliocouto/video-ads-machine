@@ -1,8 +1,8 @@
       /* ===== legenda.css: legenda karaokê (C6), palavra a palavra, preenchimento linear =====
          Uma família, dois estados por COR (regra de tipografia de legenda): Inter 800, ênfase por cor, nunca
-         itálico nem tamanho. Contorno por glifo de 0,078em (2,6 px para fora a 80 px): 9 px soldava as letras.
-         Sem scrim (19/08/2026, "essa sombra embaixo me dá pânico"): o contraste é do contorno e de UMA sombra
-         macia; halo triplo virava mancha preta atrás de cada palavra.
+         itálico nem tamanho. SEM CONTORNO (10/10/2026, dono: "tava com um contorno em cada palavra, não tava
+         legal"): texto limpo com sombra suave e difusa, sem borda dura. Sem scrim (19/08/2026, "essa sombra embaixo
+         me dá pânico"): o contraste é da sombra macia e, em fundo médio, da faixa única (`cplaca`).
          Posição (bottom), recuo e corpo são do formato: moram no index.html. As classes de posição
          (`cgrp-baixa`, `cgrp-costura`) vêm de `overlay.layout_texto`. */
       #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
@@ -11,9 +11,8 @@
         display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:6px 30px; }
       #caps .cw { font-family:"Inter"; font-weight:800;
         color:#F5EFE6; letter-spacing:-0.02em; line-height:1.14;
-        paint-order:stroke fill; -webkit-text-stroke:0.078em rgba(6,7,12,.92);
-        filter:drop-shadow(0 4px 12px rgba(0,0,0,.40));
-        text-shadow:0 2px 4px rgba(0,0,0,.35); }
+        filter:drop-shadow(0 4px 14px rgba(0,0,0,.55));
+        text-shadow:0 2px 12px rgba(0,0,0,.50); }
       /* ênfase por cor: terracota. Não muda o tamanho: a caixa é ancorada por baixo e crescer empurraria
          a linha para cima, na direção do queixo. */
       #caps .cw.kw { color:#E87D4E; }
@@ -50,11 +49,10 @@
       #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
       /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
          tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá
-         ~15:1 sem mexer em geometria; o contorno vira claro para segurar meio-tom. */
+         ~15:1 sem mexer em geometria; a sombra vira clara para segurar meio-tom. */
       #caps .cgrp-claro .cw { color:#12141A;
-        -webkit-text-stroke:0.078em rgba(255,255,255,.90);
-        filter:drop-shadow(0 3px 10px rgba(255,255,255,.55));
-        text-shadow:0 2px 4px rgba(255,255,255,.50); }
+        filter:drop-shadow(0 3px 12px rgba(255,255,255,.60));
+        text-shadow:0 2px 10px rgba(255,255,255,.55); }
       #caps .cgrp-claro .cw.kw { color:#B2431A; }
       /* OPACIDADE CHEIA NA PALAVRA (29/08/2026). O apagado mora na COR da camada `.base`. Com opacity .82 na
          palavra, o MÁXIMO de alfa do overlay era 210 e o gate de contraste ficava cego ("0 faixas" com PASSA).

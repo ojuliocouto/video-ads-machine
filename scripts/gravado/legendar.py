@@ -85,7 +85,7 @@ def cabecalho():
         "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, "
         "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Base,%s,66,&H00FFFFFF,&H00000000,&H00000000,1,0,0,0,100,100,0.6,0,1,5.5,1.5,2,70,70,%d,1\n\n"
+        "Style: Base,%s,66,&H00FFFFFF,&H00000000,&H78000000,1,0,0,0,100,100,0.6,0,1,0,3,2,70,70,%d,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         % (LARGURA, ALTURA, FONTE, ALTURA - Y_LEGENDA))
