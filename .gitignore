@@ -1,5 +1,8 @@
 # deps
 node_modules/
+.venv/
+# bibliotecas de terceiros baixadas pelo setup (nunca versionadas)
+templates/_vendor/
 
 # assets reais e material de validacao local (NUNCA versionar)
 # assets reais (avatar, logos de cliente, roteiros) ficam em _local/ ou nos
@@ -8,6 +11,8 @@ _local/
 render*/
 *.mp4
 *.mov
+*.wav
+*.mp3
 
 # segredos
 .env
