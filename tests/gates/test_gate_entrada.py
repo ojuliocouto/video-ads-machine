@@ -316,7 +316,7 @@ def test_constantes_iguais_as_do_passo_que_o_gate_fiscaliza():
 
 def test_gate_nao_tem_look_nem_pasta_de_leva_cravados():
     fonte = (RAIZ / "scripts" / "gates" / "gate_entrada.py").read_text(encoding="utf-8")
-    for proibido in ("audios_leva", "oficial_13", "espuma", "LOOKS_OK", "/tmp", "parakeet-mlx"):
+    for proibido in ("audios_leva", "LOOKS_OK", "/tmp", "parakeet-mlx"):
         assert proibido not in fonte
 
 

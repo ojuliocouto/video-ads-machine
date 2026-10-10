@@ -3,7 +3,7 @@
 
 Nasceu de um achado do diretor de arte (18/08/2026) que a prancha nao pegava e o gate
 tambem nao: `tpad=stop_mode=clone` no motor de footage clona o ultimo quadro quando o
-arquivo acaba antes do bloco. Quatro inserts do jh13 congelavam, 3,68s de audio somados,
+arquivo acaba antes do bloco. Quatro inserts do anúncio de referência congelavam, 3,68s de audio somados,
 e nenhum quadro parado denunciava porque congelado e um quadro normal repetido.
 
 Isso nao e defeito de olho, e de ARITMETICA:

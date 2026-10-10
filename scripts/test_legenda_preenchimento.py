@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contrato da legenda por PREENCHIMENTO linear (karaoke), 29/08/2026.
 
-Pedido do Julio, por audio: "nao gosto desse estilo de legenda onde a legenda meio que
+Pedido do diretor, por audio: "nao gosto desse estilo de legenda onde a legenda meio que
 sobe, fica pulando. Eu gosto quando e uma cor, vai preenchendo ela, de forma linear".
 
 O salto vertical saiu. No lugar entra o preenchimento: cada palavra tem DUAS camadas de

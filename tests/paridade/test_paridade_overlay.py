@@ -91,7 +91,7 @@ def test_as_duas_representacoes_dizem_o_mesmo(midia):
         assert _marcador(ia, "KEY") == _marcador(inov, "KEY"), f"bloco {i}: KEY"
         assert ("logo" in ia.lower()) == ("logo" in inov.lower()), f"bloco {i}: logo"
 
-    cfg = json.loads((fx / "antigo" / "ad99v2_espuma.json").read_text(encoding="utf-8"))
+    cfg = json.loads((fx / "antigo" / "ad99v2_look_a.json").read_text(encoding="utf-8"))
     proj = json.loads((fx / "novo" / "projeto.json").read_text(encoding="utf-8"))
     assert cfg["hook"] == {"eyebrow": proj["hook"]["eyebrow"], "l1": proj["hook"]["linha"],
                            "accent": proj["hook"]["destaque"]}

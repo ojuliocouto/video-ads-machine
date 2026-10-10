@@ -30,7 +30,7 @@ def _plano(pares):
 
 class TesteMixDeSom(unittest.TestCase):
 
-    # WHOOSH DESLIGADO POR PADRAO (31/08/2026, Julio: "tem um som nas transicoes que ta
+    # WHOOSH DESLIGADO POR PADRAO (31/08/2026, o diretor: "tem um som nas transicoes que ta
     # me irritando"). Os testes de POSICAO do whoosh continuam valendo pro mecanismo,
     # entao ligam a chave so dentro deles; o padrao de fabrica e testado a parte.
     def _com_whoosh(self):

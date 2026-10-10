@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Corta TEMPO MORTO de um vídeo JÁ PRONTO, sem regerar avatar nem remontar.
 
-Pergunta do Julio (17/08/2026): "nao era mais facil vc so cortar o video q vc ja fez?
+Pergunta do diretor (17/08/2026): "nao era mais facil vc so cortar o video q vc ja fez?
 ao inves de gastar credito do heygen pra gerar outro e ter um PUTA trabalho de refazer".
 Ele estava certo, e o caminho caro custou US$ 5 de HeyGen mais 13 min de render por
 uma pausa de 0,3s a mais.

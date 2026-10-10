@@ -1,7 +1,7 @@
 """One-shot: o enquadramento 9:16 centrado no rosto MEDIDO (W5.D).
 
 O take de câmera horizontal vira 9:16 recortando uma janela centrada no rosto, não no meio do
-quadro (o `oficial_13` é um close mais fechado: a mesma fração que acerta um look corta as
+quadro (o `look_b` é um close mais fechado: a mesma fração que acerta um look corta as
 sobrancelhas de outro). O rosto é o que precisa estar no quadro, então é nele que se ancora, e o
 detector entra por parâmetro: nos testes ele devolve um rosto conhecido, e o recorte tem que cair
 no centro dele com até 10 px de erro.

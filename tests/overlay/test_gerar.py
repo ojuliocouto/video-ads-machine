@@ -321,7 +321,7 @@ def _cenarios_fixos():
                              (LOGO, 45, 52)]))
     # W3.X L10: o look fechado vem do plano declarado (looks.json do aluno); o nome do arquivo só existe aqui para o
     # motor do commit base, que ainda decidia pelo nome, dar o mesmo resultado
-    c.append(Cenario("look_fechado_pelo_nome", avatar_nome=f"{C.AD}_of13_avatar.mp4", cfg={"look_plano": "fechado"}))
+    c.append(Cenario("look_fechado_pelo_nome", avatar_nome=f"{C.AD}_lookb_avatar.mp4", cfg={"look_plano": "fechado"}))
     c.append(Cenario("texto_proprio_e_baixo", inserts={"demo a": {"texto_proprio": True}},
                      letterings=LETTERINGS_BASE[:2] + [dict(LETTERINGS_BASE[3], baixo=True)]))
     c.append(Cenario("lettering_cruza_a_troca_de_layout", inserts=ins_b_split,
@@ -399,7 +399,7 @@ def _cenario_aleatorio(semente):
     if r.random() < 0.3:
         cfg["cta_label"] = r.choice(["ver agora", "clique aqui"])
     formato = "1x1" if r.random() < 0.2 else "9x16"
-    avatar_nome = f"{C.AD}_of13_avatar.mp4" if r.random() < 0.15 else None
+    avatar_nome = f"{C.AD}_lookb_avatar.mp4" if r.random() < 0.15 else None
     if avatar_nome:
         cfg["look_plano"] = "fechado"          # W3.X L10: o plano declarado, sem sortear nada a mais
     return Cenario(f"aleatorio_{semente}", blocos=blocos, inserts=inserts, cfg=cfg, letterings=letts,

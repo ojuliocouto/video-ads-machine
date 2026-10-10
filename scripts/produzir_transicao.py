@@ -2,7 +2,7 @@
 """Escolha da transicao entre dois blocos.
 
 Saiu de dentro do `produzir_roteiro.py` (que e script e nao da pra importar) pra poder
-ter teste. A regra que mora aqui nasceu de defeito real: o Julio viu o anuncio e mandou
+ter teste. A regra que mora aqui nasceu de defeito real: o diretor viu o anuncio e mandou
 "0:56, 0:58, tem uma falha visual na transicao". No quadro de t=56,03s aparece uma faixa
 estreita do plano anterior colada na borda esquerda, com o novo ocupando o resto, ou seja
 um deslize pego no meio.

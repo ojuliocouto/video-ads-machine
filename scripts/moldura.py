@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Moldura de navegador em PNG, pro insert entrar INTEIRO dentro dela.
 
-Ordem do Julio (26/08/2026), depois de reprovar o jh13:
+Ordem do diretor (26/08/2026), depois de reprovar o anúncio de referência:
 
     "o insert ta no formato horizontal, da pra colocar dentro de algum mockup"
     "e so colocar ele dentro de algum mockup que caiba na tela, e muito simples.
@@ -75,7 +75,7 @@ def png_navegador(aspecto, destino, rotulo=None):
     # --- sombra: sutil, so pra descolar do fundo --------------------------------
     # ERA alpha 153 com blur 30 e deslocamento de 18px (26/08/2026). Sobre o fundo
     # desfocado do proprio asset isso virava uma MANCHA PRETA em volta do card, e foi a
-    # primeira coisa que o Julio viu: "os assets ficaram com uma sombra preta sobre eles
+    # primeira coisa que o diretor viu: "os assets ficaram com uma sombra preta sobre eles
     # quando a tela ta dividida". O card ja se separa do fundo pela borda clara e pelo
     # fundo estar borrado e escurecido: a sombra pesada so sujava.
     som = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -86,7 +86,7 @@ def png_navegador(aspecto, destino, rotulo=None):
     # ANTES do card, e o "buraco" que o card abre na janela (alpha 0) NAO apaga o que ja
     # esta embaixo: `alpha_composite` compoe, nao substitui. Resultado: preto com alpha
     # 64 por cima da area do video, ou seja 255*(1-64/255) = 191. Era o "filtro cinza"
-    # que o Julio viu duas vezes e que eu procurei no lugar errado nas duas (mexi em
+    # que o diretor viu duas vezes e que eu procurei no lugar errado nas duas (mexi em
     # exposicao, contraste e teto; a causa estava no PNG da moldura).
     # Aqui a area da janela e zerada na propria sombra: ela so existe FORA do card.
     _jan = Image.new("L", (W, H), 255)

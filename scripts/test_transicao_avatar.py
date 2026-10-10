@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contrato da transicao entre dois planos do APRESENTADOR (29/08/2026).
 
-Defeito que o Julio achou vendo o anuncio e mandou por WhatsApp: "0:56, 0:58, tem uma
+Defeito que o diretor achou vendo o anuncio e mandou por WhatsApp: "0:56, 0:58, tem uma
 falha visual na transicao". Extrai os quadros de 55,8s a 58,4s a cada 0,1s e o de
 t=56,03s mostra uma FAIXA ESTREITA do plano anterior colada na borda esquerda, com o
 plano novo ocupando o resto: um deslize pego no meio do caminho.

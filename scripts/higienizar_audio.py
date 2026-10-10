@@ -2,7 +2,7 @@
 """Higieniza a VOZ REAL antes do avatar: encurta SO os SILENCIOS GRANDES (pausas de respiracao),
 mantendo os gaps/pausas naturais. Passo OBRIGATORIO do pipeline (voz -> aqui -> avatar).
 
-Por que: o Thales grava a voz e PARA pra respirar entre frases (pausas de 0.5-2s com o som do
+Por que: o apresentador grava a voz e PARA pra respirar entre frases (pausas de 0.5-2s com o som do
 respiro). Isso precisa sair pro anuncio ficar dinamico e sem respiro. Mas as pausas naturais
 curtas (< ~0.5s) NAO podem sair (senao "picota" e fica robotico).
 
@@ -27,7 +27,7 @@ KEEP_PAUSE = float(os.environ.get("KEEP_PAUSE", 0.26)) # piso: pausa natural que
 # TETO DA PAUSA EXPRESSO NO TEMPO DA TELA, nao no do arquivo (17/08/2026).
 # Erro que isso corrige: eu calibrava o teto no audio original e esquecia que o video
 # e ACELERADO depois. Com teto de 1,20s e aceleracao 1.35x, uma pausa aparecia com
-# 0,89s na tela, e o Julio ouviu como "ele para pra respirar" aos 0:12. O que o
+# 0,89s na tela, e o diretor ouviu como "ele para pra respirar" aos 0:12. O que o
 # espectador percebe e a pausa DEPOIS da aceleracao, entao o parametro passa a ser
 # essa, e o teto no arquivo sai da conta.
 PAUSA_MAX_TELA = float(os.environ.get("PAUSA_MAX_TELA", 0.60))
@@ -62,7 +62,7 @@ def silences(mp3):
     de dB por uma fracao de frame) sao MESCLADAS antes de qualquer corte: senao cada uma vira
     um cut independente que so deixa KEEP_PAUSE na sua propria borda, e a pausa combinada no
     audio final fica maior que qualquer BIG_SIL/KEEP_PAUSE isolado (silencio residual escapa
-    do gate sem_respiro_grande do vam_build.py)."""
+    do gate sem_respiro_grande)."""
     r = subprocess.run(["ffmpeg","-i",mp3,"-af",f"silencedetect=noise={SIL_DB}dB:d={MINDET}","-f","null","-"],
                        capture_output=True, text=True)
     raw = []; start = None
@@ -131,7 +131,7 @@ def main():
             cut_len = d - keep
             mid = (s + e) / 2
             a = round(mid - cut_len/2, 3); b = round(mid + cut_len/2, 3)
-            # MARGEM DE SEGURANCA (17/08/2026, defeito ouvido pelo Julio): o
+            # MARGEM DE SEGURANCA (17/08/2026, defeito ouvido pelo diretor): o
             # silencedetect marca como silencio tambem a cauda fraca de uma palavra
             # (fricativa, vogal final baixa). Com o corte centrado, a BORDA caia dentro
             # da fala e comia pedaco: "uma campanha" virou "panha", "vender" virou

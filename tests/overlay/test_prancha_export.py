@@ -17,7 +17,7 @@ from overlay import prancha_export as P
 
 def args():
     return dict(
-        ad="ad99v2", look="espuma", total=18.7, hook_dur=2.2,
+        ad="ad99v2", look="look_a", total=18.7, hook_dur=2.2,
         cfg={"hook": {"eyebrow": "MEU CLAUDE", "l1": "virou", "accent": "PRO", "style": "punch"},
              "cta_label": "ver mais"},
         cta_s=14.0, logo_s=13.1,
@@ -35,7 +35,7 @@ def args():
 def test_a_prancha_tem_a_forma_do_original():
     p = P.montar_prancha(**args())
     assert p == {
-        "ad": "ad99v2", "look": "espuma", "total": 18.7, "accel": 1.35,
+        "ad": "ad99v2", "look": "look_a", "total": 18.7, "accel": 1.35,
         "hook": {"fim": 2.2, "texto": {"eyebrow": "MEU CLAUDE", "l1": "virou", "accent": "PRO", "style": "punch"}},
         "cta": {"inicio": 14.0, "logo": 13.1, "label": "ver mais"},
         "blocos": [

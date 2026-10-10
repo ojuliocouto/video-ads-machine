@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parser do roteiro anotado da Jheni -> plano de blocos + narracao continua.
+"""Parser do roteiro anotado da estrategista -> plano de blocos + narracao continua.
 Cada linha: [instrucao visual] texto narrado.
 """
 import re, json, sys
@@ -8,12 +8,12 @@ def classify(instr):
     s=instr.lower()
     if "lettering" in s:
         return ("lettering_logo" if "logo" in s else "lettering")
-    # THALES ANTES DE LOGO. Com "logo" testado primeiro, o bloco
-    # "[Thales de frente para a camera + logo da imersao]" virava tipo "logo" e o motor
+    # APRESENTADOR ANTES DE LOGO. Com "logo" testado primeiro, o bloco
+    # "[o apresentador de frente para a camera + logo da imersao]" virava tipo "logo" e o motor
     # entregava um CARD DE LOGO EM TELA CHEIA, sem o apresentador, justamente no bloco
-    # em que ele pede a inscricao. Reprovado pelo diretor de arte no jh14 (8,2s de card)
-    # e no jh16 (6,7s). "+ logo" num bloco de Thales quer dizer logo SOBRE ele.
-    if "thales" in s or "apresentador" in s:
+    # em que ele pede a inscricao. Reprovado pelo diretor de arte no anúncio de referência (8,2s de card)
+    # e no anúncio de referência (6,7s). "+ logo" num bloco de apresentador quer dizer logo SOBRE ele.
+    if "apresentador" in s:
         return ("lettering_logo" if "logo" in s else "orig")
     if "logo" in s:
         return "logo"

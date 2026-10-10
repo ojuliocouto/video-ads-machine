@@ -36,7 +36,7 @@ def _teto_de_trocas(blocos):
     alternancia dentro de insert.
 
     Card de lettering fica de fora de proposito: o modulo nao pica card, e picar tem
-    custo de leitura. Onde isso pesa (jh14 tem um card de 11,5s; jh15 tem 17,7s de card)
+    custo de leitura. Onde isso pesa (anúncio de referência tem um card de 11,5s; anúncio de referência tem 17,7s de card)
     o teste avisa em vez de reprovar, porque a decisao e do diretor na prancha.
     """
     fronteiras = sum(1 for a, b in zip(blocos, blocos[1:]) if a["tipo"] != b["tipo"])
@@ -100,7 +100,7 @@ class TestePlanoDeRitmo(unittest.TestCase):
                       "insert de 13s sem voltar pro rosto vira slideshow de tela")
 
     def test_os_quatro_ads_chegam_na_faixa_da_referencia(self):
-        for ad in ("jh13v2", "jh14v2", "jh15v2"):
+        for ad in ("anúncio de referência", "anúncio de referência", "anúncio de referência"):
             p = PRANCHA / ad / "prancha.json"
             if not p.exists():
                 continue
@@ -118,12 +118,12 @@ class TestePlanoDeRitmo(unittest.TestCase):
     def test_cortes_decisivos_batem_a_referencia(self):
         """Corte que o olho le e o que TROCA DE CONTEUDO, nao o que reenquadra.
 
-        Medido no jh13: reenquadrar ou mudar escala no mesmo plano continuo pontua no
+        Medido no anúncio de referência: reenquadrar ou mudar escala no mesmo plano continuo pontua no
         maximo 0,295 (limiar 0,30), enquanto a troca avatar <-> insert passa folgado.
         O material comporta ~61 trocas (40,8/min), entao o piso de 16/min e alcancavel
         sem asset novo: basta alternar mais.
         """
-        for ad in ("jh13v2", "jh14v2", "jh15v2"):
+        for ad in ("anúncio de referência", "anúncio de referência", "anúncio de referência"):
             p = PRANCHA / ad / "prancha.json"
             if not p.exists():
                 continue
@@ -191,7 +191,7 @@ class TestePlanoDeRitmo(unittest.TestCase):
         self.assertLessEqual(maior_rosto, 7.2,
                              f"rosto de {maior_rosto:.1f}s seguido: a zona morta voltou")
         # CONTRATO MUDOU 19/08/2026: recorte derivado (zoom) foi abolido depois que o
-        # Julio viu o AD13 ("um zoom que nem da pra ver"): ampliar gravacao de tela
+        # O diretor viu o AD13 ("um zoom que nem da pra ver"): ampliar gravacao de tela
         # vira mingau. O recorte aprovado e o unico; a variedade vem da fonte correr
         # (fonte_off), entao fatias vizinhas com o MESMO recorte sao o esperado.
         for x in tela:
@@ -199,7 +199,7 @@ class TestePlanoDeRitmo(unittest.TestCase):
                              "fatia com recorte diferente do aprovado pelo diretor")
 
     def test_fatias_cobrem_o_bloco_sem_inverter(self):
-        """Regressao do jh14 bloco 4 (18,2s, cap 4,0): saiu fatia com e < s.
+        """Regressao do anúncio de referência bloco 4 (18,2s, cap 4,0): saiu fatia com e < s.
 
         Causa: no regime de reuso o rosto era calculado sobre dur - cap, mas o total de
         tela com reuso NAO e o cap, e a soma estourava o bloco. Invariantes que valem
@@ -231,8 +231,7 @@ class TestePlanoDeRitmo(unittest.TestCase):
     def test_abertura_nao_alterna_dentro_da_janela_do_hook(self):
         """O bloco 0 e o fundo do HOOK: insert em tela cheia sob o texto de abertura.
 
-        A alternancia enfiou um respiro de rosto aos ~2s e o hook caiu NA CARA do
-        Thales (gate de colisao pegou no jh13: texto cobrindo 5,7% do rosto em
+        A alternancia enfiou um respiro de rosto aos ~2s e o hook caiu NA CARA do apresentador (gate de colisao pegou no anúncio de referência: texto cobrindo 5,7% do rosto em
         t=1,5s entregue). Regra: nos primeiros HOOK_JANELA segundos de footage do
         bloco 0, a imagem e SEMPRE insert.
         """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contrato de `fundo_claro`: onde a legenda BRANCA nao le e precisa de placa.
 
-Nasceu de defeito medido no build 26 do jh13. O insert `pip` (tela cheia com o
+Nasceu de defeito medido no build 26 do anúncio de referência. O insert `pip` (tela cheia com o
 apresentador num circulo) e um mockup de pagina BRANCA. A legenda branca pousou em cima
 dele e o contraste no quadro entregue deu 1,52:1, contra 11,7 e 14,3 nos trechos escuros
 do MESMO anuncio. O perfil de luminancia do quadro inteiro nao tem uma faixa acima de

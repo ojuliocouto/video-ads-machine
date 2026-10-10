@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ritmo de corte: um so ponto de verdade pros dois lados da comparacao.
 
-Existe porque "dinamico" virou opiniao. O Julio mandou tres referencias e a Jheni disse
+Existe porque "dinamico" virou opiniao. O diretor mandou tres referencias e a estrategista disse
 que o anuncio "poderia ser mais acelerado"; sem numero, cada rodada era palpite. Medido
 com o MESMO metodo nos dois lados (deteccao de cena, limiar 0,30), em 18/08/2026:
 
@@ -11,12 +11,11 @@ com o MESMO metodo nos dois lados (deteccao de cena, limiar 0,30), em 18/08/2026
     AD13 nosso         4,7             12,80s
     AD14 nosso         7,6              7,91s
 
-O alvo sai dessas referencias, nao de mim. As fixtures vivem em refs/vaibhav/ e o teste
+O alvo sai dessas referencias, nao de mim. As fixtures vivem em refs/ritmo_a/ e o teste
 `test_medir_ritmo.py` confere que o medidor concorda com elas: se ele nao pontuar as tres
 entre 18 e 28 cortes/min, o errado e o medidor.
 
-ARMADILHA CONHECIDA: `refs/sobral/ref_hook.mp4` tambem e referencia da leva, mandada pela
-Jheni, mas de HOOK. Ela tem 2,1 cortes/min. Medir dinamica por ela leva a conclusao
+ARMADILHA CONHECIDA: `refs/ritmo_b/ref_hook.mp4` tambem e referencia da leva, mandada pela estrategista, mas de HOOK. Ela tem 2,1 cortes/min. Medir dinamica por ela leva a conclusao
 oposta. O teste cobre isso.
 
 Uso:
@@ -33,11 +32,11 @@ LIMIAR_CENA = 0.30      # o mesmo dos dois lados; mudar aqui invalida a comparac
 # PISO. LIMITACAO CONHECIDA (27/08/2026): ele NAO da pra calibrar contra a referencia,
 # porque os dois lados nao usam o mesmo caminho e nao ha como usar. Os nossos ads sao
 # medidos por interseccao plano x imagem (unico jeito de excluir o churn da legenda
-# karaoke, que sozinho faz o jh16 pontuar 47/min); a referencia nao tem plano nosso.
-# Entao a calibragem sai do unico dado humano que existe: os ads que o Julio e a Jheni
+# karaoke, que sozinho faz o anúncio de referência pontuar 47/min); a referencia nao tem plano nosso.
+# Entao a calibragem sai do unico dado humano que existe: os ads que o diretor e a estrategista
 # chamaram de lentos dao 15,1 e 15,3 por este caminho. O piso fica logo acima deles.
 # A margem e FINA de proposito e o estrategista apontou isso: um ad que passe raspando
-# (o jh13 passou com 16,6, ou seja um corte de folga em 90s) nao esta dinamico, esta no
+# (o anúncio de referência passou com 16,6, ou seja um corte de folga em 90s) nao esta dinamico, esta no
 # limite. Com mais ads julgados por gente, este numero deve subir.
 MIN_CORTES_MIN = 16.0
 PLANO_LONGO_S = 6.0     # a partir daqui o plano conta como "parado"
@@ -48,7 +47,7 @@ PLANO_LONGO_S = 6.0     # a partir daqui o plano conta como "parado"
 # ads 86,8% a 93,5%. O teto de 40% separa sem encostar em nenhum dos dois lados.
 MAX_CORTES_MIN = 32.0   # teto: a referencia mais rapida faz 27,8. Gate que aprova 40
                         # aprovaria uma peca mais picotada que a propria referencia, e o
-                        # Julio ja reclamou de insert "saindo da tela MUITO rapido".
+                        # O diretor ja reclamou de insert "saindo da tela MUITO rapido".
 MAX_FRAC_LENTA = 0.40
 MAX_PLANO_S = 14.0      # teto absoluto generoso: a pior referencia segura 13,2s
 
@@ -103,9 +102,9 @@ def cortes_confirmados(video, plano_json, accel=1.35, limiar=0.62, fps=8, tol=0.
     piscada de fundo nao esta no plano; mudanca de pagina dentro de uma gravacao continua
     nao esta no plano; e punch de avatar esta no plano mas nao muda a imagem.
 
-    Validado contra as referencias do Julio, com a metrica normalizada: ref1 25,5/min,
+    Validado contra as referencias do diretor, com a metrica normalizada: ref1 25,5/min,
     ref2 19,8, ref3 23,6 (todas na faixa 18 a 28 que o ffmpeg tambem dava) e a ref de
-    HOOK do Sobral em 1,4/min, que e o caso que nao pode pontuar alto.
+    HOOK de referência de ritmo B em 1,4/min, que e o caso que nao pode pontuar alto.
     """
     import numpy as np
     LARG, ALT = 64, 114
@@ -129,7 +128,7 @@ def cortes_confirmados(video, plano_json, accel=1.35, limiar=0.62, fps=8, tol=0.
     # na footage: plano = entregue*accel + a0, e a volta e (plano-a0)/accel. Sem
     # subtrair, cada alvo do plano fica adiantado (com a0=0,24 e accel=1,35, 0,178s,
     # que come 40% da tolerancia de 0,45s). E o MESMO esquecimento que ja tinha
-    # corrigido no gate de colisao, e ficou de fora daqui: neste jh13 nao mudou o
+    # corrigido no gate de colisao, e ficou de fora daqui: neste anúncio de referência nao mudou o
     # resultado (27 casados nos dois jeitos, o estrategista testou e confirmou), mas o
     # erro fica LATENTE pra qualquer ad com a0 maior ou tolerancia mais apertada.
     segs = json.loads(Path(plano_json).read_text()).get("segs", [])
@@ -155,10 +154,10 @@ def medir(p, plano=None, accel=1.35, a0=0.0):
 
     Testei a simetria e ela produz numero absurdo no nosso material:
 
-        ref mais rapida do Julio ......... 30,1/min
-        jh16, que o Julio achou LENTO .... 47,1/min
-        jh15, LENTO ...................... 34,1/min
-        jh14, LENTO ...................... 31,0/min
+        ref mais rapida do diretor ......... 30,1/min
+        anúncio de referência, que o diretor achou LENTO .... 47,1/min
+        anúncio de referência, LENTO ...................... 34,1/min
+        anúncio de referência, LENTO ...................... 31,0/min
 
     A causa: a nossa legenda troca 2 a 3 palavras GRANDES por segundo, e quadro
     normalizado le cada troca dessas como mudanca de estrutura. A referencia nao tem esse

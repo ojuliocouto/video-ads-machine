@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Contrato do PUSH-IN nas gravacoes de tela.
 
-Autorizacao do Julio (28/08/2026), em resposta a pergunta fechada: o print entra INTEIRO
+Autorizacao do diretor (28/08/2026), em resposta a pergunta fechada: o print entra INTEIRO
 primeiro e depois a camera avanca para a regiao que a fala descreve. E excecao NOMEADA a
 ordem de 26/08 ("o video todo que aparece e o que precisa"), valida so para gravacao de
 tela, e existe por um motivo medido: um asset 16:9 entrando inteiro num quadro 9:16 nao
 passa de 31,6% do quadro (teto fisico, `esc_max = 1080/largura`), e hoje ja entregamos
-32,2%. Sem push-in, legibilidade so subiria com gravacao nova, que o Julio recusou.
+32,2%. Sem push-in, legibilidade so subiria com gravacao nova, que o diretor recusou.
 
 O contrato:
   1. Em t=0 o zoom e 1,0. O asset aparece INTEIRO. Isso nao e negociavel: e o que separa

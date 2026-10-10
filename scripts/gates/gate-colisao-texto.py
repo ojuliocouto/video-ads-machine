@@ -4,7 +4,7 @@ Gate de auditoria automatica: colisao entre texto (legenda queimada, bloco de CT
 e o rosto do apresentador, em video de anuncio 1080x1920.
 
 POR QUE ESSE SCRIPT EXISTE (defeito real, 17/08/2026):
-Um anuncio (jh13v2_espuma_roxa) saiu com a legenda queimada e o bloco de CTA caindo
+Um anuncio (ad13v2_look_a) saiu com a legenda queimada e o bloco de CTA caindo
 em cima da boca do apresentador, e tambem em cima do diagrama do insert. Ninguem
 mediu isso antes de entregar. Foi descoberto so quando alguem assistiu o video
 pronto. Esse script MEDE a sobreposicao entre texto e rosto, quadro a quadro, e
@@ -87,7 +87,7 @@ def carregar_janelas_split(caminho, accel, a0=0.0):
     Vem do plano de ritmo que o proprio build gerou, convertido pro tempo do arquivo
     entregue (o plano fala em tempo de footage 1x; a entrega roda acelerada).
 
-    Existe por causa de um falso positivo medido em 27/08/2026 no jh13: a ultima
+    Existe por causa de um falso positivo medido em 27/08/2026 no anúncio de referência: a ultima
     deteccao real de rosto foi em t=40,5s, com o apresentador em TELA CHEIA e a caixa
     em y577-1277. Em 43,5s o plano ja era split, o rosto tinha descido pro painel de
     baixo, e a caixa HERDADA ficou pousada em cima de uma ampulheta de areia ambar no
@@ -157,7 +157,7 @@ def obter_cascade_rosto():
     Carrega o Haar cascade uma unica vez (evita reparsear o XML a cada quadro).
 
     scaleFactor=1.1 e minNeighbors=5 foram escolhidos testando no proprio video
-    de validacao (jh13v2_espuma_roxa_v2composite_9x16.mp4, closeup com luz roxa
+    de validacao (ad13v2_look_a_v2composite_9x16.mp4, closeup com luz roxa
     de estudio): equalizeHist do cinza PIOROU a deteccao aqui (a luz de set ja
     da contraste forte, e o equalize as vezes zerava o rosto detectado), e um
     scaleFactor mais agressivo (1.05) as vezes detectava um segundo "rosto" falso
@@ -316,7 +316,7 @@ def detectar_rostos(quadro_bgr):
     # "de verdade" nunca e menor que isso; qualquer coisa menor detectada e
     # muito mais provavel de ser ruido ou um rostinho dentro de screenshot.
     # 12% (129px) deixava passar padrao de 133px no canto escuro do cenario, e o gate
-    # media o hook contra ele (falso positivo de 60,4% no jh15). O apresentador foi
+    # media o hook contra ele (falso positivo de 60,4% no anúncio de referência). O apresentador foi
     # medido entre 528 e 713px de largura em toda a leva, entao 20% separa com folga.
     tam_min = max(1, int(largura * 0.20))
     rostos = obter_cascade_rosto().detectMultiScale(
@@ -405,7 +405,7 @@ def cobertura_por_mascara(rosto, mascara):
     Por que trocar: a caixa envolvente de uma faixa horizontal vai da primeira ate a
     ultima coluna com tinta, entao um lettering de duas linhas no PEITO do apresentador
     virava um retangulo enorme que encostava na caixa do rosto. Foi assim que o gate
-    reprovou o quadro de 67,5s do jh13 dizendo "43% do rosto coberto", quando na imagem
+    reprovou o quadro de 67,5s do anúncio de referência dizendo "43% do rosto coberto", quando na imagem
     o texto esta claramente abaixo do queixo (conferido a olho). Falso positivo mata
     gate: se ele grita no lugar errado, a gente aprende a ignorar.
 
@@ -575,7 +575,7 @@ def main():
 
             rostos = detectar_rostos(quadro)
             # ROSTO SEM PELE NAO E ROSTO (18/08/2026): o Haar devolveu uma "cara" de
-            # 711px numa pagina roxa escura de b-roll (jh13 t=1,5s) e o gate mediu o
+            # 711px numa pagina roxa escura de b-roll (anúncio de referência t=1,5s) e o gate mediu o
             # hook contra ela. O mesmo criterio de pele que valida a heranca vale pra
             # deteccao nova: caixa em que quase nao ha pixel de pele e padrao
             # geometrico do conteudo, nao gente nem foto de gente.
@@ -618,7 +618,7 @@ def main():
                 # GEOMETRIA EM VEZ DE DETECTOR, DURANTE O SPLIT (27/08/2026).
                 # O detector some justamente quando a colisao e grave: texto em cima da
                 # cara quebra o Haar, entao quanto pior o defeito, mais certo o gate
-                # aprovava. Medido no jh13: 1,27s sem NENHUMA deteccao (t=59,93 a
+                # aprovava. Medido no anúncio de referência: 1,27s sem NENHUMA deteccao (t=59,93 a
                 # 61,20), com os vizinhos detectando em 100% das amostras, e era
                 # exatamente a janela em que a lista "ENQUANTO ISSO" cobria 9,2% a 13,1%
                 # do rosto. O gate voltou dizendo "nenhuma ocorrencia".
@@ -696,7 +696,7 @@ def main():
                 # por causa do nosso texto tapando a cara. A guarda entao apaga o texto,
                 # re-detecta, nao acha (a oclusao continua grande demais) e DESCARTA a
                 # colisao. Resultado: o defeito apaga o sinal que o gate usa pra ve-lo.
-                # Foi assim que o jh13 passou com o lettering "SEM PAGAR HOSPEDAGEM" em
+                # Foi assim que o anúncio de referência passou com o lettering "SEM PAGAR HOSPEDAGEM" em
                 # cima do nariz e da boca do apresentador em t=40,5s, medido depois na mao:
                 # glifos em y1582-1796 dentro do rosto em y1296-1829.
                 # A caixa herdada ja passou por dois filtros (veio de um quadro com rosto
