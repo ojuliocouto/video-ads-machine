@@ -7,6 +7,8 @@ import ast
 import json
 import os
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -256,6 +258,28 @@ def test_modulo_faltando_e_fail_com_o_nome_do_pacote_e_o_setup(repo):
     assert "opencv-python-headless" in r.detalhe and "scipy" in r.detalhe
     assert "bash scripts/setup.sh" in r.conserto
     conserto_de_uma_linha(r)
+
+
+def test_opencv_sem_cascadeclassifier_e_fail_com_o_conserto_do_pin(repo):
+    """opencv 5.0.0 não tem CascadeClassifier: a medição do rosto falha (W7.X item 3)."""
+    r = python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n5.0.0\n")))
+    assert r.status == "FAIL"
+    assert "CascadeClassifier" in r.detalhe and "5.0.0" in r.detalhe
+    assert "opencv-python-headless" in r.conserto and "<5" in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_opencv_com_cascade_continua_ok(repo):
+    assert python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n\n"))).status == "OK"
+
+
+def test_a_sonda_do_doctor_confere_o_cascade_de_verdade():
+    cv2 = pytest.importorskip("cv2")
+    r = subprocess.run([sys.executable, "-c", python_deps.SONDA], capture_output=True, text=True, timeout=60)
+    linhas = r.stdout.splitlines()
+    assert r.returncode == 0 and "CascadeClassifier" in python_deps.SONDA
+    if hasattr(cv2, "CascadeClassifier"):
+        assert len(linhas) < 3 or linhas[2].strip() == ""
 
 
 def test_usa_o_python_do_venv_do_repo_quando_existe(repo):
