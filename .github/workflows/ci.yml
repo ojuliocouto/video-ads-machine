@@ -1,0 +1,60 @@
+# CI do video-ads-machine: testes rápidos, varredura de nomes, conferência da skill e gitleaks.
+# Nada aqui usa chave, rede paga nem mídia do dono: os testes marcados lento, midia_real e rede não rodam.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: testes (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: ffmpeg e fontes do sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: dependências Python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: testes rápidos
+        run: bash scripts/dev/testar_limpo.sh
+
+  higiene:
+    name: varredura de nomes e conferência da skill
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: varredura de nomes proibidos
+        run: python scripts/dev/varrer_nomes.py
+      - name: conferência da skill (links, comandos vam e caminhos)
+        run: python scripts/dev/checar_skill.py
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
