@@ -283,7 +283,33 @@ def compor(foot_png, par):
     return Image.fromarray((out * 255).astype(np.uint8), "RGB")
 
 
-def regua(pr, dst):
+def linhas_de_medida(plano):
+    """As linhas de RITMO e DENSIDADE da régua, lidas do plano.json (plano.medir), nunca contadas de novo.
+
+    O plano.medir é a fonte única: `cortes_previstos` foi calibrada contra o render real (W5.X), enquanto a régua
+    antiga contava toda fronteira de plano como corte e media a densidade pela janela do insert (23,6 cortes/min e 49%
+    onde o plano_edicao.md dizia 9,8 e 42,7%). Sem plano.json a régua não inventa número: manda rodar `vam plano`."""
+    from plano.checklist import numero
+    if not plano:
+        return ["RITMO e densidade: sem plano/plano.json; rode vam plano <slug> (a medida vem de lá)"]
+    r, d = plano["ritmo"], plano["densidade"]
+    ritmo = "RITMO (plano.json): %s cortes por minuto no arquivo entregue" % numero(r["cortes_min"])
+    if "plano_medio_s" in r:
+        ritmo += ", plano médio %s s" % numero(r["plano_medio_s"])
+    return [ritmo + "   (referência: 18,9 a 27,8 cortes/min, plano 2,16 a 3,17 s)",
+            "densidade de insert (plano.json): %s%% do tempo" % numero(d["fracao_insert"] * 100)]
+
+
+def ler_plano(pj):
+    """O plano/plano.json do projeto, ou None se ainda não foi medido (vam plano)."""
+    from projeto import status
+    try:
+        return status.ler_json(pj.plano_json)
+    except (OSError, ValueError):
+        return None
+
+
+def regua(pr, dst, plano=None):
     """Regua de tempo: insert x avatar, letterings, legendas e vaos sem texto."""
     L, alt_l = 1600, 34
     total = pr["total"]
@@ -332,18 +358,10 @@ def regua(pr, dst):
             _vao_img, _vao_img_em = b - a, a
     dr.text((20, y + 52), f"maior vao SEM CORTE DE IMAGEM: {_vao_img:.2f}s em "
                           f"{_vao_img_em:.2f}s", fill=(255, 140, 60), font=fonte(17))
-    t_ins = sum(i["d"] for i in pr["inserts"])
-    _np = len(pr.get("_planos_ritmo") or [])
-    if _np:
-        _ac = pr.get("accel", 1.35)
-        _dur_ent = total / _ac
-        dr.text((20, y + 76), f"RITMO: {_np} planos = "
-                              f"{(_np - 1) / (_dur_ent / 60):.1f} cortes/min, plano medio "
-                              f"{_dur_ent / _np:.2f}s   (referencia: 18,9 a 27,8 cortes/min, "
-                              f"plano 2,16 a 3,17s)", fill=(120, 220, 140), font=fonte(17))
-    dr.text((20, y + 28), f"densidade de insert: {t_ins / total:.0%} do tempo "
-                          f"({t_ins:.1f}s de {total:.1f}s)",
-            fill=(200, 200, 200), font=fonte(17))
+    linhas = linhas_de_medida(plano)
+    dr.text((20, y + 76), linhas[0], fill=(120, 220, 140), font=fonte(17))
+    if len(linhas) > 1:
+        dr.text((20, y + 28), linhas[1], fill=(200, 200, 200), font=fonte(17))
     im.save(dst)
     return dst
 
@@ -578,7 +596,7 @@ def _montar(pj, rap):
         d = out / f"{sec.lower()}.png"
         folha(ims, d, cols=4 if sec == "HOOK" else 6)
         feitas.append(d)
-    feitas.append(regua(pr, out / "regua.png"))
+    feitas.append(regua(pr, out / "regua.png", ler_plano(pj)))
     (out / "prancha.json").write_text(json.dumps(pr, ensure_ascii=False, indent=2))
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"\nPRANCHA de {ad} pronta em {out}")

@@ -110,3 +110,44 @@ def test_com_rapido_reaproveita_a_footage_e_continua_gerando_o_overlay_depois(tm
     m.footage.write_bytes(b"x")
     PD.construir(m, reaproveitar=True)
     assert "footage" not in m.chamadas and m.footage_existia_no_overlay is True
+
+
+# --- item 6: ritmo e densidade, uma fonte só (o plano.json do plano.medir) ---------------------------------------
+
+PLANO = {"ritmo": {"cortes_min": 9.8, "frac_acima_6s": 0.31, "maior_plano_s": 7.4, "plano_medio_s": 5.9},
+         "densidade": {"fracao_insert": 0.427, "alvo_min": 0.45, "alvo_max": 0.55, "piso": 0.40, "teto": 0.65,
+                       "propostas": []}}
+
+
+def test_a_regua_le_ritmo_e_densidade_do_plano_json_nao_conta_de_novo():
+    linhas = " | ".join(PD.linhas_de_medida(PLANO))
+    assert "9,8 cortes por minuto" in linhas and "42,7%" in linhas and "5,9 s" in linhas
+
+
+def test_prancha_e_plano_edicao_md_mostram_os_mesmos_numeros():
+    from plano import escrever_md
+    md = "\n".join(escrever_md._ritmo(PLANO) + escrever_md._densidade(PLANO, 4))
+    linhas = " | ".join(PD.linhas_de_medida(PLANO))
+    for numero in ("9,8", "42,7"):
+        assert numero in md and numero in linhas
+
+
+def test_sem_plano_json_a_regua_nao_inventa_numero():
+    linhas = " ".join(PD.linhas_de_medida(None))
+    assert "vam plano" in linhas and "cortes" not in linhas.replace("cortes de imagem", "")
+
+
+def test_a_regua_nao_calcula_mais_ritmo_nem_densidade_por_conta_propria():
+    fonte = (SCRIPTS / "prancha_direcao.py").read_text(encoding="utf-8")
+    assert "(_np - 1) / (_dur_ent / 60)" not in fonte
+    assert "t_ins / total" not in fonte
+
+
+def test_a_regua_desenha_com_e_sem_plano_json(tmp_path):
+    pr = {"ad": "x", "total": 40.0, "accel": 1.35,
+          "blocos": [{"i": 0, "tipo": "orig", "s": 0.0, "e": 20.0, "dur": 20.0, "instr": "a"},
+                     {"i": 1, "tipo": "insert", "s": 20.0, "e": 40.0, "dur": 20.0, "instr": "b"}],
+          "inserts": [{"src": "b.mp4", "s": 20.0, "d": 20.0, "label": "b"}], "letterings": [],
+          "legendas": [{"s": 1.0, "e": 3.0}], "vao_sem_texto": {"maior": 1.5, "em": 4.0}}
+    assert PD.regua(pr, tmp_path / "com.png", PLANO).is_file()
+    assert PD.regua(pr, tmp_path / "sem.png").is_file()
