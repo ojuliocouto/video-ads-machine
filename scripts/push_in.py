@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Push-in nas gravacoes de tela: o asset entra INTEIRO e a camera avanca depois.
 
-Excecao NOMEADA, autorizada pelo Julio em 28/08/2026, a ordem de 26/08 ("o video todo que
+Excecao NOMEADA, autorizada pelo diretor em 28/08/2026, a ordem de 26/08 ("o video todo que
 aparece no video e o que precisa"). Vale so para gravacao de tela, e existe porque a
 medicao mostrou que sem ela nao ha caminho:
 
@@ -10,7 +10,7 @@ medicao mostrou que sem ela nao ha caminho:
 Um asset 16:9 entrando inteiro num quadro 9:16 nao passa de 1080x607, ou seja 31,6% do
 quadro. O motor ja entrega 32,2%, isto e 96% do teto FISICO. Alargar a moldura de 1008
 para 1080 renderia +7% de altura de letra, meio pixel num glifo de 7px. Os outros dois
-caminhos eram gravar de novo com zoom de interface maior (o Julio recusou) ou mover a
+caminhos eram gravar de novo com zoom de interface maior (o diretor recusou) ou mover a
 informacao do print para o lettering (que continua valendo, e outra correcao).
 
 Por que push-in nao e recorte: em t=0 o zoom e 1,0 e o quadro inteiro do asset esta na
@@ -26,7 +26,7 @@ import subprocess
 # ALVO E TETO, TIRADOS DA MEDICAO DA LEVA, NAO DE GOSTO.
 # `esc` e a escala que o motor aplica sobre a fonte para caber na janela do card
 # (1008/largura no split, 1036/largura no cheio). Medidas reais dos 8 assets deitados do
-# jh13: 0,438 / 0,525 / 0,526 / 0,733 / 0,787.
+# anúncio de referência: 0,438 / 0,525 / 0,526 / 0,733 / 0,787.
 #
 # ZOOM_ALVO=0,75: leva os dois piores (0,438 e 0,525) para perto de tres quartos do
 # tamanho nativo, que e onde a diferenca de leitura aparece, e deixa 0,787 intocado

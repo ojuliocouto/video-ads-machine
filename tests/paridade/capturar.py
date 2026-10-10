@@ -86,8 +86,8 @@ except ImportError:  # rodando como script: python3 tests/paridade/capturar.py .
     import normalizar as N  # noqa: E402
 
 AD = "ad99v2"
-LOOK = "espuma_roxa"
-LK = "espuma"          # nome do look nos arquivos de config 
+LOOK = "look_a"
+LK = "look_a"          # nome do look nos arquivos de config
 VERSAO_GOLDEN = 1
 ETAPAS_TODAS = ("timeline", "overlay", "overlay_1x1", "footage", "timeline_footage", "overlay_convergido")
 ETAPAS_DA_TIMELINE = ("overlay", "overlay_1x1", "timeline_footage")   # leem a timeline quando o motor tem

@@ -2,8 +2,8 @@
 """Posicao do ROSTO no avatar, por deteccao, nao por fracao.
 
 Calibrar por fracao da pessoa ou do painel nao funciona porque cada look tem
-enquadramento proprio: o `oficial_13` e um close mais fechado e a mesma fracao que
-acerta o `neon_creme` corta as sobrancelhas dele. O rosto e o que precisa estar no
+enquadramento proprio: o `look_b` e um close mais fechado e a mesma fracao que
+acerta o `look_c` corta as sobrancelhas dele. O rosto e o que precisa estar no
 quadro, entao e nele que se ancora.
 """
 import subprocess, sys, tempfile, os

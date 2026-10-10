@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prancha de direcao: o anuncio inteiro em quadro parado, ANTES de renderizar.
 
-Por que existe (ordem do Julio, 18/08/2026): "se ele e um diretor, ele dirige, nao apenas
+Por que existe (ordem do diretor, 18/08/2026): "se ele e um diretor, ele dirige, nao apenas
 audita no final". Eu classifiquei item por item a auditoria que reprovou o anúncio de referência com 6,3:
 os 12 defeitos eram julgaveis sem o video pronto. Enquadramento ilegivel, texto decepado,
 lista que nao empilha, faixa preta na costura, legenda dentro da area de UI do Reels,

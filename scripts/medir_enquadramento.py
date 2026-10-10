@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MEDE o enquadramento a partir do arquivo, em vez de alguem digitar o numero.
 
-Ordem do Julio (17/08/2026): "a medicao precisa ser parte OBRIGATORIA do processo".
+Ordem do diretor (17/08/2026): "a medicao precisa ser parte OBRIGATORIA do processo".
 Nasceu de tres defeitos no mesmo dia, todos por valor chutado em vez de medido:
   1. corte do painel de baixo no split: peguei a parede acima da cabeca dele
   2. ancora de lettering: pousou no bloco errado porque nao contei as ocorrencias
@@ -14,8 +14,8 @@ O que ele mede:
     e qual recorte usar.
 
 Uso:
-  python3 medir_enquadramento.py avatar inputs/jh13v2_espuma_roxa_avatar.mp4
-  python3 medir_enquadramento.py asset inputs/assets_jheni/x.mp4 --painel 1080x980
+  python3 medir_enquadramento.py avatar inputs/ad13v2_look_a_avatar.mp4
+  python3 medir_enquadramento.py asset inputs/assets_estrategista/x.mp4 --painel 1080x980
   python3 medir_enquadramento.py avatar <mp4> --json
 """
 import json
@@ -29,10 +29,10 @@ AMOSTRAS = 5          # quadros ao longo do video: pessoa se mexe, um frame so e
 # SILHUETA POR CONTRASTE COM O FUNDO (19/08/2026), no lugar de luminancia absoluta.
 # O detector antigo marcava "linha com pessoa" quando a luminancia da faixa central
 # passava de 45% do pico do quadro. Cabelo escuro contra fundo escuro NUNCA passa: no
-# jh13v2_espuma_roxa, na altura do cabelo (624px), a faixa central mede 29 de luminancia
+# ad13v2_look_a, na altura do cabelo (624px), a faixa central mede 29 de luminancia
 # contra 51 da lateral, ou seja, a pessoa e MAIS ESCURA que o fundo ali. O detector
 # pulava a cabeca inteira e devolvia o topo em 720px, que e a testa. Erro de 192px, e e
-# a causa mae da bolinha decepando o Thales e do split comecando no meio do cabelo.
+# a causa mae da bolinha decepando o apresentador e do split comecando no meio do cabelo.
 # Agora: linha com pessoa = faixa central DIFERE da lateral (para mais ou para menos).
 LIMIAR_DIF = 12       # diferenca minima de luminancia entre faixa central e lateral
 CORRIDA_MIN = 0.012   # fracao da altura que a diferenca precisa durar, mata ruido pontual
@@ -184,17 +184,17 @@ def bias_para_painel(topo, base, src_y, src_h, alt_fonte, alt_painel):
         # Enquadramento de retrato: quando a cabeca nao cabe, corta-se a COROA, nunca o
         # queixo. O fator 0.40 e CALIBRADO, nao chutado: o diretor renderizou o painel de
         # verdade com 0.049 / 0.18 / 0.225 / 0.30 e mediu os pontos do rosto; com o bias
-        # que este fator produz pro neon_creme (0.30) os olhos sobem 400px e ficam 226px
+        # que este fator produz pro look_c (0.30) os olhos sobem 400px e ficam 226px
         # ACIMA da safe zone, o nariz entra e a boca e o queixo aparecem.
         # Nao ancoro em `base` porque ela e a borda inferior da PESSOA, que encosta no fim
         # do quadro (1916 de 1920): ancorar nela jogaria a cabeca pra fora do painel.
         # ANCORA NO ROSTO, por deteccao. Calibrar por fracao (do painel ou da pessoa)
-        # nao funciona porque cada look tem enquadramento proprio: o `oficial_13` e um
-        # close mais fechado e a mesma fracao que acerta o `neon_creme` corta as
+        # nao funciona porque cada look tem enquadramento proprio: o `look_b` e um
+        # close mais fechado e a mesma fracao que acerta o `look_c` corta as
         # SOBRANCELHAS dele. O rosto e o que precisa aparecer, entao e nele que se ancora.
         #
         # 35% da altura do painel para o CENTRO do rosto: e onde ele cai no caso que o
-        # diretor validou renderizando (neon_creme, rosto 521-1178, centro 849, bias
+        # diretor validou renderizando (look_c, rosto 521-1178, centro 849, bias
         # 0.300). Deixa testa em cima e queixo mais ombro embaixo.
         centro = _centro_do_rosto(_VIDEO_ATUAL[0]) if _VIDEO_ATUAL else None
         if centro:
@@ -212,7 +212,7 @@ def medir_centro_conteudo(video):
     Gravação de tela e página não têm o assunto no centro geométrico: o repo do GitHub
     tem a lista de skills à ESQUERDA, o Claude Code tem a conversa à esquerda e a barra
     de arquivos à direita. Recortar pelo centro (o que o motor fazia) cortava justamente
-    o que a fala estava descrevendo, e o Júlio mandou print de dois casos assim.
+    o que a fala estava descrevendo, e o diretor mandou print de dois casos assim.
 
     Mede densidade de BORDA (variação local), que é alta onde há texto e interface e
     baixa em fundo liso, e devolve o centroide dessa densidade.
@@ -253,7 +253,7 @@ def medir_asset(video, painel):
         veredito = "mais ALTO que o painel: encaixar inteiro deixa tarja nas laterais"
     fx, fy = medir_centro_conteudo(video)
     # PERDA POR PREENCHER: preencher (increase+crop) tapa a tarja, mas DESCARTA parte do
-    # asset. Numa gravacao de tela isso corta justamente o que a fala descreve (o Julio
+    # asset. Numa gravacao de tela isso corta justamente o que a fala descreve (o diretor
     # mandou dois prints: "nem da pra ver qual e a skill"). Entao a escolha entre encaixar
     # e preencher deixa de ser fixa e passa a sair da MEDIDA da perda.
     escala = max(pw / w, ph / h)
@@ -282,7 +282,7 @@ def main():
         # valores do split no produzir_roteiro
         SRC = (0, 100, 1080, 1600)
         # 770, nao 940: o split virou 60/40 (SPLIT_TOP_H=1150) e esta constante ficou pra
-        # tras. Com 940 a medicao devolvia bias 0.049, que cortava o Thales no NARIZ,
+        # tras. Com 940 a medicao devolvia bias 0.049, que cortava o apresentador no NARIZ,
         # com a boca fora do quadro. Avatar de lipsync sem boca (achado do diretor,
         # 20/08/2026). Ver produzir_roteiro.py:243-244.
         ALT_FONTE, ALT_PAINEL = 1920, 770

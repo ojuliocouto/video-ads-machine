@@ -22,8 +22,8 @@ from caminhos import DADOS as V1, CODIGO  # noqa: E402
 SRC_Y, SRC_H = 100, 1600
 ALT_PAINEL = 770
 
-LOOKS = ["jh13v2_espuma_roxa", "jh14v2_oficial_13",
-         "jh15v2_neon_creme", "jh16v2_espuma_roxa"]
+LOOKS = ["ad13v2_look_a", "ad14v2_look_b",
+         "ad15v2_look_c", "ad16v2_look_a"]
 
 
 def bias_do(look):
@@ -55,10 +55,10 @@ class TesteEnquadramentoSplit(unittest.TestCase):
                     f"a BOCA fica fora do quadro (foi o defeito de 20/08)")
 
     def test_reproduz_o_valor_que_o_diretor_validou(self):
-        p = V1 / "inputs" / "jh15v2_neon_creme_avatar.mp4"
+        p = V1 / "inputs" / "ad15v2_look_c_avatar.mp4"
         if not p.exists():
             self.skipTest("avatar ausente")
-        self.assertAlmostEqual(bias_do("jh15v2_neon_creme"), 0.30, delta=0.02,
+        self.assertAlmostEqual(bias_do("ad15v2_look_c"), 0.30, delta=0.02,
             msg="o diretor renderizou 0.049/0.18/0.225/0.30 e validou 0.30; "
                 "a regra tem que cair nele sozinha")
 

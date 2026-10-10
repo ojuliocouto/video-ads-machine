@@ -199,7 +199,7 @@ def _segurar_nas_pausas(groups, segurar_max=SEGURAR_MAX, folga=SEGURAR_FOLGA):
     """Estende o fim de cada grupo ate perto do inicio do proximo.
 
     POR QUE (26/08/2026): o grupo morria na ultima palavra, entao toda pausa da fala
-    virava tela sem texto nenhum. Medido no jh13: 11 vaos de 1,0 a 1,5s, somando 12%
+    virava tela sem texto nenhum. Medido no anúncio de referência: 11 vaos de 1,0 a 1,5s, somando 12%
     do anuncio, e o `gate-ad.py` reprova acima de 12% ("o anuncio roda mudo em feed
     silencioso"). Nos tres vaos que conferi era ele falando em tela cheia, sem legenda.
 
@@ -394,7 +394,7 @@ def _render_captions_html(groups: list[dict]) -> str:
             # contra 11,7 e 14,3 nos trechos escuros do mesmo anuncio. Mudar de posicao
             # nao resolve nesse caso: o perfil do quadro inteiro nao tem UMA faixa acima
             # de 3,6:1 fora da zona morta da UI. La a legenda INVERTE a tinta (escura em
-            # vez de branca), que resolve sem tarja (vetada pela Jheni em 19/08) e sem
+            # vez de branca), que resolve sem tarja (vetada pela estrategista em 19/08) e sem
             # engrossar contorno (deixa a letra oca sobre branco, achado do diretor).
             f'  <div class="cgrp'
             f'{" cgrp-costura" if group.get("costura") else (" cgrp-baixa" if group.get("baixa") else "")}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-claro" if group.get("claro") else ""}{" cgrp-placa" if group.get("placa") else ""}" '
@@ -407,7 +407,7 @@ def _render_captions_html(groups: list[dict]) -> str:
             lines.append('    <span class="cplaca"></span>')
         for word in group["words"]:
             css_class = "cw kw" if word.get("kw") else "cw"
-            # DUAS CAMADAS POR PALAVRA (29/08/2026, pedido do Julio por audio: "nao
+            # DUAS CAMADAS POR PALAVRA (29/08/2026, pedido do diretor por audio: "nao
             # gosto desse estilo de legenda onde ela sobe, fica pulando; gosto quando e
             # uma cor, vai preenchendo ela, de forma linear").
             # `base` e a palavra apagada, `fill` e a mesma palavra acesa por cima, e o
@@ -433,7 +433,7 @@ def _render_letterings_html(letterings: list[dict]) -> str:
         track = 32 + i
         blocks.append(
             # "split" vem do gen_ad_v2 quando o lettering cai num bloco de tela dividida.
-            # La ele desce pro peito do Thales; centrado no quadro ele pousaria no rosto.
+            # La ele desce pro peito do apresentador; centrado no quadro ele pousaria no rosto.
             f'<div class="lett clip{" lett-split" if lett.get("split") else ""}" '
             f'id="{lett["id"]}" data-start="{lett["start"]:.3f}" '
             f'data-duration="{lett["dur"]:.3f}" data-track-index="{track}">\n'

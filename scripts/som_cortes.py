@@ -28,7 +28,7 @@ SR = 48000
 # nome -> (duração, cadeia de síntese)
 #
 # CALIBRAGEM POR NIVEL ABSOLUTO, PORQUE O EFEITO TOCA NO SILENCIO (27/08/2026).
-# O Julio: "tem um som ridiculo nas transicoes, parece um tiro".
+# O diretor: "tem um som ridiculo nas transicoes, parece um tiro".
 #
 # A primeira hipotese foi "esta competindo com a voz", e a MEDICAO DERRUBOU ela: o
 # whoosh isolado esta em -24,6 dBFS, abaixo da voz em -17,9. Comparando a janela do
@@ -49,7 +49,7 @@ SR = 48000
 # Alvo: -34 dBFS, o meio. Faixa aceita: -38 a -31, travada em test_nivel_som.py.
 #
 # A faixa ANTERIOR daquele teste era -30 a -20, e ela PERMITIA o defeito: os -27,2 que
-# o Julio reprovou cabiam dentro dela com folga. Um teste que passa verde no material
+# o diretor reprovou cabiam dentro dela com folga. Um teste que passa verde no material
 # que o cliente reprova esta calibrado errado, nao "quase certo".
 EFEITOS = {
     # varredura de ruído rosa com envelope: leitura de "ar" passando, sem cauda longa
@@ -74,20 +74,20 @@ EFEITOS = {
 
 # TETO DE DENSIDADE. O banco de referencias e explicito: "Sutil, NUNCA em todo corte."
 # Com o ritmo em ~22 cortes/min (um a cada 2,7s), som em todo corte viraria metralhadora
-# e competiria com a voz do Thales, que e o ativo da peca.
-# 4,0s: na pratica a ENTRADA de insert ja e rara (no jh13 sao ~9 entradas em 90s, uma a
+# e competiria com a voz do apresentador, que e o ativo da peca.
+# 4,0s: na pratica a ENTRADA de insert ja e rara (no anúncio de referência sao ~9 entradas em 90s, uma a
 # cada 10s), entao o intervalo e guarda contra aglomeracao, nao regra de rotina. Com 2,0s
 # um trecho de alternancia rapida disparava efeito em quase todo corte, que e exatamente
 # o que o banco proibe.
 INTERVALO_MIN = 4.0      # segundos entre dois efeitos, no tempo do arquivo entregue
-WHOOSH_LIGADO = False    # ver plano_de_som; religar so com ordem explicita do Julio
+WHOOSH_LIGADO = False    # ver plano_de_som; religar so com ordem explicita do diretor
 RISER_ANTES = 1.0        # o riser sobe ANTES da virada, senao chega atrasado
 
 
 def plano_de_som(segs, accel=1.35, cta=None):
     """Onde cada efeito entra, em tempo do arquivo ENTREGUE (ja acelerado).
 
-    Regras (banco de referencias + plano aprovado pelo Julio):
+    Regras (banco de referencias + plano aprovado pelo diretor):
       whoosh  na ENTRADA de insert, nunca na volta pro avatar (a volta e respiro)
       riser   antes da virada do CTA
       teto    um efeito a cada INTERVALO_MIN
@@ -101,7 +101,7 @@ def plano_de_som(segs, accel=1.35, cta=None):
         # so ENTRADA: o segmento anterior tem que ser outra coisa, ou ser o primeiro
         if i > 0 and segs[i - 1]["tipo"] == "insert":
             continue
-        # WHOOSH DESLIGADO (31/08/2026). Depois de duas calibragens por medicao o Julio
+        # WHOOSH DESLIGADO (31/08/2026). Depois de duas calibragens por medicao o diretor
         # ainda escreveu "tem um som nas transicoes que ta me irritando". Efeito de
         # transicao nao e informacao, e cada tentativa de deixa-lo discreto custou um
         # build. Sai. O riser do CTA fica: nao e transicao, e o unico som com funcao.

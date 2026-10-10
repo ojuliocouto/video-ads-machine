@@ -4,11 +4,11 @@
 DEFEITO 1 (20/08/2026): whoosh a volume=-14dB, RMS -40,2 dBFS. A mixagem rodava, o log
 dizia "6 efeitos", e nao se ouvia NADA. "Existia" so no arquivo.
 
-DEFEITO 2 (27/08/2026): whoosh a volume=-1dB, RMS -27,2 dBFS. O Julio: "tem um som
+DEFEITO 2 (27/08/2026): whoosh a volume=-1dB, RMS -27,2 dBFS. O diretor: "tem um som
 ridiculo nas transicoes, parece um tiro".
 
 A FAIXA ANTERIOR DESTE TESTE ERA -30 a -20 dBFS, E ELA PERMITIA O DEFEITO 2: os -27,2
-que o Julio reprovou cabiam dentro dela com folga. Teste que passa verde no material
+que o diretor reprovou cabiam dentro dela com folga. Teste que passa verde no material
 que o cliente reprova esta calibrado errado, nao "quase certo". A faixa velha tinha sido
 escrita olhando so pro defeito 1, com o outro extremo chutado ("acima de -20 compete com
 a voz") em vez de medido.

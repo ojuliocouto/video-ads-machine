@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""FASE DE AUDIO (dedicada, ordem do Julio 17/08/2026): higieniza e AUDITA a voz
+"""FASE DE AUDIO (dedicada, ordem do diretor 17/08/2026): higieniza e AUDITA a voz
 ANTES de gastar job de HeyGen.
 
 Por que virou fase propria: o audio fica GRAVADO dentro do avatar. Descobrir que
 ficou ruim depois do avatar pronto custa job novo de HeyGen + rebuild inteiro. Foi
-o que aconteceu no jh13: o audio saiu picotado e so apareceu no video final.
+o que aconteceu no anúncio de referência: o audio saiu picotado e so apareceu no video final.
 
 O que "picotado" era, medido: a higienizacao cortava TODA pausa acima de 0,55s, entao
 as 25 pausas naturais de fim de frase (ate 2,95s no bruto) viravam 0,55s. O resultado
@@ -34,7 +34,7 @@ RESPIRO_DB = -34.0             # acima disso, dentro de uma pausa, e respiro aud
 # KEEP_PAUSE_MAX saiu daqui de proposito: o higienizador calcula esse teto a partir de
 # PAUSA_MAX_TELA x ACCEL_FINAL, ou seja, do que o espectador ve depois da aceleracao.
 # Repetir o numero aqui fazia o valor antigo (1,20s) sobrescrever o novo em silencio, e
-# a pausa de 0:12 que o Julio reclamou continuou igual mesmo depois de eu "corrigir".
+# a pausa de 0:12 que o diretor reclamou continuou igual mesmo depois de eu "corrigir".
 # Manopla duplicada e a mesma armadilha do config gerado: mexer num lugar so nao vale.
 PARAMS = {"KEEP_PAUSE_RATIO": "0.45", "KEEP_PAUSE": "0.26"}
 
@@ -78,7 +78,7 @@ def auditar(limpo, bruto=None):
     info["pausas_longas"] = len(longas)
     info["maior_pausa"] = round(max([x for _, x in ps], default=0), 2)
 
-    # 1) RITMO ACHATADO (o defeito do jh13)
+    # 1) RITMO ACHATADO (o defeito do anúncio de referência)
     if d > 30 and len(longas) < MIN_PAUSAS_LONGAS:
         problemas.append(
             f"ritmo achatado: so {len(longas)} pausa(s) acima de {PAUSA_LONGA}s em "
@@ -100,7 +100,7 @@ def auditar(limpo, bruto=None):
             "O Avatar V lipsynca a respiracao e a boca mexe no vazio.")
 
     # 3) FALA PRESERVADA: re-transcreve e compara palavra a palavra com o bruto.
-    #    OBRIGATORIO (ordem do Julio, 17/08/2026): "esses cortes voce precisa editar com
+    #    OBRIGATORIO (ordem do diretor, 17/08/2026): "esses cortes voce precisa editar com
     #    o higienizador e transcrever NOVAMENTE antes de jogar no avatar".
     #    Ele ouviu no video pronto: "em algo concreto" saiu "em algo creto". A comparacao
     #    mostrou que o corte comeu 4 palavras ("uma campanha"->"panha", "vender"->"ver",
@@ -123,7 +123,7 @@ def auditar(limpo, bruto=None):
 
 
 def _transcrever(caminho):
-    """Parakeet e o padrao da casa; Whisper esta proibido (trava a maquina do Julio)."""
+    """Parakeet e o padrao da casa; Whisper esta proibido (trava a maquina do diretor)."""
     import re as _re
     saida = Path("/tmp") / (Path(caminho).stem + ".txt")
     subprocess.run(["parakeet-mlx", str(caminho), "--output-format", "txt",

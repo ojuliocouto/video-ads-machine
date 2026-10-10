@@ -3,12 +3,12 @@
 
 Medido em 18/08/2026 com o mesmo metodo nos dois lados (deteccao de cena, limiar 0,30):
 
-    referencias do Julio (@vaibhavsisinty)   19 a 28 cortes/min   plano medio 2,2 a 3,2s
+    referencias do diretor (ritmo A)       19 a 28 cortes/min   plano medio 2,2 a 3,2s
     nossa leva                                4,7 a 7,6           plano medio 7,9 a 12,8s
 
-E a Jheni ja tinha dito em texto: "o video poderia ser mais acelerado".
+E a estrategista ja tinha dito em texto: "o video poderia ser mais acelerado".
 
-A regra do Julio e que o ASSET DO DOC NAO SE TROCA. Entao os cortes novos nao vem de
+A regra do diretor e que o ASSET DO DOC NAO SE TROCA. Entao os cortes novos nao vem de
 material novo, vem de tres operacoes sobre o que ja existe:
 
   reenquadrar  o mesmo insert com recortes diferentes em sequencia (jump cut de
@@ -27,7 +27,7 @@ split e o texto vai parar no rosto (ja aconteceu, custou um render).
 
 ALVO_PLANO = 2.8     # plano medio das referencias fica entre 2,2s e 3,2s
 MIN_PLANO = 1.5      # abaixo disso o corte vira nervosismo, nao ritmo
-# TEMPO DE LEITURA de tela (19/08/2026, feedback do Julio assistindo o AD13: "os
+# TEMPO DE LEITURA de tela (19/08/2026, feedback do diretor assistindo o AD13: "os
 # inserts nem aparecem direito, saem da tela MUITO rapido"). Fatia de INSERT nunca
 # fica abaixo disto em footage (~2,7s entregues a 1,35x): gravacao de tela e pagina
 # precisam ser LIDAS, e a leva tinha 9 fatias abaixo de 2,6s entregues.
@@ -42,7 +42,7 @@ MAX_VISITAS = 2
 # Layout de cada visita ao mesmo asset. Com o `crop` desligado no split (26/08/2026) e
 # `derivar_recortes` neutralizada desde 19/08, duas visitas seguidas mostram o quadro
 # IDENTICO: zero pixel de diferenca, e a deteccao de cena nao ve corte nenhum. Medido no
-# jh13 v6: 17 cortes no arquivo contra 12 visitas planejadas, 75% do anuncio em plano
+# anúncio de referência v6: 17 cortes no arquivo contra 12 visitas planejadas, 75% do anuncio em plano
 # acima de 6s. Alternar o LAYOUT (tela dividida x tela cheia) troca ~60% dos pixels e
 # REGISTRA, ao contrario do punch de escala (0,16 a 0,23 contra limiar 0,30).
 LAYOUTS_INSERT = ("split", "cheio")
@@ -50,12 +50,12 @@ LAYOUTS_INSERT = ("split", "cheio")
 # que o salto registraria como corte; a medicao de 18/08 provou que NAO registra (0,16
 # a 0,23 contra limiar 0,30) e o corte real vem da alternancia de conteudo. O punch
 # ficou sendo so respiracao visual, e amplitude grande custou caro: no look fechado
-# (oficial_13) a base 1.28 empurrou o queixo do Thales pra cima da legenda (gate de
-# colisao, jh14 t=18s). Amplitude pequena respira sem invadir texto.
+# (look_b) a base 1.28 empurrou o queixo do apresentador pra cima da legenda (gate de
+# colisao, anúncio de referência t=18s). Amplitude pequena respira sem invadir texto.
 BASES_PUNCH = (1.0, 1.06, 1.12)
 
-# FALA QUE APONTA PRA TELA TRAVA O INSERT NA TELA (28/08/2026, print do Julio).
-# O Thales diz "A skill e essa que voce ta vendo NA TELA" e a alternancia ja tinha
+# FALA QUE APONTA PRA TELA TRAVA O INSERT NA TELA (28/08/2026, print do diretor).
+# O apresentador diz "A skill e essa que voce ta vendo NA TELA" e a alternancia ja tinha
 # devolvido o quadro pro avatar: o espectador ouve "olha isso" olhando pra cara do
 # apresentador. No print seguinte, "Ela e um manual de instrucoes que da ao Claude
 # regras..." com o insert (que E o manual) sumindo no meio da explicacao.
@@ -79,7 +79,7 @@ def bloco_deitico(texto):
     return bool(t) and bool(_DEITICOS.search(t) or _ANAFORA.match(t))
 # janela do hook em tempo de FOOTAGE (~3s entregues a 1,35x). No bloco 0 a imagem e
 # SEMPRE insert ate aqui: o hook e desenhado sobre o fundo de abertura, e um respiro
-# de rosto nessa janela poe o texto na cara do apresentador (gate pegou no jh13).
+# de rosto nessa janela poe o texto na cara do apresentador (gate pegou no anúncio de referência).
 HOOK_JANELA = 4.2
 
 
@@ -92,7 +92,7 @@ def derivar_recortes(crop, n):
     """
     # SEM DERIVACAO (19/08/2026): os recortes derivados ampliavam a gravacao de tela
     # em ate 2,3x e viravam mingau ilegivel com a webcam decepada ("um zoom que nem da
-    # pra ver", Julio assistindo o AD13). O recorte aprovado pelo diretor e o UNICO;
+    # pra ver", o diretor assistindo o AD13). O recorte aprovado pelo diretor e o UNICO;
     # variedade entre fatias vem da fonte continuar correndo (fonte_off), nao de zoom.
     return [crop] * max(n, 1)
 
@@ -144,7 +144,7 @@ def plano_de_ritmo(blocos):
                          "sub": 0, "de": 1, "layout": "split", "fonte_off": 0.0})
             # O RESTO DO HOOK ALTERNA (26/08/2026). A fatia forcada da abertura e
             # sempre split; o resto reusa a MESMA fonte, entao sem alternar os dois
-            # trechos sao o mesmo quadro e o corte nao registra. Medido no jh13: a
+            # trechos sao o mesmo quadro e o corte nao registra. Medido no anúncio de referência: a
             # abertura inteira, 11,93s, virava UM plano so na deteccao de cena.
             resto = {**b, "s": s + f0, "_pos_hook": True, "_off_extra": f0,
                      "_layout_forcado": "cheio"}
@@ -175,7 +175,7 @@ def plano_de_ritmo(blocos):
         # cap declarado: a fonte do insert acaba antes do bloco. A versao antiga
         # mostrava a tela ate o cap e despejava TODO o resto no avatar de uma vez:
         # era dali que saiam os planos de 12s a 17s parados que reprovavam os quatro
-        # ads (medido 18/08: jh15 bloco 8 = 4s de tela + 17,5s de rosto morto).
+        # ads (medido 18/08: anúncio de referência bloco 8 = 4s de tela + 17,5s de rosto morto).
         # Agora o orcamento de tela se ESPALHA pelo bloco em fatias, alternando com o
         # rosto: mesmo consumo de fonte, e o bloco inteiro vira alternancia.
         if tipo == "insert" and b.get("dur_max") and float(b["dur_max"]) < dur - 0.3:
@@ -201,7 +201,7 @@ def plano_de_ritmo(blocos):
             # congela nem estoura fonte).
             alvo = max(-(-int(dur - cap) // 4) + 1, -(-int(cap) // 5), 1)
             # O TETO VALE AQUI TAMBEM (26/08/2026). Eu tinha capado so o caminho sem
-            # `dur_max`, e os blocos 6 e 14 do jh13, que TEM cap, seguiram com 3 visitas
+            # `dur_max`, e os blocos 6 e 14 do anúncio de referência, que TEM cap, seguiram com 3 visitas
             # de ~3s: exatamente a queixa que o teto existia pra resolver. O diretor de
             # arte pegou na auditoria seguinte. Cap aplicado num ramo so nao e cap.
             alvo = min(alvo, MAX_VISITAS)
@@ -273,19 +273,19 @@ def plano_de_ritmo(blocos):
             segs.append({"bloco": i, "tipo": tipo, "s": s, "e": e,
                          "crop": b.get("crop"), "sub": 0, "de": 1,
                          # visita UNICA tambem precisa de layout: era por aqui que o
-                         # resto do hook saia com layout=None e a abertura do jh13
+                         # resto do hook saia com layout=None e a abertura do anúncio de referência
                          # virava um plano so de 11,93s na deteccao de cena.
                          **({"layout": _forcado} if _forcado and tipo == "insert" else {})})
             continue
 
         if tipo == "insert":
             # ALTERNA COM TEMPO DE LEITURA (19/08/2026). A versao anterior fatiava a
-            # tela no mesmo passo do avatar (~2,8s footage) e o Julio pegou 9 fatias
+            # tela no mesmo passo do avatar (~2,8s footage) e o diretor pegou 9 fatias
             # ilegiveis. Agora: fatias de tela >= TELA_MIN, respiros de rosto entre
             # elas (>= MIN_PLANO), e a fonte segue correndo por tras (fonte_off).
-            # TETO DE VISITAS (26/08/2026, o Julio reprovando o jh13: "estao durando
+            # TETO DE VISITAS (26/08/2026, o diretor reprovando o anúncio de referência: "estao durando
             # muito pouco, nao da nem pra ver direito"). A duracao nao era o problema:
-            # nenhuma fatia do jh13 ficou abaixo de 2,91s de tela, mediana 3,19s. O
+            # nenhuma fatia do anúncio de referência ficou abaixo de 2,91s de tela, mediana 3,19s. O
             # problema era VISITA REPETIDA. Nos blocos b06 e b14 o mesmo asset foi
             # picado em TRES fatias, todas com o mesmo recorte (`derivar_recortes` esta
             # neutralizada desde 19/08), com respiros de rosto de 1,2s no meio. O
