@@ -46,10 +46,16 @@ PY_VENV = r'''#!/bin/bash
 echo "venv-python $*" >> "$STUB_LOG"
 falha() { case ",$STUB_FAIL," in *,"$1",*) return 0;; esac; return 1; }
 case "$1" in
-  -m) case "$2" in pip) if falha pip; then echo "pip falhou" >&2; exit 1; fi; exit 0 ;; esac ;;
+  -m) case "$2" in pip)
+        if falha pip; then echo "pip falhou" >&2; exit 1; fi
+        case " $* " in *" parakeet-mlx "*) if falha parakeet; then echo "sem parakeet" >&2; exit 1; fi;; esac
+        case " $* " in *" faster-whisper "*) if falha fw; then echo "sem faster-whisper" >&2; exit 1; fi;; esac
+        exit 0 ;; esac ;;
   *init_local.py) if falha init; then exit 1; fi; mkdir -p _local; exit 0 ;;
   *som_cortes.py) if falha sons; then exit 1; fi
                   mkdir -p _local/dados/assets/som; touch _local/dados/assets/som/whoosh.wav; exit 0 ;;
+  *vam.py) if falha doctor; then echo "[FAIL] transcritor: nenhum transcritor disponível"; exit 1; fi
+           echo "Ambiente pronto."; exit 0 ;;
 esac
 exit 0
 '''
@@ -75,6 +81,10 @@ exit 0
 NODE = r'''#!/bin/bash
 echo "node $*" >> "$STUB_LOG"
 echo "${STUB_NODE:-v22.11.0}"
+'''
+
+UNAME = r'''#!/bin/bash
+case "$1" in -s) echo "${STUB_UNAME_S:-Darwin}" ;; -m) echo "${STUB_UNAME_M:-arm64}" ;; *) echo "${STUB_UNAME_S:-Darwin}" ;; esac
 '''
 
 CURL = r'''#!/bin/bash
@@ -104,7 +114,7 @@ class Mundo(object):
         self.bin.mkdir()
         self.log.write_text("")
         for nome, conteudo in (("python3", PY_SISTEMA), ("venv-python", PY_VENV), ("npm", NPM),
-                               ("hyperframes", HYPERFRAMES), ("node", NODE), ("curl", CURL)):
+                               ("hyperframes", HYPERFRAMES), ("node", NODE), ("curl", CURL), ("uname", UNAME)):
             alvo = self.bin / nome
             alvo.write_text(conteudo)
             alvo.chmod(0o755)
@@ -112,6 +122,7 @@ class Mundo(object):
         shutil.copy(str(SETUP_REAL), str(repo / "scripts" / "setup.sh"))
         (repo / "scripts" / "init_local.py").write_text("")
         (repo / "scripts" / "som_cortes.py").write_text("")
+        (repo / "scripts" / "vam.py").write_text("")
         (repo / "package.json").write_text(
             '{\n  "dependencies": {\n    "hyperframes": "0.7.56"\n  }\n}\n')
         (repo / "requirements.txt").write_text("numpy\nopencv-python-headless\npillow\nscipy\n")
@@ -120,7 +131,7 @@ class Mundo(object):
         (repo / "templates" / "reel-editorial" / "index.html").write_text(
             '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>')
 
-    def rodar(self, *args, falhas="", node=None, python_velho=False):
+    def rodar(self, *args, falhas="", node=None, python_velho=False, uname=None):
         env = {"PATH": "{}:/usr/bin:/bin".format(self.bin), "HOME": str(self.home),
                "STUB_LOG": str(self.log), "STUB_DIR": str(self.bin), "STUB_FAIL": falhas,
                "LC_ALL": "C"}
@@ -128,6 +139,8 @@ class Mundo(object):
             env["STUB_NODE"] = node
         if python_velho:
             env["STUB_PYOLD"] = "1"
+        if uname:
+            env["STUB_UNAME_S"], env["STUB_UNAME_M"] = uname
         return subprocess.run([BASH, str(self.repo / "scripts" / "setup.sh")] + list(args),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               universal_newlines=True, env=env, timeout=60)
@@ -137,6 +150,17 @@ class Mundo(object):
 
     def n(self, prefixo):
         return len(self.chamadas(prefixo))
+
+    def chamadas_pip(self, trecho):
+        """As chamadas `pip install` do .venv que contêm `trecho` (o pip leva flags antes do alvo)."""
+        return [l for l in self.chamadas("venv-python -m pip install") if trecho in l]
+
+    def n_req(self):
+        return len(self.chamadas_pip("requirements.txt"))
+
+    def n_pip(self, pacote):
+        """Instalações de `pacote` (ou de qualquer coisa que não seja o requirements, se vazio)."""
+        return len([l for l in self.chamadas_pip(pacote) if "requirements.txt" not in l])
 
 
 def resumo(saida):
@@ -150,7 +174,7 @@ def test_primeira_execucao_cria_venv_instala_e_prepara_tudo(mundo):
     assert r.returncode == 0, r.stdout
     assert mundo.n("python3 -m venv") == 1
     assert (mundo.repo / ".venv" / "bin" / "python").is_file()
-    pip = mundo.chamadas("venv-python -m pip install")
+    pip = mundo.chamadas_pip("requirements.txt")
     assert len(pip) == 1 and "requirements.txt" in pip[0]
     assert mundo.n("npm ") == 1
     assert "install" in mundo.chamadas("npm ")[0] or " i" in mundo.chamadas("npm ")[0]
@@ -211,7 +235,7 @@ def test_requirements_alterado_reinstala_so_o_pip(mundo):
     (mundo.repo / "requirements.txt").write_text("numpy\nopencv-python-headless\npillow\nscipy\n"
                                                  "tqdm\n")
     mundo.rodar()
-    assert mundo.n("venv-python -m pip install") == 2
+    assert mundo.n_req() == 2
     assert mundo.n("npm ") == 1 and mundo.n("python3 -m venv") == 1
 
 
@@ -228,7 +252,7 @@ def test_python_do_sistema_recusa_pip_e_o_venv_resolve(mundo):
     r = mundo.rodar()
     assert r.returncode == 0, r.stdout
     assert mundo.n("python3 -m pip") == 0, "pip nunca pode ir para o Python do sistema"
-    assert mundo.n("venv-python -m pip install") == 1
+    assert mundo.n_req() == 1
     assert "externally-managed" not in r.stdout
 
 
@@ -237,7 +261,7 @@ def test_python_do_sistema_recusa_pip_e_o_venv_resolve(mundo):
 def test_npm_falhando_ainda_roda_pip_gsap_sons_e_init_local(mundo):
     r = mundo.rodar(falhas="npm")
     assert r.returncode == 1
-    assert mundo.n("venv-python -m pip install") == 1
+    assert mundo.n_req() == 1
     assert mundo.n("curl") == 1
     assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "init_local.py")) == 1
     assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "som_cortes.py")) == 1
@@ -251,7 +275,7 @@ def test_node_abaixo_de_22_pula_o_npm_e_o_resumo_diz_o_que_fazer(mundo):
     r = mundo.rodar(node="v20.1.0")
     assert r.returncode == 1
     assert mundo.n("npm ") == 0
-    assert mundo.n("venv-python -m pip install") == 1
+    assert mundo.n_req() == 1
     fim = resumo(r.stdout)
     assert "Node" in fim and "22" in fim and "conserto:" in fim
 
@@ -260,7 +284,7 @@ def test_node_ausente_pula_o_npm_e_segue(mundo):
     (mundo.bin / "node").unlink()
     (mundo.bin / "npm").unlink()
     r = mundo.rodar()
-    assert r.returncode == 1 and mundo.n("venv-python -m pip install") == 1
+    assert r.returncode == 1 and mundo.n_req() == 1
     assert "Node" in resumo(r.stdout)
 
 
@@ -285,7 +309,7 @@ def test_pip_falhando_nao_grava_a_marca_e_a_proxima_execucao_tenta_de_novo(mundo
     assert r.returncode == 1 and "pip" in resumo(r.stdout)
     assert mundo.n("npm ") == 1 and mundo.n("curl") == 1
     assert mundo.rodar().returncode == 0
-    assert mundo.n("venv-python -m pip install") == 2
+    assert mundo.n_req() == 2
 
 
 def test_browser_ensure_falhando_vira_falha_com_o_comando(mundo):
@@ -306,6 +330,64 @@ def test_gsap_que_nao_baixa_e_aviso_nao_derruba_o_setup(mundo):
     assert r.returncode == 0, r.stdout
     assert "AVISO" in r.stdout and "gsap" in resumo(r.stdout).lower()
     assert not (mundo.repo / "templates" / "_vendor" / "gsap.min.js").exists()
+
+
+# --- transcritor e doctor no fim (W7.X itens 2 e 3) -------------------------------------------------------
+
+def test_apple_silicon_instala_o_parakeet_no_venv_e_nao_o_faster_whisper(mundo):
+    r = mundo.rodar(uname=("Darwin", "arm64"))
+    assert r.returncode == 0, r.stdout
+    assert mundo.n_pip("parakeet-mlx") == 1
+    assert mundo.n_pip("faster-whisper") == 0
+    assert mundo.n("python3 -m pip") == 0, "o transcritor também nunca vai para o Python do sistema"
+
+
+def test_fora_do_apple_silicon_instala_o_faster_whisper(mundo):
+    for uname in (("Linux", "x86_64"), ("Darwin", "x86_64")):
+        m = Mundo(mundo.repo.parent / ("outro-" + uname[0] + uname[1]) / "meu repo")
+        r = m.rodar(uname=uname)
+        assert r.returncode == 0, r.stdout
+        assert m.n_pip("faster-whisper") == 1, uname
+        assert m.n_pip("parakeet-mlx") == 0, uname
+
+
+def test_parakeet_que_nao_instala_cai_para_o_faster_whisper_com_aviso(mundo):
+    r = mundo.rodar(falhas="parakeet")
+    assert r.returncode == 0, r.stdout
+    assert mundo.n_pip("faster-whisper") == 1
+    assert "AVISO" in r.stdout and "parakeet" in r.stdout
+
+
+def test_sem_nenhum_transcritor_o_setup_falha_e_nao_diz_pronto(mundo):
+    r = mundo.rodar(falhas="parakeet,fw")
+    assert r.returncode == 1 and "tudo pronto" not in r.stdout
+    assert "transcri" in resumo(r.stdout).lower() and "conserto:" in resumo(r.stdout)
+
+
+def test_segunda_execucao_nao_reinstala_o_transcritor(mundo):
+    assert mundo.rodar().returncode == 0
+    r = mundo.rodar()
+    assert r.returncode == 0 and mundo.n_pip("parakeet-mlx") == 1
+
+
+def test_o_resumo_roda_o_doctor_e_so_diz_pronto_com_zero_fail(mundo):
+    r = mundo.rodar()
+    assert r.returncode == 0 and "tudo pronto" in r.stdout
+    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "vam.py") + " doctor") == 1
+
+
+def test_doctor_com_fail_barra_o_pronto_e_sai_1(mundo):
+    r = mundo.rodar(falhas="doctor")
+    assert r.returncode == 1, r.stdout
+    assert "tudo pronto" not in r.stdout and "Ambiente pronto" not in resumo(r.stdout)
+    fim = resumo(r.stdout)
+    assert "doctor" in fim and "[FAIL] transcritor" in fim and "conserto:" in fim
+
+
+def test_doctor_nao_roda_quando_o_setup_ja_tem_falha_para_consertar(mundo):
+    r = mundo.rodar(falhas="npm")
+    assert r.returncode == 1
+    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "vam.py") + " doctor") == 0
 
 
 # --- --checar ---------------------------------------------------------------------------------------
@@ -345,7 +427,7 @@ def test_cinema_plus_e_reservado_e_nao_instala_nada_alem_do_normal(mundo):
     r = mundo.rodar("--cinema-plus")
     assert r.returncode == 0, r.stdout
     assert "--cinema-plus" in r.stdout and "reservado" in r.stdout
-    assert mundo.n("venv-python -m pip install") == 1 and mundo.n("npm ") == 1
+    assert mundo.n_req() == 1 and mundo.n("npm ") == 1
 
 
 def test_argumento_desconhecido_sai_2_e_nao_faz_nada(mundo):
@@ -392,6 +474,19 @@ def test_requirements_da_raiz_tem_o_minimo_e_comenta_os_extras():
     comentadas = "\n".join(l for l in linhas if l.strip().startswith("#"))
     for extra in ("faster-whisper", "parakeet-mlx"):
         assert extra in comentadas
+
+
+def test_requirements_fixam_faixa_testada_e_opencv_abaixo_do_5():
+    """opencv 5.0.0 saiu sem CascadeClassifier e a medição do rosto quebrou na prova de aluno (W7.X item 3)."""
+    ativas = {}
+    for l in (RAIZ_REAL / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        l = l.split("#")[0].strip()
+        if l:
+            ativas[re.split(r"[<>=!~]", l)[0].lower()] = l
+    assert set(ativas) == {"numpy", "opencv-python-headless", "pillow", "scipy"}
+    for nome, linha in ativas.items():
+        assert ">=" in linha and "<" in linha, "%s sem faixa (piso e teto): %r" % (nome, linha)
+    assert "<5" in ativas["opencv-python-headless"].replace(" ", "")
 
 
 def test_requirements_dos_gates_aponta_para_o_da_raiz():

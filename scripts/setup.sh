@@ -12,6 +12,8 @@
 #   1. cria o .venv do repo (o Python do Homebrew recusa `pip install` fora de um ambiente
 #      virtual, PEP 668, então NADA vai para o Python do sistema)
 #   2. instala o requirements.txt no .venv
+#   2b. instala o transcritor no .venv: parakeet-mlx no Apple Silicon, faster-whisper nos outros
+#      (sem transcritor o `vam audio` não roda; o doctor dá FAIL)
 #   3. confere o Node 22 ou superior
 #   4. instala o HyperFrames na versão pinada no package.json (npm install)
 #   5. garante o Chromium do render (hyperframes browser ensure)
@@ -19,12 +21,14 @@
 #   7. cria o .env a partir do .env.example, se ainda não existe (nunca sobrescreve)
 #   8. prepara a pasta _local/ (init_local.py)
 #   9. gera os efeitos sonoros (som_cortes.py)
+#  10. roda o `vam doctor`; o resumo só diz "tudo pronto" se ele sair com 0 FAIL
 #
 # NENHUM passo aborta os seguintes. O que falhar vira uma linha de aviso na hora e entra no
 # resumo do fim, com o comando de conserto. Saída: 0 se tudo certo, 1 se algo obrigatório falhou
 # (a cópia local do GSAP é opcional e só avisa).
 #
-# Depois, confira o ambiente:  python3 scripts/vam.py doctor
+# O doctor roda sozinho no fim (passo 10), só quando nenhum passo anterior falhou: com falha pendente
+# ele reprovaria pelo mesmo motivo. Para conferir de novo à mão:  python3 scripts/vam.py doctor
 #
 # Compatível com macOS/bash 3.2: sem arrays associativos, sem mapfile, sem comando de timeout.
 # NÃO usa a opção de abortar no primeiro erro: cada passo trata o próprio erro.
@@ -54,6 +58,7 @@ done
 VENV="$REPO_ROOT/.venv"
 VENV_PY="$VENV/bin/python"
 SELO="$VENV/.vam-requirements"
+SELO_TRANSCRITOR="$VENV/.vam-transcritor"
 HF_BIN="$REPO_ROOT/node_modules/.bin/hyperframes"
 GSAP_DEST="$REPO_ROOT/templates/_vendor/gsap.min.js"
 ESTADO_DIR="${VAM_ESTADO:-$REPO_ROOT/_local}"
@@ -156,6 +161,56 @@ passo_requirements() {
         problema "o pip falhou ao instalar o requirements.txt" ".venv/bin/python -m pip install -r requirements.txt"
         return 1
     fi
+}
+
+# --- 2b. transcritor ---------------------------------------------------------------------------------------
+# O motor escolhe sozinho o primeiro que existir (parakeet, faster-whisper, Groq). Sem nenhum, o `vam audio`
+# não roda e o doctor dá FAIL: por isso o setup instala UM, no .venv (nunca no Python do sistema).
+# O selo guarda qual foi instalado; o pip já é idempotente, o selo só evita o gasto de rodá-lo à toa.
+transcritor_alvo() {
+    if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "$(uname -m 2>/dev/null)" = "arm64" ]; then
+        echo "parakeet-mlx"
+    else
+        echo "faster-whisper"
+    fi
+}
+
+instalar_transcritor() {
+    "$VENV_PY" -m pip install --quiet --disable-pip-version-check "$1"
+}
+
+passo_transcritor() {
+    local alvo
+    alvo="$(transcritor_alvo)"
+    if [ -f "$SELO_TRANSCRITOR" ] && [ -n "$(cat "$SELO_TRANSCRITOR" 2>/dev/null)" ]; then
+        nota "transcritor ($(cat "$SELO_TRANSCRITOR")) já instalado no .venv. Pulando."
+        return 0
+    fi
+    if [ "$CHECAR" = 1 ]; then
+        aviso "transcritor local ($alvo) não instalado no .venv (sem ele só a Groq, com GROQ_API_KEY, transcreve)" "bash scripts/setup.sh"
+        return 0
+    fi
+    if ! venv_ok; then
+        problema "sem .venv não há onde instalar o transcritor ($alvo)" "corrija o .venv e rode bash scripts/setup.sh"
+        return 1
+    fi
+    nota "instalando o transcritor $alvo no .venv (pode demorar: baixa bibliotecas pesadas)..."
+    if instalar_transcritor "$alvo"; then
+        echo "$alvo" > "$SELO_TRANSCRITOR"
+        nota "transcritor $alvo OK."
+        return 0
+    fi
+    if [ "$alvo" = "parakeet-mlx" ]; then
+        aviso "o parakeet-mlx não instalou (ele pede Python 3.10 ou superior); tentando o faster-whisper" "$VENV_PY -m pip install parakeet-mlx"
+        nota "instalando o faster-whisper no .venv..."
+        if instalar_transcritor "faster-whisper"; then
+            echo "faster-whisper" > "$SELO_TRANSCRITOR"
+            nota "transcritor faster-whisper OK."
+            return 0
+        fi
+    fi
+    problema "nenhum transcritor instalou no .venv (o vam audio precisa de um)" ".venv/bin/python -m pip install $alvo (ou ponha GROQ_API_KEY no .env para usar a Groq)"
+    return 1
 }
 
 # --- 3. Node 22 ou superior ------------------------------------------------------------------------
@@ -355,6 +410,7 @@ fi
 
 passo_venv
 passo_requirements
+passo_transcritor
 passo_node
 passo_hyperframes
 passo_browser
@@ -364,10 +420,37 @@ passo_local
 passo_sons
 passo_cinema_plus
 
+# --- 10. doctor ---------------------------------------------------------------------------------------------------
+# Só diz "pronto" quem passou pelo doctor. Com falha pendente ele é pulado: reprovaria pelo mesmo motivo.
+passo_doctor() {
+    if [ ${#FALHAS[@]} -gt 0 ]; then
+        nota "doctor adiado: conserte as falhas acima e rode bash scripts/setup.sh de novo."
+        return 0
+    fi
+    local py saida rc
+    py="$(python_de_trabalho)"
+    if [ -z "$py" ] || [ ! -f "$REPO_ROOT/scripts/vam.py" ]; then
+        problema "não consegui rodar o doctor (sem Python ou sem scripts/vam.py)" "python3 scripts/vam.py doctor"
+        return 1
+    fi
+    nota "rodando o doctor (python3 scripts/vam.py doctor)..."
+    saida="$("$py" "$REPO_ROOT/scripts/vam.py" doctor 2>&1)"
+    rc=$?
+    echo "$saida" | sed 's/^/[setup]   /'
+    if [ "$rc" -ne 0 ]; then
+        local primeira
+        primeira="$(echo "$saida" | grep '^\[FAIL\]' | head -1)"
+        problema "o doctor reprovou o ambiente: ${primeira:-ver a saída acima}" "aplique o conserto de cada [FAIL] acima e rode bash scripts/setup.sh de novo"
+        return 1
+    fi
+}
+
+passo_doctor
+
 # --- resumo -----------------------------------------------------------------------------------------------------------
 echo "[setup] resumo"
 if [ ${#FALHAS[@]} -eq 0 ] && [ ${#AVISOS[@]} -eq 0 ]; then
-    nota "tudo pronto. Confira o ambiente: python3 scripts/vam.py doctor"
+    nota "tudo pronto (o doctor passou sem nenhum FAIL)."
     exit 0
 fi
 if [ ${#FALHAS[@]} -gt 0 ]; then
@@ -392,5 +475,5 @@ if [ ${#FALHAS[@]} -gt 0 ]; then
     nota "depois de aplicar os consertos, rode de novo: bash scripts/setup.sh"
     exit 1
 fi
-nota "o que ficou é opcional. Confira o ambiente: python3 scripts/vam.py doctor"
+nota "o que ficou é opcional; o doctor passou sem nenhum FAIL."
 exit 0
