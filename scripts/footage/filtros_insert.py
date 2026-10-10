@@ -183,26 +183,45 @@ def fc_split_tela(sp, expo_bg, painel, avatar_split, N, top_h=None, grad=None):
 # ------------------------------------------------------------------ tela cheia com moldura
 
 def moldura_cheia(asp, dir_molduras):
-    """Moldura da tela cheia. O card pode ser mais largo que no split: 96% de 1080, a mesma margem do
-    painel encaixado (com 92% ele dava 27,7% do quadro, MENOS que os 37,5% do próprio split)."""
-    larg = int(W * 0.96) // 2 * 2
-    return _png_da_moldura(asp, dir_molduras, "moldura_cheio", largura_janela=larg)
+    """Moldura da tela cheia. O card ocupa a tela (W7.Z): janela de 96% da largura e, no mínimo, a altura que faz o card
+    (barra + janela) chegar a 70% do quadro (`moldura.janela_cheia`). A moldura nasce no aspecto da JANELA, não no do
+    asset; `preenche` diz que o asset não cabe inteiro nela e entra com zoom e recorte no conteúdo medido."""
+    import moldura
+    jw, jh = moldura.janela_cheia(asp)
+    natural = int(round(jw / float(asp))) // 2 * 2
+    m, png = _png_da_moldura(jw / float(jh), dir_molduras, "moldura_cheio", largura_janela=jw)
+    return dict(m, preenche=jh > natural), png
 
 
 def push_in_cheio(src, jw, jh, dur, start):
     return _push_in(src, jw, jh, dur, start, "push-in cheio")
 
 
-def fc_tela_cheia_moldura(sp, bg_offset, expo, m, png, mov, N):
-    """Tela cheia: fundo congelado e desfocado, card com moldura no meio, composição com shortest=1."""
+CROP_CENTRADO = "'(in_w-out_w)/2':'(in_h-out_h)/2'"
+# O `boxblur` trata o que está fora do quadro como preto e escurece as bordas até zero (120 px de preto liso no pé da tela
+# cheia, medidos na prova): o desfoque roda numa folga em volta do quadro e o recorte final a descarta (W7.Z).
+FOLGA_FUNDO = 240
+
+
+def fc_tela_cheia_moldura(sp, bg_offset, expo, m, png, mov, N, crop_expr=None):
+    """Tela cheia: fundo congelado e desfocado, card com moldura no meio, composição com shortest=1.
+
+    `m["preenche"]` (de `moldura_cheia`): o asset cobre a janela inteira (`scale` por fora e `crop` em `crop_expr`, o
+    recorte ancorado no conteúdo medido; sem ele, o centro) em vez de entrar inteiro numa janela pequena."""
     jw, jh, cw, ch = m["janela_w"], m["janela_h"], m["canvas_w"], m["canvas_h"]
     vx, vy = m["video_x"], m["video_y"]
+    if m.get("preenche"):
+        escala = (f"scale={jw}:{jh}:force_original_aspect_ratio=increase,"
+                  f"crop={jw}:{jh}:{crop_expr or CROP_CENTRADO}")
+    else:
+        escala = f"scale={jw}:{jh}"
     return (f"[0:v]setpts=PTS/{sp},tpad=stop_mode=clone:stop_duration=4,split=2[t1][t2];"
             f"[t1]trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/{FPS}/TB,"
-            f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-            f"boxblur=60:2,eq=brightness={bg_offset:.3f}:saturation=0.7,"
+            f"scale={W + FOLGA_FUNDO}:{H + FOLGA_FUNDO}:force_original_aspect_ratio=increase,"
+            f"crop={W + FOLGA_FUNDO}:{H + FOLGA_FUNDO},"
+            f"boxblur=60:2,crop={W}:{H},eq=brightness={bg_offset:.3f}:saturation=0.7,"
             f"setsar=1[bg];"
-            f"[t2]{expo}scale={jw}:{jh},setsar=1{mov}[vid];"
+            f"[t2]{expo}{escala},setsar=1{mov}[vid];"
             f"color=black@0:s={cw}x{ch}:r={FPS},format=rgba,setsar=1[cv];"
             f"[cv][vid]overlay={vx}:{vy}:shortest=1[card];"
             f"movie={png},format=rgba,setsar=1[mold];"

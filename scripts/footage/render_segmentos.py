@@ -52,7 +52,8 @@ from .filtros_avatar import FPS, H, W, nframes
 
 # VERSAO do render por segmento (cache). Mude sempre que qualquer r_orig/r_insert/r_split_tela
 # mudar o filtro de vídeo, senão o build próximo reaproveita cache velho (pixel errado).
-VERSAO_RENDER = "v2"      # v2 (W3.X B1): a bolinha do pip ancora no rosto medido e a medição degenerada sai
+VERSAO_RENDER = "v3"      # v2 (W3.X B1): a bolinha do pip ancora no rosto medido e a medição degenerada sai
+                          # v3 (W7.Z): a tela cheia ocupa 70% do quadro (recorte no conteúdo) e o fundo desfocado não escurece nas bordas
 
 _IMAGENS = (".jpg", ".jpeg", ".png", ".webp")
 _ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
@@ -137,9 +138,18 @@ def r_insert_moldura(cfg, s, e, out, dir_molduras):
     asp = enq.aspecto(src)
     m, png = FI.moldura_cheia(asp, dir_molduras)
     jw, jh = m["janela_w"], m["janela_h"]
-    print(f"  [mockup cheio] {os.path.basename(src)}: janela {jw}x{jh} no quadro inteiro", flush=True)
-    mov = FI.push_in_cheio(src, jw, jh, d, st)
-    fc = FI.fc_tela_cheia_moldura(sp, exp.bg_offset(src, cfg), exp.eq_exposicao(cfg), m, png, mov, N)
+    if m["preenche"]:
+        # O CARD OCUPA A TELA (W7.Z): o asset cobre a janela alta e é recortado no CONTEÚDO medido (não no centro); ele
+        # já entra ampliado, então não há push-in a fazer.
+        crop = enq.crop_conteudo(src, jw, jh)
+        mov = ""
+        print(f"  [mockup cheio] {os.path.basename(src)}: janela {jw}x{jh} (o card ocupa {m['card_h'] / 19.2:.0f}% "
+              f"do quadro), recorte no conteudo medido", flush=True)
+    else:
+        crop = None
+        print(f"  [mockup cheio] {os.path.basename(src)}: janela {jw}x{jh} no quadro inteiro", flush=True)
+        mov = FI.push_in_cheio(src, jw, jh, d, st)
+    fc = FI.fc_tela_cheia_moldura(sp, exp.bg_offset(src, cfg), exp.eq_exposicao(cfg), m, png, mov, N, crop)
     run(["ffmpeg", "-y", "-ss", str(st), "-t", str(d * sp + 0.4), "-i", src,
          "-filter_complex", fc, "-r", str(FPS), "-map", "[v]", "-an", *_ENCODE, out])
 

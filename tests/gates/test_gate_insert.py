@@ -56,6 +56,12 @@ def plano(mapa=None, fracao=0.5):
             "densidade": {"fracao_insert": fracao, "alvo_min": 0.45, "alvo_max": 0.55, "piso": 0.40, "teto": 0.65}}
 
 
+def plano_do_layout(layout, **kw):
+    """O plano de um insert horizontal que o motor renderiza em `layout`: em split o tratamento é `split`, em tela cheia
+    é `moldura` (W7.Z: o gate mede pelo tratamento que o motor obedeceu, não pelo layout que o ritmo marcou)."""
+    return plano([mapa_item(tratamento="split" if layout == "split" else "moldura")], **kw)
+
+
 def timeline_com_densidade(fracao, total=20.0, layout="cheio"):
     """Avatar, insert, avatar. O insert ocupa `fracao` do tempo."""
     ins = round(total * fracao, 3)
@@ -278,7 +284,7 @@ def com_faixa(quadro, y0, altura_px, cor=(4, 4, 4), grao=0):
 def test_o_quadro_real_do_motor_nao_tem_faixa_morta_e_tem_a_moldura(oficina):
     for layout in ("cheio", "split"):
         q = meio(oficina[layout])
-        g = rodar(timeline=tl_de_layout(layout), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+        g = rodar(timeline=tl_de_layout(layout), plano=plano_do_layout(layout), video="x.mp4", leitor=leitor_de(q))
         assert g["resultado"] == "PASS", (layout, g.get("motivo"))
         fm = g["medido"]["faixa_morta"]
         assert len(fm["instantes"]) == 6 and fm["maior_px"] <= 40
@@ -298,7 +304,7 @@ def test_a_geometria_do_gate_acha_os_pontos_da_moldura_onde_o_motor_os_desenha(o
 @pytest.mark.parametrize("layout", ["cheio", "split"])
 def test_mutante_faixa_morta_de_60px_no_fundo_reprova(oficina, layout):
     q = com_faixa(meio(oficina[layout]), 40, 60)              # acima do card nos dois layouts
-    g = rodar(timeline=tl_de_layout(layout), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    g = rodar(timeline=tl_de_layout(layout), plano=plano_do_layout(layout), video="x.mp4", leitor=leitor_de(q))
     assert g["resultado"] == "REPROVA" and g["saida"] == 1
     assert "faixa morta" in g["motivo"] and "40 px" in g["motivo"]
     assert g["medido"]["faixa_morta"]["maior_px"] >= 60
@@ -316,7 +322,7 @@ def test_faixa_de_40px_ainda_passa_e_de_42px_reprova(oficina):
 
 
 def test_faixa_morta_em_um_so_dos_6_instantes_reprova(oficina):
-    ok, ruim = meio(oficina["cheio"]), com_faixa(meio(oficina["cheio"]), 1500, 80)
+    ok, ruim = meio(oficina["cheio"]), com_faixa(meio(oficina["cheio"]), 1660, 80)   # abaixo do card (que vai até ~1632)
     g = rodar(timeline=tl_de_layout("cheio"), plano=plano(), video="x.mp4", leitor=leitor_de(ok, ok, ok, ok, ok, ruim))
     assert g["resultado"] == "REPROVA"
     assert [i["faixa_morta_px"] > 40 for i in g["medido"]["faixa_morta"]["instantes"]].count(True) == 1
@@ -341,7 +347,7 @@ def test_faixa_lisa_que_nao_e_preta_nao_e_faixa_morta(oficina, cor):
 def test_a_grade_final_nao_esconde_a_moldura_e_o_quadro_real_segue_passando(oficina, layout):
     """Depois da grade (grão, vinheta, h264) o vermelho do ponto já não é (255, 95, 86): a moldura se acha pelo matiz."""
     q = meio(oficina["graduar"](oficina[layout], layout))
-    g = rodar(timeline=tl_de_layout(layout), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    g = rodar(timeline=tl_de_layout(layout), plano=plano_do_layout(layout), video="x.mp4", leitor=leitor_de(q))
     assert g["resultado"] == "PASS", g.get("motivo")
     assert all(i["moldura"] for i in g["medido"]["faixa_morta"]["instantes"])
 
@@ -369,7 +375,7 @@ def test_o_interior_liso_do_card_nao_e_faixa_morta(oficina):
 def test_o_painel_do_avatar_no_split_nao_entra_na_conta(oficina):
     q = meio(oficina["split"])
     q[(FA.SPLIT_TOP_H // 2):, :, :] = 20                       # o avatar embaixo, liso: não é do insert
-    g = rodar(timeline=tl_de_layout("split"), plano=plano(), video="x.mp4", leitor=leitor_de(q))
+    g = rodar(timeline=tl_de_layout("split"), plano=plano_do_layout("split"), video="x.mp4", leitor=leitor_de(q))
     assert g["resultado"] == "PASS", g.get("motivo")
 
 
@@ -478,3 +484,80 @@ def test_cli_devolve_0_1_2(tmp_path, capsys):
     assert gate_insert.main(base) == 1
     assert "REPROVA" in capsys.readouterr().out
     assert gate_insert.main(["--timeline", str(tmp_path / "nao.json")]) == 2
+
+
+# =================================================================================== W7.Z: a chave do insert e o layout efetivo
+
+def plano_com_blocos(chave="painel", tratamento="moldura", bloco=1):
+    p = plano([mapa_item(chave, blocos=(bloco,), tratamento=tratamento)])
+    p["blocos"] = [{"i": 0, "tipo": "apresentador", "fala": "x", "s": 0.0, "e": 5.0},
+                   {"i": bloco, "tipo": "insert", "insert": chave, "layout": "cheio", "fala": "y", "s": 5.0, "e": 15.0}]
+    return p
+
+
+def tl_com_chave_numerica(layout=None, total=20.0):
+    """A timeline REAL guarda no bloco o número do insert no inserts.json ("1", "2"...), não a chave do roteiro."""
+    tl = tl_de_layout(layout or "cheio", total)
+    for b in tl["blocos"]:
+        if b["tipo"] == "insert":
+            b["insert"] = "1"
+    if layout is None:
+        for sg in tl["segmentos"]:
+            sg.pop("layout", None)
+    return tl
+
+
+def test_timeline_com_chave_numerica_e_medida_pela_chave_do_plano(oficina):
+    """O gate passou cego na prova: a chave do bloco na timeline ("1") nunca casava com a do plano ("painel") e as 6
+    amostras saíam com faixa_morta_px = null. O bloco do insert se acha pelo índice, no plano."""
+    q = com_faixa(meio(oficina["cheio"]), 40, 60)
+    g = rodar(timeline=tl_com_chave_numerica("cheio"), plano=plano_com_blocos(), video="x.mp4", leitor=leitor_de(q))
+    inst = g["medido"]["faixa_morta"]["instantes"]
+    assert all(i["faixa_morta_px"] is not None for i in inst)
+    assert g["resultado"] == "REPROVA" and "faixa morta" in g["motivo"]
+
+
+def test_layout_ausente_no_segmento_vale_pelo_tratamento_do_plano(oficina):
+    """Insert de visita única (sem layout no segmento) em moldura é tela cheia: tem que ser medido, não pulado."""
+    q = meio(oficina["cheio"])
+    g = rodar(timeline=tl_com_chave_numerica(None), plano=plano_com_blocos(), video="x.mp4", leitor=leitor_de(q))
+    inst = g["medido"]["faixa_morta"]["instantes"]
+    assert all(i["faixa_morta_px"] is not None and i["moldura"] is True for i in inst), inst
+    assert g["resultado"] == "PASS", g.get("motivo")
+
+
+def test_insert_em_moldura_e_sempre_cheio_mesmo_que_o_ritmo_diga_split(oficina):
+    """`inserts.json` sem `split: true` (cheio explícito) renderiza tela cheia em toda visita: o `layout: split` do ritmo
+    nesse bloco não vale, e medir como split dava a geometria errada."""
+    q = meio(oficina["cheio"])
+    g = rodar(timeline=tl_com_chave_numerica("split"), plano=plano_com_blocos(tratamento="moldura"), video="x.mp4",
+              leitor=leitor_de(q))
+    assert {i["layout"] for i in g["medido"]["faixa_morta"]["instantes"]} == {"cheio"}
+    assert g["resultado"] == "PASS", g.get("motivo")
+
+
+def test_insert_em_split_segue_o_layout_do_ritmo_e_o_split_vale_por_padrao_sem_layout(oficina):
+    q = meio(oficina["split"])
+    g = rodar(timeline=tl_com_chave_numerica("split"), plano=plano_com_blocos(tratamento="split"), video="x.mp4",
+              leitor=leitor_de(q))
+    assert {i["layout"] for i in g["medido"]["faixa_morta"]["instantes"]} == {"split"}
+    assert g["resultado"] == "PASS", g.get("motivo")
+    g2 = rodar(timeline=tl_com_chave_numerica(None), plano=plano_com_blocos(tratamento="split"), video="x.mp4",
+               leitor=leitor_de(q))
+    assert {i["layout"] for i in g2["medido"]["faixa_morta"]["instantes"]} == {"split"}
+
+
+def test_card_da_tela_cheia_ocupa_70_por_cento_do_quadro_na_geometria_do_gate():
+    geo = gate_insert.geometria_do_card("cheio", 1280 / 644.0)
+    assert geo["base"] - geo["topo"] >= 0.70 * 1920
+    assert all(b - a <= 300 for a, b in geo["regioes"])      # o que sobra em volta do card é só a margem
+
+
+def test_o_caso_da_folha_card_pequeno_no_meio_de_fundo_escuro_reprova(oficina):
+    """Os quadros de 5,5 s, 15,5 s e 35 s: um card de ~600 px no meio e o resto preto liso. Medido como cheio, sobra
+    uma faixa morta de centenas de px em cima e embaixo do card (geometria nova: o card tem que chegar perto das bordas)."""
+    q = np.zeros((960, 540, 3), dtype=np.uint8)
+    q[330:630, 20:520, :] = 140                              # um card pequeno no meio (em meia resolução)
+    g = rodar(timeline=tl_com_chave_numerica("cheio"), plano=plano_com_blocos(), video="x.mp4", leitor=leitor_de(q))
+    assert g["resultado"] == "REPROVA" and "faixa morta" in g["motivo"]
+    assert g["medido"]["faixa_morta"]["maior_px"] > 200

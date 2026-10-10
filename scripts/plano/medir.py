@@ -51,7 +51,7 @@ import medir_ritmo  # noqa: E402
 import ritmo as _ritmo  # noqa: E402
 from contratos.validar import normalizar_palavra  # noqa: E402
 from entrada import roteiro_md  # noqa: E402
-from entrada.para_motor import DUR_KEY, DUR_PILHA_ULTIMO  # noqa: E402
+from entrada.para_motor import DUR_KEY, DUR_PILHA_ULTIMO, layout_efetivo  # noqa: E402
 from plano import checklist, escrever_md  # noqa: E402
 from projeto import glossario, modelo, pastas, status  # noqa: E402
 
@@ -291,7 +291,7 @@ def _visitas(segmentos, bloco):
     return max(visitas, 1)
 
 
-def _mapa_inserts(pj, blocos, projeto, segmentos, sondar):
+def _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados=None):
     ajustes = projeto.get("inserts") or {}
     ordem = []
     for b in blocos:
@@ -316,6 +316,11 @@ def _mapa_inserts(pj, blocos, projeto, segmentos, sondar):
         ajuste = ajustes.get(chave, {})
         largura, altura, dur = med["largura"], med["altura"], med["duracao_s"]
         orient = "horizontal" if largura > altura else ("vertical" if altura > largura else "quadrado")
+        for b in usos:
+            # O LAYOUT PADRÃO (W7.Z): sem preferência escrita, insert horizontal no modo avatar é split. O bloco carrega o
+            # layout que o motor vai usar (o `cortes_previstos` e a lista de técnicas leem dele).
+            if (declarados or {}).get(b["i"]) is None:
+                b["layout"] = layout_efetivo(None, projeto.get("modo"), largura / float(altura) if dur else None) or "cheio"
         mapa.append({
             "chave": chave, "arquivo": pj.relativo(arquivos[chave]), "blocos": [b["i"] for b in usos],
             "largura": largura, "altura": altura, "duracao_s": dur, "orientacao": orient,
@@ -587,7 +592,8 @@ def medir(pj, *, palavras=None, asr=None, sondar=None, sugestoes=None, agora=Non
     propostas = _propostas(sug, blocos)
 
     segmentos = _plano_de_ritmo(blocos, projeto)
-    mapa = _mapa_inserts(pj, blocos, projeto, segmentos, sondar)
+    declarados = {i: b["layout"] for i, b in enumerate(lei.blocos) if b["tipo"] == "insert"}
+    mapa = _mapa_inserts(pj, blocos, projeto, segmentos, sondar, declarados)
     letterings = _letterings(lei, blocos, tempos, projeto, aceleracao, duracao)
     efeitos = _efeitos(blocos, letterings, mapa, aceleracao)
 

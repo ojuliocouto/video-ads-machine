@@ -46,6 +46,23 @@ PAD_SOMBRA = 60                      # respiro no canvas pra sombra caber
 
 PONTOS = [((255, 95, 86), 28), ((255, 189, 46), 54), ((39, 201, 63), 80)]
 
+# TELA CHEIA OCUPA A TELA (W7.Z). Ordem do dono: "insert pequeno não é insert"; a moldura de um 16:9 a 96% da largura dava
+# um card de ~600 px num quadro de 1920 e metade da tela ficava vazia e escura. No cheio, o CARD (barra + janela) ocupa
+# pelo menos CHEIO_ALTURA_MIN do quadro: a janela cresce até lá e o asset a preenche com zoom e recorte no conteúdo medido.
+CHEIO_ALTURA_MIN = 0.70
+LARGURA_QUADRO, ALTURA_QUADRO = 1080, 1920
+CHEIO_FRACAO_LARGURA = 0.96
+
+
+def janela_cheia(aspecto):
+    """(largura, altura) da JANELA da moldura em tela cheia: 96% da largura do quadro e a altura natural do aspecto, ou a
+    mínima que faz o card (barra + janela) ocupar CHEIO_ALTURA_MIN da altura do quadro. É a fonte única do filtro
+    (`filtros_insert`) e do gate (`gate_insert.geometria_do_card`)."""
+    jw = int(LARGURA_QUADRO * CHEIO_FRACAO_LARGURA) // 2 * 2
+    natural = int(round(jw / float(aspecto))) // 2 * 2
+    minimo = (int(round(CHEIO_ALTURA_MIN * ALTURA_QUADRO)) - BARRA_H + 1) // 2 * 2
+    return jw, max(natural, minimo)
+
 
 def medidas(aspecto):
     """Janela e card, no aspecto do asset. Devolve dict com tudo em px."""

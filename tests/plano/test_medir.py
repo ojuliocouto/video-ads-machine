@@ -164,10 +164,12 @@ def test_bloco_curto_demais_ganha_o_minimo_de_0_3_s(tmp_path):
     assert all(b[k]["s"] == b[k - 1]["e"] for k in range(1, len(b)))
 
 
-def test_o_layout_do_roteiro_e_o_padrao_cheio_dos_inserts(exemplo):
+def test_o_layout_padrao_do_insert_horizontal_e_split(exemplo):
+    """W7.Z: sem preferência escrita, insert horizontal no modo avatar é split (tela cheia deixava metade da tela vazia).
+    O detalhe (cheio escrito, asset em pé, imagem) está em test_layout_padrao_split."""
     _, plano = exemplo
     layouts = [b.get("layout") for b in plano["blocos"]]
-    assert layouts == ["cheio", None, None, "split", None, "cheio", None]
+    assert layouts == ["split", None, None, "split", None, "split", None]
 
 
 # --- densidade, ritmo e congelamento: medidos -----------------------------------------------------------
@@ -225,9 +227,9 @@ def test_mapa_de_inserts_mede_o_arquivo(exemplo):
     p = mapa["painel"]
     assert (p["arquivo"], p["blocos"], p["largura"], p["altura"], p["duracao_s"]) == \
         ("inserts/painel.mp4", [0], 1280, 644, 8.36)
-    assert p["orientacao"] == "horizontal" and p["tratamento"] == "moldura" and p["visitas"] >= 1
+    assert p["orientacao"] == "horizontal" and p["tratamento"] == "split" and p["visitas"] >= 1
     assert mapa["planilha"]["tratamento"] == "split" and mapa["planilha"]["blocos"] == [3]
-    assert mapa["automacao"]["tratamento"] == "moldura" and mapa["automacao"]["blocos"] == [5]
+    assert mapa["automacao"]["tratamento"] == "split" and mapa["automacao"]["blocos"] == [5]
 
 
 def test_insert_vertical_entra_cheio_e_imagem_estatica_e_imagem(tmp_path):

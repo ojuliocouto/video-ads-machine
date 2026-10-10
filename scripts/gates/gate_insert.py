@@ -167,12 +167,13 @@ def geometria_do_card(layout, aspecto):
     from footage import filtros_avatar as FA
     if layout == "split":
         jw, painel_h, fundo_fim = moldura.LARGURA_JANELA, FA.SPLIT_TOP_H, FA.SPLIT_TOP_H - FA.SPLIT_GRAD
+        jh = int(round(jw / float(aspecto))) // 2 * 2
     elif layout == "cheio":
-        jw, painel_h, fundo_fim = int(FA.W * 0.96) // 2 * 2, FA.H, FA.H
+        # a janela cheia ocupa a tela (W7.Z): a mesma conta do filtro, `moldura.janela_cheia`
+        (jw, jh), painel_h, fundo_fim = moldura.janela_cheia(aspecto), FA.H, FA.H
     else:
         return None
     pad, barra = moldura.PAD_SOMBRA, moldura.BARRA_H
-    jh = int(round(jw / float(aspecto))) // 2 * 2
     cw, ch = jw + 2 * pad, jh + barra + 2 * pad
     cx, cy = int((FA.W - cw) / 2.0), int((painel_h - ch) / 2.0)
     topo, base = cy + pad, cy + pad + jh + barra
@@ -294,10 +295,31 @@ def _leitor_padrao():
     return leitor
 
 
+def layout_efetivo(layout_do_segmento, tratamento):
+    """O layout que o MOTOR renderizou de verdade num segmento de insert. O ritmo marca `split` ou `cheio` em toda fatia,
+    mas só o insert em `split` obedece (`render_segmentos.r_insert`): o que está em `moldura` (cheio) é tela cheia em toda
+    visita, e o `split` do ritmo nele não vale; a visita única de um insert em split não traz layout e é split."""
+    if tratamento == "split":
+        return layout_do_segmento if layout_do_segmento in ("split", "cheio") else "split"
+    if tratamento == "moldura":
+        return "cheio"
+    return None
+
+
+def _insert_por_bloco(plano, tl):
+    """{índice do bloco: chave do insert}. A chave vem do PLANO: a timeline real guarda no bloco o número do insert no
+    inserts.json ("1", "2"...), que nunca casa com `mapa_inserts[].chave` (W7.Z: o gate media 0 quadros na prova e
+    passava)."""
+    por_bloco = {b["i"]: b.get("insert") for b in plano.get("blocos") or [] if b.get("tipo") == "insert"}
+    if not por_bloco:
+        por_bloco = {b["i"]: b.get("insert") for b in tl.get("blocos") or []}
+    return por_bloco
+
+
 def _avaliar_composto(video, tl, plano, leitor):
     """(motivos, medido) da faixa morta e da moldura nos 6 instantes."""
     mapa = {m["chave"]: m for m in plano["mapa_inserts"]}
-    insert_do_bloco = {b["i"]: b.get("insert") for b in tl.get("blocos") or []}
+    insert_do_bloco = _insert_por_bloco(plano, tl)
     instantes = instantes_de_amostra(tl)
     medido = {"instantes": [], "maior_px": 0, "limite_px": FAIXA_MORTA_MAX_PX}
     if not instantes:
@@ -311,10 +333,11 @@ def _avaliar_composto(video, tl, plano, leitor):
     for inst, q in zip(instantes, quadros):
         sg = tl["segmentos"][inst["segmento"]]
         item = mapa.get(insert_do_bloco.get(sg["bloco"]))
+        layout = layout_efetivo(inst["layout"], item.get("tratamento") if item else None) if item else inst["layout"]
         geo = None
-        if item and _aspecto(item) >= MOLDURA_ASPECTO_MIN and inst["layout"] in ("split", "cheio"):
-            geo = geometria_do_card(inst["layout"], _aspecto(item))
-        linha = {"t": inst["t"], "segmento": inst["segmento"], "layout": inst["layout"],
+        if item and _aspecto(item) >= MOLDURA_ASPECTO_MIN and layout in ("split", "cheio"):
+            geo = geometria_do_card(layout, _aspecto(item))
+        linha = {"t": inst["t"], "segmento": inst["segmento"], "layout": layout,
                  "faixa_morta_px": None, "moldura": None}
         if geo is not None:
             linha["faixa_morta_px"] = faixa_morta_px(q, geo)

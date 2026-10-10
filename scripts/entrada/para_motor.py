@@ -38,8 +38,9 @@ Como o roteiro vira config:
     As palavras são as da fala dividida em espaços, como o motor divide a narração; o que o
     parser dele tira da pontuação solta do começo ("... e") não conta, porque pontuação
     sozinha não tem palavra pela norma do motor.
-  - layout: split -> "split": true; pip -> "pip": true; cheio e sem preferência -> nada (é o
-    padrão do motor). O resto do ajuste do insert vem do `projeto.inserts` (inicio -> start,
+  - layout: split -> "split": true; pip -> "pip": true; cheio -> nada (a tela cheia é o padrão do motor). SEM
+    preferência (W7.Z), no modo avatar, asset horizontal vira split (`layout_efetivo`): o card de um 16:9 em tela cheia
+    deixava metade da tela vazia; sem medida do arquivo ou em pé, o padrão de antes. O resto do ajuste do insert vem do `projeto.inserts` (inicio -> start,
     velocidade -> speed, zoom, recorte -> crop, exposicao, dur_max, texto_proprio).
 
 A aceleração não entra no config: quem acelera é o build_composite.
@@ -311,11 +312,40 @@ def _rotulo(chave, ajuste):
     return ajuste.get("rotulo") or chave.replace("-", " ").replace("_", " ")
 
 
-def _entrada_do_insert(arquivo, b, ajuste):
+ASPECTO_HORIZONTAL_MIN = 1.05      # o mesmo corte da moldura de navegador (`filtros_insert.painel_mockup`)
+
+
+def layout_efetivo(declarado, modo, aspecto):
+    """O layout do insert depois de aplicar o padrão (W7.Z): o que o roteiro escreveu vale; sem preferência, no modo
+    avatar, o asset HORIZONTAL (aspecto de 1,05 em diante) é `split` (insert em cima, rosto embaixo). Devolve "split",
+    "cheio", "pip" ou None (sem preferência: o padrão de antes, tela cheia ou o que o arquivo pedir). `aspecto` None
+    (arquivo que não deu para medir) nunca decide por conta própria."""
+    if declarado in ("split", "cheio", "pip"):
+        return declarado
+    if modo == "avatar" and aspecto is not None and aspecto >= ASPECTO_HORIZONTAL_MIN:
+        return "split"
+    return None
+
+
+def _aspecto_do_arquivo(arquivo, sondar=None):
+    """largura / altura do arquivo de insert, ou None se não der para medir (sem ffprobe, arquivo que não é mídia)."""
+    try:
+        if sondar is None:
+            from plano.medir import sondar_ffprobe as sondar
+        med = sondar(arquivo)
+        if not float(med.get("duracao_s") or 0):
+            return None            # imagem estática: tem Ken Burns próprio, não entra no split por padrão
+        return float(med["largura"]) / float(med["altura"])
+    except Exception:
+        return None
+
+
+def _entrada_do_insert(arquivo, b, ajuste, layout=None):
     cfg = {"file": arquivo, "start": ajuste.get("inicio", 0), "speed": ajuste.get("velocidade", 1.0)}
-    if b["layout"] == "split":
+    layout = layout if layout is not None else b["layout"]
+    if layout == "split":
         cfg["split"] = True
-    elif b["layout"] == "pip":
+    elif layout == "pip":
         cfg["pip"] = True
     if "zoom" in ajuste:
         cfg["zoom"] = ajuste["zoom"]
@@ -341,7 +371,7 @@ def _hook(blocos, projeto):
     return saida
 
 
-def gerar(roteiro, projeto, *, avatar, out_dir, inserts_dir, ad=None, look=None):
+def gerar(roteiro, projeto, *, avatar, out_dir, inserts_dir, ad=None, look=None, sondar=None):
     """Gera os 3 arquivos do motor atual (em memória) a partir do roteiro e do projeto.
 
     roteiro      texto do roteiro.md, `Leitura` de entrada.roteiro_md ou o dict da leitura
@@ -351,6 +381,8 @@ def gerar(roteiro, projeto, *, avatar, out_dir, inserts_dir, ad=None, look=None)
     inserts_dir  pasta com os arquivos `<chave>.*` dos inserts do roteiro
     ad           nome do anúncio nos arquivos (padrão: slug do projeto)
     look         nome do look (padrão: o do projeto)
+    sondar       função arquivo -> {largura, altura} que mede o insert (padrão: ffprobe); só serve para o layout
+                 padrão do insert horizontal (`layout_efetivo`)
 
     Levanta ErroParaMotor, com a mensagem do que falta, em vez de gerar arquivo que o motor
     não consegue usar. Não escreve nada em disco (ver `gravar`).
@@ -373,7 +405,10 @@ def gerar(roteiro, projeto, *, avatar, out_dir, inserts_dir, ad=None, look=None)
             marca = f"#{n_insert}#"
             chave = b["insert"]
             ajuste = ajustes.get(chave, {})
-            inserts[marca] = _entrada_do_insert(_arquivo_do_insert(inserts_dir, chave), b, ajuste)
+            arquivo = _arquivo_do_insert(inserts_dir, chave)
+            layout = layout_efetivo(b["layout"], proj.get("modo"),
+                                    _aspecto_do_arquivo(arquivo, sondar) if b["layout"] is None else None)
+            inserts[marca] = _entrada_do_insert(arquivo, b, ajuste, layout)
             labels[marca] = _rotulo(chave, ajuste)
         if b["tipo"] == "lista":
             n_lista += 1

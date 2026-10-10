@@ -65,7 +65,7 @@ Os **itens seguintes**, em qualquer ordem (menos o hook, que vem por último):
 
 | Item | Vale em | Significa |
 |---|---|---|
-| `split`, `cheio` ou `pip` | insert | preferência de layout; sem ela o plano decide |
+| `split`, `cheio` ou `pip` | insert | preferência de layout; sem ela o plano decide: no modo avatar, insert horizontal vira `split` (insert em cima, rosto embaixo); `cheio` escrito ocupa pelo menos 70% da altura do quadro |
 | `LEAD: <texto>` | apresentador, insert, lista, cta | linha pequena que puxa a KEY |
 | `KEY: <texto>` | apresentador, insert, cta | o lettering de pico |
 | `âncora: <palavra>` ou `âncora: <palavra>#<n>` | bloco com lettering | onde o lettering pousa |
