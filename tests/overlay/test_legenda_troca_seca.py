@@ -72,5 +72,17 @@ def test_grupo_que_vai_para_uma_pausa_esmaece():
 def test_o_agendamento_usa_a_decisao_nos_dois_lados():
     """A função só vale se o agendamento a usa: entrada seca = opacidade cheia no `gIn`; saída seca = corte em `gEnd`."""
     assert "transicaoDaLegenda(" in JS and "entradaSeca" in JS and "saidaSeca" in JS
-    assert re.search(r"if \(\w+\.entradaSeca\)[^}]*opacity: 1", JS)
+    assert re.search(r"if \(\w+\.entradaSeca\) \{.*?opacity: 1 \}.*?\} else \{", JS, re.S)
     assert re.search(r"if \(!?\w+\.saidaSeca\)", JS)
+
+
+def test_troca_seca_entra_sem_pop_de_escala():
+    """Na troca seca o texto não muda de tamanho de um quadro para o outro: uma dessincronia de um quadro entre overlay e vídeo
+    (1/30 s) comparava letras de tamanhos diferentes e o gate lia 1,0:1 (29,80 s da prova)."""
+    m = re.search(r"if \(tr\.entradaSeca\) \{(.*?)\} else \{", JS, re.S)
+    assert m and "scale: 1," in m.group(1) and "1.22" not in m.group(1)
+
+
+def test_logo_do_cta_entra_em_no_maximo_0_2_s():
+    m = re.search(r'tl\.to\("#ev-logo", \{[^}]*duration: ([0-9.]+)', JS)
+    assert m and float(m.group(1)) <= 0.2

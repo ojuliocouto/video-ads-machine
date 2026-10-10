@@ -26,8 +26,9 @@
         clip-path:inset(0 100% 0 0); }
       /* camada apagada a 80%: com 52% a palavra ainda não falada caía para 3,2:1 e o gate de contraste achou
          30 faixas abaixo do piso; com 70% a palavra meio preenchida, ao lado da já acesa, media 3,6:1 sobre a placa na
-         costura do split (18,0 s da prova da W7.Z). A diferença para a camada acesa (alfa cheio) segue visível. */
-      #caps .cw .base { color:rgba(245,239,230,.80); }
+         costura do split e com 80% ainda 3,97:1 (18,0 s da prova da W7.Z): a camada apagada vai a 88%. A diferença para a
+         camada acesa (alfa cheio) segue visível no preenchimento. */
+      #caps .cw .base { color:rgba(245,239,230,.88); }
       #caps .cw .fill { color:#F5EFE6; }
       #caps .cw.kw .base { color:rgba(232,125,78,.88); }
       #caps .cw.kw .fill { color:#E87D4E; }

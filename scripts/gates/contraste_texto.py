@@ -41,6 +41,13 @@ O overlay (MOV com alfa) diz onde está o TEXTO; o quadro entregue diz o que o e
   - transição: o pedaço que reprova numa amostra e que, TRANSICAO_S antes ou depois, não está mais na tela (menos de
     metade dos pixels) está entrando ou saindo: é a dissolução, fica de fora e é contado à parte.
 
+A TROCA SECA E A DESSINCRONIA DE UM QUADRO (W7.Z): o overlay e o quadro entregue não se alinham ao quadro exato (com a
+aceleração de 1,35 o quadro entregue vem de um quadro do overlay a até 1/30 s do que o relógio calcula). Com a legenda em
+fade isso se escondia na dissolução; com a troca seca (um grupo substitui o outro no mesmo quadro) a amostra que cai no
+quadro da troca mede o texto NOVO do overlay contra o quadro entregue que ainda mostra o VELHO (1,0:1 na prova, com o vídeo
+limpo nos quadros vizinhos). O pedaço que reprova só reprova de verdade se também não lê com o overlay UM quadro antes nem
+UM quadro depois (`le_com_quadro_vizinho`); lido num dos vizinhos, é troca seca e entra em `transicoes` (`troca_seca`).
+
 O relógio: o quadro de `-ss t` no entregue mostra o instante `(t - deslocamento) * aceleração + a0` do overlay, com
 `deslocamento` o start_time do fluxo de vídeo menos o do arquivo (ver `info_video`).
 """
@@ -403,6 +410,22 @@ def em_transicao(video, overlay, t, relogio, dims, pedaco, piso=PISO, transicao_
     return False
 
 
+QUADRO_OVERLAY_S = 1.0 / 30.0     # o quadro do overlay (a footage roda a 30 fps)
+
+
+def le_com_quadro_vizinho(video, overlay, t, relogio, dims, pedaco, piso=PISO):
+    """True se o pedaço que reprova em `t` lê (todos os pedaços que o tocam passam) com o overlay UM quadro antes ou UM
+    quadro depois do que o relógio calcula: a dessincronia de um quadro na troca seca (ver o docstring do módulo)."""
+    x0, y0, x1, y1 = pedaco["x0"], pedaco["y0"], pedaco["x1"], pedaco["y1"]
+    for d in (QUADRO_OVERLAY_S, -QUADRO_OVERLAY_S):
+        vizinho = Relogio(relogio.aceleracao, relogio.a0 + d, relogio.inicio)
+        pedacos, _ = medir_instante(video, overlay, t, vizinho, dims, piso)
+        meus = [p for p in pedacos if min(x1, p["x1"]) > max(x0, p["x0"]) and min(y1, p["y1"]) > max(y0, p["y0"])]
+        if meus and all(p["ok"] for p in meus):
+            return True
+    return False
+
+
 def medir_video(video, overlay, aceleracao, a0, passo=PASSO_S, piso=PISO, inicio=None, fim=None,
                 transicao_s=TRANSICAO_S, paralelo=4):
     """Todas as amostras de `video` (de `inicio` a `fim`, no relógio do entregue) a cada `passo`.
@@ -439,6 +462,8 @@ def medir_video(video, overlay, aceleracao, a0, passo=PASSO_S, piso=PISO, inicio
             item = dict(p, t=round(tt, 3))
             if em_transicao(video, overlay, tt, rel, dims, p, piso, transicao_s):
                 transicoes.append(item)
+            elif le_com_quadro_vizinho(video, overlay, tt, rel, dims, p, piso):
+                transicoes.append(dict(item, troca_seca=True))
             else:
                 reprovas.append(item)
     return {"amostras": [(round(tt, 3), p) for tt, p in amostras], "reprovas": reprovas,

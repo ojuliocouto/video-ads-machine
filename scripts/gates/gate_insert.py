@@ -82,7 +82,8 @@ SUAVIZA_PX = 8                               # média horizontal (meia resoluç�
 MARGEM_CARD_PX = 8                           # folga em volta do card (a sombra dele não é lisa)
 PONTO_MATIZ_TOL = 20.0                       # graus de matiz de diferença tolerados para um pixel valer como o ponto
 PONTO_SATURACAO_MIN = 0.5                    # saturação mínima (a barra do navegador é quase cinza)
-PONTO_VALOR_MIN = 70                         # brilho mínimo (0 a 255): a vinheta escurece, mas não apaga o ponto
+PONTO_VALOR_MIN = 40                         # brilho mínimo (0 a 255): a vinheta e o scrim do lettering escurecem (a ~45% do brilho
+                                             # o verde de 201 vai a 66, W7.Z), mas não apagam o ponto; matiz e saturação decidem
 PONTO_PIXELS_MIN = 10                        # pixels (em meia resolução) para o ponto existir
 ESCALA = 2                                   # o gate mede em meia resolução (540x960): 1 linha = 2 px
 _EPS = 1e-9

@@ -38,7 +38,7 @@ _CACHE_FUNDO = {}
 # para a tinta clara, o 10 para a escura: a parte do fundo que apaga a letra) e as DUAS camadas, com folga.
 META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel)
 ACESA_CLARA, ACESA_ESCURA = 241, 19         # #F5EFE6 e #12141A, em cinza
-APAGADA_CLARA_ALFA = 0.80                   # legenda.css: rgba(245,239,230,.80) (era .70: 3,6:1 sobre a placa, W7.Z)
+APAGADA_CLARA_ALFA = 0.88                   # legenda.css: rgba(245,239,230,.88) (era .70: 3,6:1 sobre a placa, .80: 3,97:1, W7.Z)
 APAGADA_ESCURA_ALFA = 0.75                  # legenda.css: rgba(18,20,26,.75) (era .62: 1,32:1 no v1)
 PLACA_ALFA = 0.88                           # legenda.css: rgba(8,9,14,.88) (era .82; o gancho segue em .82 no hook.css)
 PLACA_COR = 9

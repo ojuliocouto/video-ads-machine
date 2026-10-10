@@ -561,3 +561,19 @@ def test_o_caso_da_folha_card_pequeno_no_meio_de_fundo_escuro_reprova(oficina):
     g = rodar(timeline=tl_com_chave_numerica("cheio"), plano=plano_com_blocos(), video="x.mp4", leitor=leitor_de(q))
     assert g["resultado"] == "REPROVA" and "faixa morta" in g["motivo"]
     assert g["medido"]["faixa_morta"]["maior_px"] > 200
+
+
+# =================================================================================== W7.Z: a moldura sob o scrim do lettering
+
+@pytest.mark.parametrize("layout", ["cheio", "split"])
+def test_moldura_sob_o_scrim_do_lettering_ainda_e_vista(oficina, layout):
+    """O lettering em serif traz um scrim escuro sobre o quadro: os pontos da barra ficam a ~45% do brilho (verde com
+    valor 66 contra o piso de 70, nos 5,2 s e 15,9 s da prova) e o gate dizia 'recortado' numa moldura que estava lá."""
+    q = (meio(oficina[layout]).astype(np.float32) * 0.30).astype(np.uint8)
+    geo = gate_insert.geometria_do_card(layout, 1280 / 720.0)
+    assert gate_insert.moldura_presente(q, geo)
+
+
+def test_o_recorte_sem_moldura_continua_sem_ela_mesmo_escurecido(oficina):
+    q = (meio(oficina["recortado"]).astype(np.float32) * 0.30).astype(np.uint8)
+    assert not gate_insert.moldura_presente(q, gate_insert.geometria_do_card("cheio", 1280 / 720.0))

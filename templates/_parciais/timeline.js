@@ -112,11 +112,13 @@
         _fimAnterior = gEnd;
         tl.set(grp, { visibility: "visible" }, gIn);
         // pop de grupo: o grupo inteiro chega com escala 1,22 -> 1 rápido; só transform e opacidade
-        gsap.set(grp, { scale: 1.22, transformOrigin: "50% 80%" });
         if (tr.entradaSeca) {
+          // troca seca: opacidade cheia e escala 1 desde o primeiro quadro. O pop de 1,22 -> 1 mudava o tamanho do texto
+          // de um quadro para o outro, e uma dessincronia de um quadro entre overlay e vídeo virava 1,0:1 no gate (29,80 s)
+          gsap.set(grp, { scale: 1, transformOrigin: "50% 80%" });
           tl.set(grp, { opacity: 1 }, gIn);
-          tl.to(grp, { scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
         } else {
+          gsap.set(grp, { scale: 1.22, transformOrigin: "50% 80%" });
           tl.to(grp, { opacity: 1, scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
         }
         grp.querySelectorAll(".cw").forEach(function (span) {
@@ -254,7 +256,9 @@
 
       // ===== LOGO: entra junto com o bloco final =====
       gsap.set("#ev-logo", { xPercent: -50, opacity: 0, y: 18 });
-      tl.to("#ev-logo", { xPercent: -50, opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 46.9);
+      // entrada curta (0,18 s): o gate de contraste só perdoa a dissolução de até 0,15 s, e o sol terracota do logo, a meio da
+      // opacidade, lia 3,0:1 durante os 0,6 s de antes (36,6 s da prova)
+      tl.to("#ev-logo", { xPercent: -50, opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }, 46.9);
 
       window.__timelines["main"] = tl;
 
