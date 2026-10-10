@@ -1,98 +1,131 @@
 ---
-name: video-ads-machine-2
-description: >-
-  Motor de reel e anúncio em vídeo (9:16) sobre HyperFrames, com estilo
-  editorial validado (grade quente, legenda grossa, letterings serifados no
-  peito, hook com a pessoa na tela, logo no rodapé) e sistema de presets
-  configuráveis. Monta a partir de roteiro + voz + avatar + b-rolls; se faltar
-  o avatar, oferece gerar via HeyGen. Use quando o pedido for criar reel,
-  anúncio em vídeo, criativo editorial, montar reel no estilo tay, ou compor
-  vídeo vertical com legenda word-by-word e letterings. Triggers: video ads
-  machine 2, reel editorial, criar reel, montar anúncio hyperframes, reel
-  hyperframes, legenda word-by-word, lettering serifado, grade quente.
+name: video-ads-machine
+description: Produz anúncio em vídeo vertical 9:16 a partir de um roteiro e da voz real de quem fala, com avatar de IA, take gravado ou take único de câmera. Use em pedido de anúncio ou criativo em vídeo, reel, avatar HeyGen, lipsync, legenda, lettering ou corte de ar morto de take. VSL, motion e imagem estática ficam em outras skills.
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# Video Ads Machine 2.0
+# Video Ads Machine
 
-Motor de composição de reel/anúncio vertical (9:16) sobre o **HyperFrames**. Não gera avatar/voz/b-roll (isso é geração): **monta e edita**. O estilo editorial é o que foi validado no reelC (aprovado frame a frame). Estilos são configuráveis por presets.
+Do roteiro ao anúncio 9:16, com gates medidos e duas aprovações humanas. Tudo roda na máquina de quem usa, pela CLI única `vam`. **Toda vez que esta skill diz `vam <comando>`, rode `python3 scripts/vam.py <comando>` na raiz do repo.** Cada comando termina com 0 (fez), 1 (defeito medido) ou 2 (pedido ou insumo inválido) e imprime o próximo passo.
 
-## O que É e o que NÃO é
-- **É:** montador declarativo (HTML/CSS + GSAP renderizado por Chromium headless), biblioteca de blocos e presets testados, e automação do alinhamento de legenda/lettering pela fala.
-- **NÃO é:** gerador de avatar/voz/b-roll (há um passo OPCIONAL que chama o HeyGen quando falta o avatar); não é o video-ads-machine em Python (esse continua pra a linha clássica); não redistribui o HyperFrames (proprietário, instalado à parte).
+## 1. Quando usar e quando NÃO usar
 
----
+Use quando o pedido é um anúncio ou criativo em vídeo curto, vertical, com a voz de uma pessoa real: com avatar, com take gravado de evento ou com um take único de câmera.
 
-## PASSO 0: Onboarding (primeiro uso, sempre rodar antes)
+| Pedido | Vai para | Por quê |
+|---|---|---|
+| VSL ou peça longa de vendas | `video-vsl-machine` | outra estrutura, outra duração |
+| Roteiro ainda não existe | `copywriter-video-ads` antes, depois volta aqui | esta skill não escreve a copy |
+| Direção de arte avulsa, ou revisar um anúncio sem insert nem gancho | `diretor-arte-video-ads` | aqui ela entra como subagente da Fase 2.5 |
+| Motion, animação, explainer, título animado | `hyperframes` | composição em HTML, sem voz real |
+| Gerar imagem, vídeo, 3D ou áudio por IA | `higgsfield-generate` | geração, não montagem |
+| Anúncio estático (imagem) | `criativo-imagem-ia` | não há vídeo |
+| Vídeo longo (entrevista, podcast) com gráficos por cima, o vídeo intacto | `talking-head-recut` | pacote de gráficos, não anúncio |
+| Só legendar um vídeo que não se edita | `embedded-captions` | sem corte, sem plano, sem gates |
 
-Antes de qualquer coisa, garanta o ambiente. Rode o bootstrap (idempotente, só faz o que falta):
+Se a skill vizinha não estiver instalada, diga isso ao usuário em vez de improvisar o pedido aqui.
 
-```bash
-bash scripts/setup.sh
-```
+## 2. Passo 0: `vam doctor` barra
 
-Ele: instala o HyperFrames pinado (se faltar), roda `hyperframes doctor` (checa Node/ffmpeg/Chrome), `hyperframes browser ensure` (baixa o Chromium do render) e `hyperframes skills` (skills de autoria).
+Antes de qualquer render ou crédito, rode `vam doctor`. Ele confere ffmpeg com libass, Node e o HyperFrames do repo, as dependências Python, o transcritor (parakeet, faster-whisper ou Groq), as fontes e a chave do HeyGen com o saldo. Cada item sai OK, WARN ou FAIL com uma linha de conserto. **Qualquer FAIL para tudo**: rode o conserto impresso (quase sempre `bash scripts/setup.sh`) e o doctor de novo. WARN passa. Sem chave do HeyGen o modo avatar fica desligado, e o gravado e o one-shot seguem. Contas, chaves e custo em `references/onboarding.md`.
 
-**Pré-requisitos que o usuário precisa ter:**
-- Node 18+ e ffmpeg instalados.
-- (Opcional) chave HeyGen, só se for gerar o avatar pela skill (`HEYGEN_API_KEY` no ambiente; nunca commitar).
-- (Opcional, só no Mac) `parakeet-mlx` pra alinhamento rápido; o padrão usa o transcript do próprio HyperFrames (multiplataforma).
+## 3. Escolha o caminho
 
-Se o usuário não tem os assets ainda, avise que ele precisa de: `avatar.mp4` (talking-head), a voz (se for gerar avatar), b-rolls, e a logo. Conduza pelo `check_assets`.
+| Situação | Caminho | Referência |
+|---|---|---|
+| Rosto gerado por IA falando a voz do usuário | **avatar** | `references/fase0-entrada.md` em diante |
+| Vários takes gravados de câmera (evento, lapela, retomada) | **gravado** | `references/gravado.md` |
+| Um take só, a pessoa falando direto para a câmera | **one-shot** | `references/oneshot.md` |
 
----
+A ordem das fases é fixa. Nunca gere avatar antes de o áudio passar.
 
-## Workflow (conduza o usuário por estes passos)
+## 4. Caminho avatar (checklist copiável)
 
-1. **Formato:** pergunte `reel-editorial` (flagship, 9:16), `reel-editorial-1x1` (1:1 quadrado, pro feed) ou `ad-hook` (anúncio, hook mais forte).
-2. **Brief + roteiro:** receba o roteiro anotado e os assets. Convenção do roteiro:
-   - Fala normal = palavra falada (vira legenda verbatim).
-   - `*palavra*` = keyword (sai em itálico serif na legenda). `*abre span fecha*` = várias palavras.
-   - `[LEAD: texto]` `[KEY: texto]` `[DUR: seg]` = lettering ancorado na próxima palavra falada (LEAD pequeno + KEY grande no peito).
-3. **Conferir assets:** `python3 scripts/check_assets.py` (via import) ou monte o brief e chame `missing(brief)`. Se faltar o avatar, ofereça gerar no HeyGen (`offer_avatar_generation`).
-4. **Escolher presets** (ou usar default = look reelC). Uma escolha por dimensão, gravada no `brief.json` em `styles`:
-   | Dimensão | Presets | Default |
-   |---|---|---|
-   | caption | montserrat-grossa, tay-fina, boxed | montserrat-grossa |
-   | lettering | serif-editorial, sans-bold, kinetic | serif-editorial |
-   | transition | grid-wipe, hard-cut, crossfade, zoom-blur | grid-wipe |
-   | grade | quente, natural, frio-teal, pb | quente |
-   | hook | pessoa-lettering, tela-preta, card-kinetico | pessoa-lettering |
-   | endcard | cta-logo-rodape, logo-fullscreen | cta-logo-rodape |
+`<slug>` é o nome do projeto (minúsculas, dígitos, `-` e `_`). Estado em `_local/projetos/<slug>/`.
 
-   Omitir `styles` cai no default. Detalhe em `references/presets.md`.
-5. **Montar timeline:** `build_timeline.build(roteiro_path, voz_path, template_path, brief)` gera o `index.html` preenchido (legenda word-by-word + letterings no timestamp da fala + presets). Escreva o resultado no dir de render junto dos assets e fontes.
-   - Nota: `get_transcript` é stub. Integre com o transcript word-level do HyperFrames (ou parakeet no Mac) antes de usar fora de teste.
-6. **Ajustar blocos** conforme o brief (b-rolls, textos do hook, logo, CTA). Blocos em `blocks/`, números em `references/style.md`.
-7. **Lint:** `hyperframes lint <dir>`. Corrija erros de estrutura. `missing_local_asset` = falta copiar o asset pro dir.
-8. **Render:** `hyperframes render -o saida.mp4 -f 25 -q standard --video-frame-format png` (o `png` é obrigatório quando há b-roll de screen recording).
-9. **Auditoria frame a frame (OBRIGATÓRIA):** `bash scripts/audit_frames.sh saida.mp4 <outdir>` gera contact sheet + frames-chave. LEIA os frames com os próprios olhos. Nunca declare pronto sem isso (existe bug render-vs-preview no HyperFrames; o preview mente). Cheque: lettering no peito (não na boca/rosto), logo pequena no rodapé (não gigante centralizada), legenda legível, sem colisão.
-10. **Entrega:** MP4 9:16 + versão leve `_whatsapp` (`ffmpeg -vf scale=720:1280 -crf 28`) pra aprovação no celular.
+| Fase | Comando | Entra | Sai | Gate que barra |
+|---|---|---|---|---|
+| 0 Entrada | `vam novo <slug> --look <look> --sem-trilha "<motivo>"` (ou `--trilha <arquivo>`) | nome, look, trilha | `projeto.json`, `status.json` | contrato do projeto |
+| 0 Entrada | `vam roteiro <slug> --texto "<roteiro colado>"` (ou `--de roteiro.md`) | roteiro | `roteiro.md` | convenção `contratos/roteiro-convencao.md` |
+| 0.5 Áudio | `vam audio <slug> --bruto voz.m4a` | voz bruta | `voz/limpo.mp3`, `voz/auditoria.json` | respiro, ritmo, fala preservada, fala x roteiro |
+| 1 Avatar | `vam avatar <slug> --avatar-id <id> --plano medio` (1ª vez), depois `vam avatar <slug> --aprovar-look` | voz limpa, look | `avatar/avatar.mp4`, `boca.png`, `custo.json` | conferência: 1080x1920, fração útil 0,93 ou mais, duração da voz mais ou menos 1,0 s |
+| 2 Plano | `vam plano <slug>` | roteiro, voz, inserts | `plano/plano.json`, `plano_edicao.md` | 6 seções e checklist |
+| 2.5 Prancha | `vam plano <slug> --prancha`, subagente `diretor-arte-video-ads`, `vam plano <slug> --sugestoes direcao.json` | plano | `plano/prancha/*.png`, `direcao.json` | prancha lida pelo diretor |
+| 2 Aprovação | `vam aprovar <slug> --ok "<ok do aluno>"` | ok no chat | `plano/aprovacao.json` | sha256 dos 4 arquivos |
+| 3 Montagem | `vam montar <slug>` | tudo acima | `entrega/final_9x16.mp4`, `final_whatsapp.mp4`, `laudo.json` | 29 gates na ordem (`references/gates.md`) |
+| 3 Auditoria | `vam auditar <slug>`, depois `vam auditar <slug> --nota N --achados achados.json` (só o auditor) | arquivo final | `entrega/nota.json` | nota 8 ou mais |
+| 3 Entrega | `vam entregar <slug> --abrir` | laudo, aprovação, nota | `entrega/entrega.json` | `gate_entrega` |
 
----
+Onde parou: `vam status <slug>` diz a etapa e o próximo comando. Pronto é o que o `status.json` diz, nunca memória.
 
-## Regra de ouro dos presets
-Só entra na biblioteca preset que foi **renderizado e auditado frame a frame**. As variantes marcadas `unvalidated` nos arquivos de `presets/` ainda precisam passar por isso antes de virar padrão de entrega.
+## 5. Caminhos gravado e one-shot
 
-## Gotchas (leia `references/hyperframes-gotchas.md` e `LEARNINGS.md`)
-- **Antes de mexer na lógica de montagem/timeline, leia `LEARNINGS.md`.** É a memória viva do motor: cada regra de montagem e cada item do checklist de auditoria pré-entrega nasceu de um defeito real de produção. Não regrida nenhuma sem revalidar frame a frame.
-- Logo/elemento centralizado: `left:50%` no CSS + `xPercent:-50` no GSAP em TODO tween. NUNCA `translateX(-50%)` no CSS (o `y` do GSAP estica a logo gigante: foi o bug do v6).
-- Legenda usa attrs custom (`data-w-start`, `data-g-start`), não `data-start`, senão o HyperFrames trata cada palavra como clip.
-- Nunca escreva o texto literal de um marcador `INJECT:` dentro de um comentário do script (o `build` faz replace de todas as ocorrências e injeta HTML no JS).
-- Auditoria frame a frame do RENDER final, sempre. O lint pega estrutura, não pega colisão de layout, texto na boca, nem lettering descolado da fala.
+| Caminho | Comando | Gate que barra |
+|---|---|---|
+| gravado | `vam gravado <slug> criar --brutos <pasta> --sem-trilha "<motivo>"`, `extrair`, `isolar` (ou `limpo --de <pasta>`), `plano`, `montar <AD>`, `caixinha`, `legendar`, `aprovar-legenda`, `queimar`, `gates`, `entregar` | 11 gates mais `legenda_aprovada` |
+| one-shot | `vam novo <slug> --modo oneshot`, depois `vam oneshot <slug> --bruto take.mov --so-plano`, depois sem `--so-plano` | fala inteira, maior pausa, técnico |
+| inserts de interface | `vam insert <slug> <chave> --template whatsapp --dados dados.json` | `gate_fidelidade_roteiro` confere que o arquivo existe |
 
-## O que vem no repo e o que é do usuário (`_local/`)
-**Vem no repo:** o motor, templates, presets, fontes e os gates de entrega em `scripts/gates/`: `gate-ad.py`, `gate-colisao-texto.py`, `gate-contraste-legenda.py`, `revisor-copy-ad.py`, `auditar_ad.py` (+ `gate-excecoes.json` vazio). Eles rodam do próprio repo; só precisam de `pip install -r scripts/gates/requirements.txt` e do `ffmpeg`. O resolvedor `gate_script(nome)` em `scripts/caminhos.py` procura em `scripts/gates/` primeiro e só depois em `~/.claude/scripts/`. **Nunca peça ao usuário scripts que "faltam" em `~/.claude/scripts/`: eles estão no repo.**
+Detalhe de cada etapa em `references/gravado.md` e `references/oneshot.md`.
 
-**É do usuário, nunca versionado (`_local/`, no `.gitignore`):** configs (`configs/`), roteiros (`roteiros/` e `<ad>_leva.txt`), mapas de inserção (`<ad>_inserts.json`), logo (`render-reel-editorial/logo.png`), `render-reel-editorial/meta.json` e a mídia (avatar, voz, inserts, renders).
+## 6. As duas cerimônias humanas
 
-**Primeira vez, ou quando aparecer a mensagem "_local/... não existe":** rode `python3 scripts/init_local.py`. Ele cria a estrutura com exemplos (não sobrescreve nada) e diz os próximos passos. O formato mínimo de roteiro e brief está em `demo/`. A falta desse material é do anúncio do usuário: oriente a criar, não trate como bug do motor.
+1. **Aprovar o plano.** Mostre `plano/plano_edicao.md` ao aluno. Só com o ok dele escrito no chat rode `vam aprovar`, com o texto que ele escreveu. Mudou 1 byte do roteiro, do projeto, do plano ou dos inserts depois do ok, o `vam montar` recusa e o ok se refaz.
+2. **Nota 8 do auditor.** Uma rodada, feita por um subagente com contexto limpo seguindo `references/auditoria.md`. Quem monta não dá nota. Abaixo de 8: corrija os achados e reconfira os mesmos pontos (rodada 2, teto de 2); varredura nova, nunca.
 
-**Portões do build (`produzir_ad.py`), pra não tratar como erro:**
-- **Fases da leva** (`scripts/fase_gate.py`): o build só anda com a leva registrada. Ordem: `fase_gate.py iniciar <leva> --ads 25,26`, `marcar <leva> fase0 ...`, `marcar <leva> fase1 ...`, `aprovar-plano <leva> --plano <md>` (só depois do ok do usuário no chat), e aí `produzir_ad.py <ad> <look>`. "FASES PENDENTES" quer dizer que falta um desses passos.
-- **Fidelidade ao doc**: só vale pra quem trabalha com Google Doc comentado. Com `_local/_doc_map.json` vazio (padrão do init), o build avisa "fidelidade ao doc DESLIGADA" e segue. Com qualquer anúncio declarado lá, todo anúncio passa a precisar de fonte no mapa.
-- **Efeitos sonoros** (whoosh, tick, riser): gerados por `python3 scripts/som_cortes.py` (o `setup.sh` já roda).
+No caminho gravado a segunda cerimônia é o ok do diretor à legenda (`vam gravado <slug> aprovar-legenda`).
 
-## Estrutura do projeto
-- `references/` style.md (números), blocks.md, presets.md, workflow.md, hyperframes-gotchas.md
-- `blocks/` partials HTML/CSS/GSAP · `presets/` variantes por dimensão · `templates/` reel-editorial, reel-editorial-1x1, ad-hook
-- `scripts/` setup.sh, check_assets.py, build_timeline.py, audit_frames.sh, init_local.py, caminhos.py, material_local.py · `scripts/gates/` gates de entrega · `fonts/` woff2 · `demo/` pacote genérico
+## 7. Números vigentes (a constante no código vale mais que este texto)
+
+| Número | Valor | Constante |
+|---|---|---|
+| Aceleração | 1,35 com avatar; 1,2 com take real | `PADRAO_ACELERACAO` em `scripts/projeto/modelo.py` |
+| Loudness e true peak | -14 LUFS, true peak até -1,5 dBTP | `LUFS_ALVO`, `TP_ALVO` em `scripts/audio/loudness.py` |
+| Contraste do texto | 4,5:1 contra o fundo local | `PISO` em `scripts/gates/contraste_texto.py` |
+| Densidade de insert | 45 a 55% (piso 40, teto 65) | `ALVO_MIN`, `ALVO_MAX`, `PISO`, `TETO` em `scripts/plano/medir.py` |
+| Zona segura (9:16) | nada abaixo de y 1690 nem à direita de x 940 | `LIMITE_Y`, `LIMITE_X` em `scripts/gates/gate_safezone.py` |
+| Ritmo de corte | 16 a 32 cortes por minuto | `MIN_CORTES_MIN`, `MAX_CORTES_MIN` em `scripts/medir_ritmo.py` |
+| Pausa máxima na tela | 0,60 s | `PAUSA_MAX_TELA` em `scripts/higienizar_audio.py` |
+| Nota mínima da auditoria | 8 | `NOTA_MINIMA` em `scripts/fase_gate.py` |
+| Teto de gasto do avatar | US$ 5,00 por job | `TETO_USD` em `scripts/cli/avatar.py` |
+| Engine do avatar | `avatar_v`, travado | `MANDATORY_ENGINE` em `scripts/avatar/heygen_cliente.py` |
+
+As 14 capacidades cinematográficas, com gate e limiar, estão em `references/cinematografico.md`.
+
+## 8. Nunca
+
+- Nunca use voz sintética (TTS): a voz é sempre a real. Mudou o áudio, regere o avatar.
+- Nunca gere o avatar antes de `vam audio` passar: o áudio fica gravado dentro dele.
+- Nunca rode `vam aprovar` sem o ok escrito do aluno, nem escreva a nota de um anúncio que você mesmo montou.
+- Nunca chame o renderizador nem o `build_composite.py` direto: o build é `vam montar`.
+- Nunca declare pronto sem ler `vam status` e os quadros da folha de contato.
+- Nunca chute um número do material (enquadramento, recorte, velocidade, ocorrência de palavra): meça.
+- Nunca troque palavra da fala: a legenda vem do `roteiro.md`, não da transcrição crua.
+- Nunca desligue um gate por variável de ambiente: exceção mora em `projeto.json`, com motivo escrito.
+- Nunca suba chave, voz, avatar ou nome de cliente para um repositório. Segredo vive em `.env`, fora do git.
+- Nunca use travessão em texto de tela, e nunca deixe de acentuar o português.
+- Nunca rode mais de 1 build ao mesmo tempo, nem mais de 2 renders pesados na máquina.
+
+## 9. Roteiro sem planilha
+
+Nenhum caminho lê planilha. O roteiro entra por, em ordem: (1) texto colado no chat, gravado verbatim por `vam roteiro <slug> --texto "..."`; (2) arquivo `.md` ou `.txt` (`--de`); (3) opcional, Google Doc com comentários pelo token OAuth do próprio aluno (`GOOGLE_OAUTH_ACCESS_TOKEN`), e só então liga o `gate_fidelidade_doc`.
+
+Uma linha por bloco, direção entre colchetes e a fala depois: `[insert: painel | hook: VOCÊ PERDE | 3 horas por dia | NISSO AQUI] Você perde...`. Tipos: `apresentador`, `insert: <chave>`, `lista`, `cta` (sempre o último). Sem nenhum colchete é roteiro livre: o plano propõe as direções e o aluno aprova. Convenção completa, âncora e exemplos em `contratos/roteiro-convencao.md`.
+
+## 10. Mapa das referências
+
+Leia só a da fase em que você está.
+
+| Arquivo | Quando |
+|---|---|
+| `references/onboarding.md` | primeiro uso: contas, chaves, `.env`, custo |
+| `references/fase0-entrada.md`, `fase-audio.md` | entrada e voz |
+| `references/fase1-avatar.md` | look e avatar |
+| `references/fase2-plano.md`, `fase25-prancha.md` | plano, prancha, aprovação |
+| `references/fase3-montagem-entrega.md` | montar, auditar, entregar |
+| `references/gravado.md`, `oneshot.md` | os outros dois caminhos |
+| `references/cinematografico.md`, `gates.md` | capacidades e limiares |
+| `references/auditoria.md` | o prompt do auditor |
+| `references/licoes.md` | por que cada regra existe |
+
+Modelo: use o modelo mais capaz que você tiver para a direção da Fase 2.5 e para a auditoria; extração, conversão e render de variação já especificada não precisam dele.
