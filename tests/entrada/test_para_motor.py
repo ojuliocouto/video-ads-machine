@@ -206,7 +206,7 @@ class TestExemploCompleto(Base):
                  "pilha": "lista1"},
                 {"lead": "", "key": "você perde a venda", "anchor": "você", "nth": 2, "dur": 2.2,
                  "pilha": "lista1"},
-                {"lead": "toque em", "key": "SAIBA MAIS", "anchor": "toque", "nth": 1, "dur": 2.6},
+                {"lead": "toque em", "key": "SAIBA MAIS", "anchor": "saiba", "nth": 1, "dur": 2.6},
             ],
             "labels": {"#1#": "painel de tarefas", "#2#": "planilha", "#3#": "automacao"},
         }
@@ -223,11 +223,11 @@ class TestExemploCompleto(Base):
         for b in blocos:
             inicio.append(ini)
             ini += len(b["narr"].split())
-        # dentro do bloco: o bloco 3 pousa em "O", a lista em "a", "o" e "você", o CTA em "Toque"
-        esperado = [inicio[2] + 0, inicio[4] + 2, inicio[4] + 5, inicio[4] + 9, inicio[6] + 0]
+        # dentro do bloco: o bloco 3 pousa em "O", a lista em "a", "o" e "você", o CTA em "saiba" (a primeira palavra do KEY, W7.X)
+        esperado = [inicio[2] + 0, inicio[4] + 2, inicio[4] + 5, inicio[4] + 9, inicio[6] + 2]
         achado = [posicao_do_motor(words, L) for L in self.motor.config["letterings"]]
         self.assertEqual(achado, esperado)
-        self.assertEqual([words[p] for p in achado], ["O", "a", "o", "você", "Toque"])
+        self.assertEqual([words[p] for p in achado], ["O", "a", "o", "você", "saiba"])
 
     def test_json_dos_arquivos_e_deterministico_e_sem_escape(self):
         outra = self.gerar(exemplo("completo"), copy.deepcopy(self.projeto))
@@ -274,7 +274,7 @@ class TestAncorasENth(Base):
         self.assertEqual(motor.config["letterings"], [
             {"lead": "um dia na mão", "key": "NO OUTRO, SOZINHO", "anchor": "dia", "nth": 2, "dur": 2.2},
             {"lead": "tudo isso em", "key": "UMA TARDE", "anchor": "tarde", "nth": 1, "dur": 2.2},
-            {"lead": "toque em", "key": "SAIBA MAIS", "anchor": "toque", "nth": 1, "dur": 2.6},
+            {"lead": "toque em", "key": "SAIBA MAIS", "anchor": "saiba", "nth": 1, "dur": 2.6},
         ])
         self.assertEqual(motor.config["kw_phrases"], ["saiba mais"])
 

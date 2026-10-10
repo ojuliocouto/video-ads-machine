@@ -90,7 +90,7 @@
       "hook": null,
       "lead": "toque em",
       "key": "SAIBA MAIS",
-      "ancora": {"palavra": "Toque", "n": 1, "explicita": false},
+      "ancora": {"palavra": "saiba", "n": 1, "explicita": false, "da_key": true},
       "logo": true,
       "itens": [],
       "enfase": [],

@@ -277,7 +277,7 @@ def _letterings_do_bloco(b, indice, tokens, contagem, n_lista):
     if b["key"] is None:
         return []
     anc = b["ancora"]
-    if anc and anc["explicita"]:
+    if anc and (anc["explicita"] or anc.get("da_key")):      # da_key: a âncora padrão do cta, a palavra do KEY
         posicao = _posicao_explicita(tokens, anc["palavra"], anc["n"], indice + 1)
     else:
         posicao = _posicao_padrao(tokens, indice + 1)

@@ -855,8 +855,25 @@ def _resolver_lettering(b, ancora_pedida, n, erro):
         else:
             b["ancora"] = {"palavra": pal, "n": nth or 1, "explicita": True}
     elif tem_lettering and ws:
-        primeira = next(w for w in b["fala"].split() if normalizar_palavra(w))
-        b["ancora"] = {"palavra": re.sub(r"^\W+|\W+$", "", primeira), "n": 1, "explicita": False}
+        tokens = [w for w in b["fala"].split() if normalizar_palavra(w)]
+        pos = _onde_o_key_comeca(ws, palavras(b["key"])) if tipo == "cta" and b["key"] else None
+        i = pos if pos is not None else 0
+        b["ancora"] = {"palavra": re.sub(r"^\W+|\W+$", "", tokens[i]), "n": ws[:i + 1].count(ws[i]),
+                       "explicita": False}
+        if pos is not None:
+            b["ancora"]["da_key"] = True
+
+
+def _onde_o_key_comeca(ws, chave):
+    """Índice, nas palavras da fala, da primeira palavra do KEY: onde o KEY inteiro começa; se ele não aparece inteiro,
+    a 1ª ocorrência da primeira palavra dele. None se a primeira palavra do KEY não está na fala (âncora padrão do cta,
+    W7.X: o botão entra quando a palavra do KEY é dita, e não na primeira palavra do bloco)."""
+    if not chave or chave[0] not in ws:
+        return None
+    for i in range(len(ws) - len(chave) + 1):
+        if ws[i:i + len(chave)] == chave:
+            return i
+    return ws.index(chave[0])
 
 
 def bloco_do_documento(doc, marca):

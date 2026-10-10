@@ -138,7 +138,7 @@ bloco tem sempre os mesmos 11 campos:
 | `layout` | `split`, `cheio`, `pip` ou `null` |
 | `hook` | `{"eyebrow", "linha", "destaque"}` ou `null` |
 | `lead`, `key` | o texto como escrito, ou `null` |
-| `ancora` | `{"palavra", "n", "explicita"}` quando o bloco tem lettering (KEY, ou lista com LEAD), senão `null`; na âncora padrão, `palavra` é a primeira palavra da fala sem a pontuação das pontas |
+| `ancora` | `{"palavra", "n", "explicita"}` quando o bloco tem lettering (KEY, ou lista com LEAD), senão `null`; na âncora padrão, `palavra` é a primeira palavra da fala sem a pontuação das pontas. No bloco `cta` a âncora padrão é a primeira palavra do KEY, quando ela aparece na fala (onde o KEY inteiro começa, se a palavra se repete): o botão entra quando o KEY é dito, e não na primeira palavra do bloco; essa âncora leva `"da_key": true` (e `explicita` segue `false`). Se a palavra do KEY não está na fala, vale a primeira palavra do bloco |
 | `logo` | `true` só no cta |
 | `itens` | na lista, `[{"texto", "marcador"}]` (`marcador` é `null` sem marcador); fora dela, `[]` |
 | `enfase` | os trechos marcados com asterisco, na ordem |
@@ -169,7 +169,7 @@ layout (o plano decide) e o CTA com logo. O título com `#` é ignorado.
 
 Leitura: 7 blocos. O bloco 2 ancora em `O` (primeira palavra) e tem `enfase: ["tempo"]`; a
 lista sai com 3 itens (`a proposta atrasa`, `o cliente esfria`, `você perde a venda`); o cta
-ancora em `Toque` e tem `logo: true`.
+ancora em `saiba` (a primeira palavra do KEY) e tem `logo: true`.
 
 ### 2. Só fala
 
