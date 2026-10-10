@@ -1,7 +1,7 @@
 """W3.D: gate_geometria. A geometria se verifica no PLANO antes de renderizar (custou 5 versões do AD4, 18/09).
 
 O texto de tela nunca pode cair no rosto do apresentador. Desde 10/10/2026 (dono, "Sim pros 2") a legenda tem UMA
-posição: a base do quadro (y 1554 a 1682) e, no CTA, logo acima da pílula (y 972 a 1100); a posição não depende mais do
+posição: a base do quadro (y 1554 a 1682), e não há legenda durante o CTA; a posição não depende mais do
 layout. As faixas são as de `overlay.layout_texto` (FONTE ÚNICA: este gate importa e lê na hora da chamada, nunca copia).
 Duas etapas, dois nomes de laudo:
 
@@ -44,7 +44,6 @@ GATE_COLISAO = RAIZ / "scripts" / "gates" / "gate-colisao-texto.py"
 LARGURA, ALTURA = 1080, 1920
 
 ROSTO_ABERTO = (300, 500)         # (topo, altura) no avatar: núcleo em y 360 a 656, longe das duas faixas
-ROSTO_MEIO = (900, 500)           # núcleo em y 960 a 1256: bate na faixa do CTA (972 a 1100), longe da base
 ROSTO_BAIXO = (1300, 500)         # núcleo em y 1360 a 1656: a base do quadro (1554 a 1682) cai nele
 ROSTO_SPLIT = (1195, 1645)        # o rosto no painel de baixo do split, em y de tela: núcleo 1249 a 1515 (o da prova)
 ROSTO_SPLIT_BAIXO = (1300, 1750)  # núcleo 1354 a 1620: a base cai 66 px nele
@@ -92,7 +91,7 @@ def formato_do_laudo(g):
 def test_as_faixas_sao_as_do_layout_texto_e_so_ha_duas():
     assert gate_geometria.OL is OL                                   # o módulo, não uma cópia dos números
     assert gate_geometria.FA is FA
-    assert set(OL.FAIXA_LEGENDA) == {"base", "acima_cta"}
+    assert set(OL.FAIXA_LEGENDA) == {"base"}
     for morta in ("ALTURA_LEGENDA_PX", "_look_fechado"):
         assert not hasattr(gate_geometria, morta), morta
 
@@ -188,13 +187,6 @@ def test_mutante_rosto_baixo_no_painel_do_split_reprova():
     assert "painel do apresentador" in g["motivo"]
 
 
-def test_a_faixa_do_cta_tambem_e_conferida_contra_o_rosto():
-    assert antes(timeline([leg(14.2, 15.8, "acima_cta")]))["resultado"] == "PASS"
-    g = antes(timeline([leg(14.2, 15.8, "acima_cta")]), rosto=ROSTO_MEIO)
-    assert g["resultado"] == "REPROVA" and "972" in g["motivo"] and "1100" in g["motivo"]
-    assert g["medido"]["legendas"]["com_problema"][0]["fatias"][0]["intersecao_px"] == 1100 - 972
-
-
 def test_posicao_do_contrato_antigo_e_erro_de_insumo():
     for velha in ("padrao", "rodape", "costura"):
         g = antes(timeline([leg(1.0, 2.5, velha)]))
@@ -282,8 +274,7 @@ def test_legenda_suprimida_nao_e_verificada():
 
 
 def test_legenda_sobre_insert_cheio_nao_tem_rosto_para_colidir():
-    for posicao in ("base", "acima_cta"):
-        assert antes(timeline([leg(12.2, 13.5, posicao)]), rosto=ROSTO_BAIXO)["resultado"] == "PASS"
+    assert antes(timeline([leg(12.2, 13.5)]), rosto=ROSTO_BAIXO)["resultado"] == "PASS"
 
 
 def test_a_timeline_de_exemplo_do_contrato_passa_com_o_rosto_aberto():
@@ -385,7 +376,7 @@ def test_a_timeline_que_o_construir_monta_passa_no_gate_com_o_rosto_aberto(tmp_p
     tl = construir_de_verdade(tmp_path)
     assert tl["janelas_split"], "a fixture precisa de um split para o teste valer"
     posicoes = {l["posicao"] for l in tl["legendas"]}
-    assert posicoes <= {"base", "acima_cta"} and "base" in posicoes, posicoes
+    assert posicoes == {"base"}, posicoes
     g = antes(tl, rosto=ROSTO_ABERTO)
     assert g["resultado"] == "PASS", g.get("motivo")
     assert g["medido"]["legendas"]["verificadas"] >= 3
@@ -680,9 +671,9 @@ def _avatar_real():
 @pytest.mark.lento
 @pytest.mark.midia_real
 def test_avatar_real_a_legenda_na_base_nao_toca_o_nucleo_do_rosto():
-    """O Haar de verdade num avatar real: a base do quadro e a faixa do CTA passam; o rosto medido não bate nelas."""
+    """O Haar de verdade num avatar real: a legenda na base do quadro passa; o rosto medido não bate nela."""
     avatar = _avatar_real()
-    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5), leg(14.2, 15.8, "acima_cta")]), avatar=avatar,
+    g = gate_geometria.rodar_antes(timeline([leg(1.0, 2.5)]), avatar=avatar,
                                    rosto_split=ROSTO_SPLIT)
     assert g["resultado"] == "PASS", g.get("motivo")
 

@@ -49,16 +49,15 @@ def _preparar_pasta(out, tmpl):
 
 def _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, mapa_insert, letts,
                      lett_windows, medir_fundo=True, a0=None):
-    """Os grupos de legenda finais: corpo (e CTA, `acima_cta`), halo forte onde o fundo é claro, partição no logo e
-    letterings.
+    """Os grupos de legenda finais: corpo até a janela do logo (o CTA é lettering e não leva legenda), halo forte onde o
+    fundo é claro e letterings.
 
-    Uma posição só (10/10/2026): a base do quadro, em avatar cheio, insert e tela dividida; no CTA, logo acima da
-    pílula. Antes `janelas_texto` e `medir_rosto` desciam a legenda para o rodapé sobre card com texto e em look
+    Uma posição só (10/10/2026): a base do quadro, em avatar cheio, insert e tela dividida. Antes `janelas_texto` e `medir_rosto` desciam a legenda para o rodapé sobre card com texto e em look
     fechado; a posição é uma só e os dois saíram. `medir_fundo` existe
     para a timeline montar as MESMAS legendas sem mídia: não muda tempo, só a classe (`halo`). `a0` é o início da
     footage no relógio do overlay (a timeline sabe): o fundo claro mede a footage em t - a0."""
     groups = legendas.agrupar(words)
-    groups = legendas.filtrar_corpo(groups, h.cap_gate)
+    groups = legendas.filtrar_corpo(groups, h.cap_gate, logo_start)
     groups = legendas.fechar_grupos(groups, logo_start)
     if medir_fundo:
         fundo_claro.marcar_grupos_claros(groups, ad, look, mapa_insert, a0=a0, janelas_split=janelas_split)

@@ -58,7 +58,7 @@ QUANTIS_LEGENDA = (0.10, 0.90)
 # faixa de 128 px e 800 de largura dava p90 de 130 a 145 (a gola clara, a pele) enquanto o fundo atrás das letras era escuro e o
 # halo forte lia 1,1:1. Logo a decisão mede as LINHAS DA TINTA (a linha de 56 px mais 12 px de vizinhança) e a LARGURA que o
 # texto do grupo ocupa (33 px por letra, centrado), quando o chamador sabe o tamanho do grupo (`nchars`).
-FAIXA_TINTA = {"base": (1604, 1690), "acima_cta": (1022, 1108)}
+FAIXA_TINTA = {"base": (1604, 1690)}
 LARGURA_POR_LETRA = 33        # px de uma letra da Inter 800 de 56 px (medido: "Claude em um web", 16 letras, 530 px)
 FOLGA_X = 16                  # px de vizinhança dos lados
 PASSO_MIN_PARTIDA_S = 0.25    # o grupo só é partido na troca de fundo se as duas partes tiverem pelo menos isto

@@ -3,12 +3,12 @@
 O agrupamento (3 a 4 palavras por grupo, fechando na pontuação ou no teto de caracteres, segurando a frase na
 pausa) é do `build_timeline`. Este módulo decide o que FICA na tela:
 
-  - nenhuma legenda enquanto o hook está na tela (`cap_gate`);
-  - a legenda NÃO some no CTA (10/10/2026, "Sim pros 2"): a partir da janela do logo ela continua, marcada
-    `acima_cta`, e o CSS a põe logo ACIMA do bloco lead + pílula + logo; o grupo que atravessa a fronteira do logo
-    é PARTIDO por palavra em dois (o que veio antes, que termina no logo, e o que vem depois, que nasce nele), e o
-    piso de 0,20 s vale DEPOIS da partição: nenhum grupo sai invertido nem como um piscar. Antes o CTA ocupava o
-    lugar da legenda e as palavras finais da fala ("e se inscrever enquanto as vagas...") ficavam sem texto;
+  - nenhuma legenda enquanto o hook está na tela (`cap_gate`) nem a partir da janela do logo. 10/10/2026, decisão do dono: o CTA é lettering e "lettering e
+    legenda nunca juntos", então não há legenda durante o CTA (uma versão com a legenda acima da pílula empilhava texto
+    no peito e lia 3:1 no gate de contraste);
+  - o grupo que atravessa a fronteira do logo é TRUNCADO, não descartado (a legenda vai até o último
+    instante livre sem invadir o logo), e o piso de 0,20 s vale DEPOIS do truncamento: nenhum grupo sai
+    invertido nem como um piscar;
   - legenda e lettering NÃO dividem a tela: o lettering vira o texto principal do trecho. O ECO (a
     mesma frase nos dois) é descartado por inteiro, inclusive o grupo que só ENCOSTA no lettering
     (a legenda "o pulo do" fechava 0,05 s antes de "o pulo do gato" começar, e a mesma frase
@@ -41,8 +41,11 @@ def agrupar(words):
     return build_timeline.group_captions(words, max_words=MAX_PALAVRAS, max_chars=MAX_CHARS)
 
 
-def filtrar_corpo(groups, cap_gate):
-    """Os grupos depois do hook (o CTA NÃO corta mais a legenda: ver o topo do módulo).
+def filtrar_corpo(groups, cap_gate, logo_start):
+    """Os grupos depois do hook e antes da janela do logo.
+
+    O logo entra `LOGO_LEAD` antes do pill e a legenda do corpo some a partir daí: um gate só até
+    `cta_start` deixava a legenda do penúltimo bloco aparecer ATRÁS do logo já visível.
 
     O grupo que COMEÇA com o hook na tela e termina depois dele entra APARADO no fim do hook (W5.X, pendência d):
     descartado inteiro, ele deixava a tela vazia até o grupo seguinte (o gate-ad acusou 15% do anúncio sem texto num
@@ -50,6 +53,8 @@ def filtrar_corpo(groups, cap_gate):
     """
     saida = []
     for g in groups:
+        if not g["start"] < logo_start - 0.05:
+            continue
         if g["start"] > cap_gate:
             saida.append(g)
         elif g["end"] - cap_gate >= PISO_GRUPO:
@@ -57,40 +62,22 @@ def filtrar_corpo(groups, cap_gate):
     return saida
 
 
-def _partir_no_logo(g, logo_start):
-    """[(grupo, acima_cta)] do grupo `g` partido na janela do logo: as palavras que nascem antes (o grupo termina no
-    logo) e as que nascem depois (o grupo nasce no logo e leva a classe `acima_cta`). Um grupo inteiro de um lado só
-    sai inteiro."""
-    if g["end"] <= logo_start:
-        return [(g, False)]
-    if g["start"] >= logo_start:
-        return [(dict(g, acima_cta=True), True)]
-    antes = [w for w in g["words"] if (float(w["start"]) + float(w["end"])) / 2.0 < logo_start]
-    depois = [w for w in g["words"] if (float(w["start"]) + float(w["end"])) / 2.0 >= logo_start]
-    saida = []
-    if antes:
-        saida.append(({**g, "words": antes, "end": logo_start}, False))
-    if depois:
-        saida.append(({**g, "words": depois, "start": logo_start, "acima_cta": True}, True))
-    return saida
 
 
 def fechar_grupos(groups, logo_start):
-    """PARTE na janela do logo o que atravessa a fronteira (um grupo de 1 s que começa antes do logo continua na tela
-    quando ele sobe: "o motor é mais." atrás do wordmark; as palavras de depois do logo ficam, `acima_cta`) e DEPOIS
-    tira o grupo sem palavra ou com menos de PISO_GRUPO.
+    """TRUNCA no início da janela do logo o que atravessa a fronteira (um grupo de 1 s que começa antes do logo
+    continua na tela quando ele sobe: "o motor é mais." atrás do wordmark) e DEPOIS tira o grupo sem palavra ou com
+    menos de PISO_GRUPO.
 
     A ordem é o conserto (W3.X A1). O original filtrava antes de truncar: o grupo que o `empurrar_pos_split` jogava
     para depois da fronteira e que o truncamento cortava no logo sobrava com 0,1 s, ou INVERTIDO (início 13,43 e fim
     13,25, medido num roteiro com o último insert em split com `dur_max` e o CTA logo depois). No overlay antigo ele
     não aparecia; na timeline o contrato o recusa e o anúncio inteiro parava. O piso é a última palavra sobre o grupo
     como ele vai para a tela."""
-    saida = []
     for g in groups:
-        for peca, _cta in _partir_no_logo(g, logo_start):
-            if peca["words"] and peca["end"] - peca["start"] >= PISO_GRUPO:
-                saida.append(peca)
-    return saida
+        if g["end"] > logo_start:
+            g["end"] = logo_start
+    return [g for g in groups if g["words"] and g["end"] - g["start"] >= PISO_GRUPO]
 
 
 def frases_dos_letterings(letts):

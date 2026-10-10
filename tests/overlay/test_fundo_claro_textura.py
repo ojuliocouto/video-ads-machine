@@ -48,7 +48,7 @@ def test_a_caixa_do_texto_estreita_a_medida_e_acompanha_as_linhas_da_tinta(tmp_p
     assert FC.tinta_footage(v, 0.2, 0.8, "base", nchars=10) == "halo"
     x0, x1, y0, y1 = FC._caixa_do_texto("base", 10)
     assert (x0, x1) == (540 - 181, 540 + 181) and (y0, y1) == FC.FAIXA_TINTA["base"]
-    assert FC._caixa_do_texto("acima_cta", 99)[:2] == (140, 940)                  # nunca passa da faixa útil
+    assert FC._caixa_do_texto("base", 99)[:2] == (140, 940)                       # nunca passa da faixa útil
     assert FC._caixa_do_texto("base")[:2] == FC.CAIXA_X
 
 

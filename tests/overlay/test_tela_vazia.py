@@ -64,12 +64,13 @@ def test_vao_de_3_25s_passa_e_de_3_5s_aborta():
                                    "Quase sempre e o corte da legenda (cta_start) desencontrado")
 
 
-def test_cta_a_16s_do_fim_aborta_com_a_porcentagem_do_anuncio_com_o_cta_na_tela():
+def test_cta_a_16s_do_fim_aborta_com_a_porcentagem_sem_legenda():
     with pytest.raises(SystemExit) as e:
         T.checar(2.0, [g(2.0, 5.0)], [], 5.0, 20.0)
     msg = str(e.value)
     assert msg.startswith("JANELA DE CTA LONGA DEMAIS: 15.00s de audio a partir de 5.00s, "
-                          "num total de 20.00s. O CTA fica na tela por 75% do anuncio.")
+                          "num total de 20.00s. A legenda do corpo e cortada nessa janela, "
+                          "entao 75% do anuncio rodaria sem legenda.")
     assert "um insert com dur_max no MEIO do roteiro puxando o cta_start pra tras." in msg
 
 

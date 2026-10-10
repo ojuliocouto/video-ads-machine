@@ -5,7 +5,7 @@ cortada no CTA):
 
   1. nenhuma regra de legenda com fundo, caixa, faixa ou placa (a placa do GANCHO fica);
   2. o y da legenda está na base: caixa em y 1682 e o centro da linha perto de y 1660, tudo dentro da zona segura (1690);
-  3. a legenda está presente durante o CTA, acima da pílula;
+  3. NÃO há legenda durante o CTA (decisão do dono: o CTA é lettering, "lettering e legenda nunca juntos");
   4. grupos de 3 a 4 palavras; o halo forte só entra em fundo claro, também sem caixa;
   5. o mesmo padrão no gravado (ASS): Outline 0, base do quadro, halo borrado e translúcido.
 """
@@ -26,7 +26,6 @@ JS = (RAIZ / "templates" / "_parciais" / "timeline.js").read_text(encoding="utf-
 INDEX = H.ler_template(RAIZ / "templates" / "reel-editorial" / "index.html")
 CTA_CSS = (RAIZ / "templates" / "_parciais" / "cta.css").read_text(encoding="utf-8")
 TETO_UI_Y = 1690
-PILULA_TOPO_Y = 1219        # o topo da pílula do CTA no 9x16 (cta.css e o comentário do index.html: y ~1219-1350)
 
 
 def sem_comentarios(css):
@@ -113,50 +112,27 @@ def test_a_legenda_mora_na_base_do_quadro_centro_perto_de_y_1660_dentro_da_zona_
 def test_uma_posicao_so_em_avatar_cheio_insert_e_split():
     assert LT.classe_do_grupo({}) == "base"
     assert LT.classe_do_grupo({"baixa": True, "costura": True}) == "base"      # as flags de layout morreram
-    assert LT.classe_do_grupo({"acima_cta": True}) == "acima_cta"
-    assert set(LT.FAIXA_LEGENDA) == {"base", "acima_cta"}
+    assert set(LT.FAIXA_LEGENDA) == {"base"}
 
 
-# --- 3. a legenda não some no CTA ------------------------------------------------------------------------
+# --- 3. não há legenda durante o CTA ------------------------------------------------------------------------
 
-def test_a_legenda_continua_durante_o_cta_e_sobe_para_acima_da_pilula():
+def test_nao_ha_legenda_durante_o_cta_o_cta_e_lettering():
     palavras = [pal("e", 8.0, 8.2), pal("se", 8.2, 8.4), pal("inscrever", 8.4, 8.9), pal("enquanto", 8.9, 9.4),
                 pal("as", 9.4, 9.6), pal("vagas", 9.6, 10.1), pal("estiverem", 10.1, 10.7), pal("abertas.", 10.7, 11.4)]
     logo_start = 9.0
-    grupos = LG.agrupar(palavras)
-    grupos = LG.filtrar_corpo(grupos, 0.0)
-    grupos = LG.fechar_grupos(grupos, logo_start)
-    cobertas = {w["text"] for g in grupos for w in g["words"]}
-    assert cobertas == {w["text"] for w in palavras}, cobertas     # as 9 palavras finais ficam legendadas
-    depois = [g for g in grupos if g["start"] >= logo_start - 1e-9]
-    assert depois and all(g.get("acima_cta") for g in depois)
-    assert not any(g.get("acima_cta") for g in grupos if g["end"] <= logo_start)
-    assert all(g["start"] < g["end"] and g["end"] - g["start"] >= LG.PISO_GRUPO for g in grupos)
-    assert all(LT.classe_do_grupo(g) == ("acima_cta" if g.get("acima_cta") else "base") for g in grupos)
+    grupos = LG.fechar_grupos(LG.filtrar_corpo(LG.agrupar(palavras), 0.0, logo_start), logo_start)
+    assert grupos and all(g["end"] <= logo_start + 1e-9 for g in grupos)      # nada depois do logo
+    assert not any("acima_cta" in g for g in grupos)
     html = build_timeline._render_captions_html(grupos)
-    assert "cgrp-acima-cta" in html
+    assert "acima-cta" not in html
 
 
-def test_o_grupo_que_atravessa_o_logo_e_partido_por_palavra_e_nao_perde_palavra():
-    g = {"start": 8.0, "end": 10.0, "words": [pal("o", 8.0, 8.3), pal("motor", 8.3, 8.9), pal("e", 9.1, 9.3),
-                                              pal("mais", 9.3, 10.0)]}
-    saida = LG.fechar_grupos([g], 9.0)
-    assert [[w["text"] for w in x["words"]] for x in saida] == [["o", "motor"], ["e", "mais"]]
-    assert saida[0]["end"] == 9.0 and saida[1]["start"] == 9.0 and saida[1]["acima_cta"] and not saida[0].get("acima_cta")
-
-
-def test_o_texto_da_legenda_do_cta_termina_acima_do_lead_e_da_pilula_e_abaixo_do_peito_do_queixo():
-    por = por_seletor(INDEX)
-    bottom = int(re.search(r"bottom:\s*(\d+)px", por["#caps .cgrp.cgrp-acima-cta"]).group(1))
-    fim_da_caixa = 1920 - bottom
-    cta_bottom = int(re.search(r"bottom:\s*(\d+)px", por["#cta"]).group(1))
-    lead_topo = PILULA_TOPO_Y - 30 - 38 * 1.2          # o gap de 30 px do CTA e o lead de 38 px
-    assert fim_da_caixa <= lead_topo - 20, (fim_da_caixa, lead_topo)       # sem encostar no lead nem na pílula
-    assert LT.FAIXA_LEGENDA["acima_cta"][1] == fim_da_caixa
-    assert cta_bottom == 570                                                # a conta acima parte do CTA de hoje
-    html = OC.aplicar_html('<div id="caps" class="clip"></div><div id="cta" class="clip"></div>'
-                           '<img id="ev-logo" class="clip">', {}, 40.0, 39.1, 45.0, [(38.0, 42.0)])
-    assert "caps-cta-split" in html                                         # CTA em tela dividida: a legenda sobe junto
+def test_a_legenda_do_cta_nao_existe_no_css_nem_no_template_nem_no_cta_py():
+    for nome, texto in (("css", sem_comentarios(CSS)), ("index", sem_comentarios(INDEX)), ("js", JS)):
+        assert "acima-cta" not in texto and "caps-cta-split" not in texto, nome
+    import inspect
+    assert "caps-cta-split" not in inspect.getsource(OC)
 
 
 # --- 4. grupos de 3 a 4 palavras; halo forte só em fundo claro ----------------------------------------------

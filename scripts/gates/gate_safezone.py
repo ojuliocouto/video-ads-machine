@@ -77,9 +77,9 @@ TINTA_ALFA_MIN = 190            # tinta = alfa de 190 a 255; o dim (140) e o scr
 INSTANTES = 6
 ENTRADA_MIN_S = 0.6             # lettering e CTA: depois da animação de entrada
 JANELA_MIN_S = 0.05             # evento mais curto que isto não entra na amostra
-# O contrato e o layout_texto falam a mesma língua desde 10/10/2026 (a base do quadro e, no CTA, acima da pílula). A
+# O contrato e o layout_texto falam a mesma língua desde 10/10/2026 (a base do quadro, e só ela). A
 # inversa de `timeline.construir.POSICAO` (um teste confere).
-FAIXA_DA_POSICAO = {"base": "base", "acima_cta": "acima_cta"}
+FAIXA_DA_POSICAO = {"base": "base"}
 _EPS = 1e-9
 
 

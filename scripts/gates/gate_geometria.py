@@ -18,7 +18,7 @@ se via depois do render. Por isso o gate roda em duas etapas, com dois nomes de 
 
 A FAIXA de cada posição de legenda vem de `overlay.layout_texto.FAIXA_LEGENDA` (fonte única: importada, lida na hora da
 chamada, nunca copiada). Desde 10/10/2026 há uma posição só, a BASE do quadro (y 1554 a 1682, centro da linha perto de
-y 1650), e `acima_cta` durante o CTA (y 972 a 1100): a posição não depende mais do layout, então o gate não escolhe
+y 1650), e não há legenda durante o CTA: a posição não depende mais do layout, então o gate não escolhe
 entre posições, só confere que a faixa que a legenda usa não cai no NÚCLEO do rosto. Para cada legenda não suprimida,
 em cada pedaço de tempo com layout constante (avatar cheio, tela dividida, insert):
 

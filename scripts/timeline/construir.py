@@ -46,7 +46,7 @@ Decisões onde o motor e o contrato não falam a mesma língua (registradas, nã
   - cta.logo é o instante REAL do logo: o overlay o antecipa em 0,9 s quando o bloco anterior ao CTA é
     apresentador (`overlay.cta.LOGO_LEAD`), e o contrato aceita até essa antecipação (W5.A; antes a timeline
     grudava o logo no CTA). A subida do CTA (`cta.inicio`), que é o que o som e os gates usam, é exata;
-  - legenda: a posição é uma só, a base do quadro (y ~1660), e `acima_cta` durante o CTA (10/10/2026); não sai mais
+  - legenda: a posição é uma só, a base do quadro (y ~1650), e não há legenda durante o CTA (10/10/2026); não sai mais
     do layout (costura no split, rodapé sobre insert com texto, look fechado): por isso a timeline já não mede o rosto
     do avatar para montar as legendas;
   - lettering: o estilo EFETIVO do config (`cinema.lettering_estilos.efetivo`: sem estilo, ou em split, close e pilha,
@@ -86,7 +86,7 @@ DUCKING_SEM_TRILHA = {"desligado": True,
 # Ordem das chaves de um plano do ritmo.py (todos os ramos seguem esta ordem): o `_ritmo.json` da footage é
 # comparado byte a byte pela paridade.
 OPCIONAIS_DO_PLANO = ("layout", "fonte_off", "deitico", "base", "punch")
-POSICAO = {"base": "base", "acima_cta": "acima_cta"}
+POSICAO = {"base": "base"}
 
 
 class ErroTimeline(RuntimeError):

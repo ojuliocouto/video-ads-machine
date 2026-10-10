@@ -8,9 +8,9 @@ dividida está na base do painel de baixo, que é a base do quadro.
 
     base       toda a fala: a caixa termina em y 1682 e a linha, de um corpo de 56 px, tem o centro em y ~1650;
                grupo que quebra em duas linhas sobe e ocupa y 1554 a 1682, nunca desce
-    acima_cta  durante o CTA: a legenda sobe para logo ACIMA do bloco lead + pílula + logo (a pílula começa em
-               y ~1219 e o lead em ~1150), sem tocar nenhum dos dois; assim as palavras finais da fala,
-               ditas com o botão na tela, continuam legendadas
+
+Não há legenda durante o CTA (decisão do dono, 10/10/2026: o CTA é lettering e "lettering e legenda nunca juntos"); uma
+versão com a legenda subindo para acima da pílula empilhava texto no peito e lia de 2,7 a 4,2:1 no gate de contraste.
 
 A posição não depende mais do que está embaixo da legenda, então acabaram as regras de fronteira que quebravam
 um grupo em dois quando ele atravessava uma troca de layout (costura do split, rodapé sobre card, look fechado):
@@ -27,18 +27,17 @@ import json
 
 from caminhos import V1
 
-# faixa (y0, y1) de cada classe de legenda no quadro 1080x1920. Bate com o CSS (`#caps .cgrp` bottom 238 e
-# `.cgrp-acima-cta` bottom 820, corpo de 56 px, linha de 64 px, até duas linhas) e com a faixa que o gate de
-# contraste mede no arquivo entregue.
-FAIXA_LEGENDA = {"base": (1554, 1682), "acima_cta": (972, 1100)}
+# faixa (y0, y1) de cada classe de legenda no quadro 1080x1920. Bate com o CSS (`#caps .cgrp` bottom 238, corpo de 56 px,
+# linha de 64 px, até duas linhas) e com a faixa que o gate de contraste mede no arquivo entregue.
+FAIXA_LEGENDA = {"base": (1554, 1682)}
 Y_CENTRO_BASE = 1650          # o centro da linha única da base (1682 menos meia linha de 64 px)
 
 SOBREPOSICAO_RELOGIO = 0.05   # janela da footage só vale se encostar mais que isso numa do overlay
 
 
 def classe_do_grupo(g):
-    """A classe de legenda do grupo: `acima_cta` durante o CTA, `base` no resto do anúncio."""
-    return "acima_cta" if g.get("acima_cta") else "base"
+    """A classe de legenda do grupo: `base`, sempre (uma posição só)."""
+    return "base"
 
 
 def janelas_por_visita(visitas):

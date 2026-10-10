@@ -58,12 +58,9 @@
          56 px x 1,14 tem o centro em y ~1650: o pedido era perto de y 1660, e os 8 px a mais de folga são do halo forte,
          cuja tinta (alfa >= 190) desce 17 px abaixo da letra e, medida no render, tocava y 1694 com a caixa em 1690
          (o teto da UI do Reels). Recuo lateral de 140 px fecha a tinta em x 140 a 940 (a coluna de curtir e comentar
-         começa em 940). Sem padding vertical: o halo é sombra, não caixa, e não precisa de espaço. Grupo que quebra em duas linhas sobe (ancorado por baixo) e nunca desce. Durante o CTA
-         (`cgrp-acima-cta`) ela sobe para bottom 820 px: a caixa termina em y 1100, 50 px acima do lead do CTA (y ~1150),
-         e com o CTA em tela dividida (`caps-cta-split`, o CTA desce para a costura) sobe mais. */
+         começa em 940). Sem padding vertical: o halo é sombra, não caixa, e não precisa de espaço. Grupo que quebra em duas
+         linhas sobe (ancorado por baixo) e nunca desce. Não há legenda durante o CTA (é lettering). */
       #caps .cgrp { bottom:238px; padding:0 140px; }
-      #caps .cgrp.cgrp-acima-cta { bottom:820px; }
-      #caps.caps-cta-split .cgrp.cgrp-acima-cta { bottom:1240px; }
       #caps .cw { font-size:56px; }
 
       /* LOGO e CTA, posicionados juntos: pílula em y ~1219-1350 e o logo abaixo. O logo leva o próprio

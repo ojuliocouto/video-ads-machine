@@ -68,7 +68,7 @@ def tl_seis_eventos():
     return {"versao": 1, "projeto": "seis", "formato": "9x16", "duracao_s": 15.0,
             "relogio": {"base": "footage_1x", "fps": 30, "aceleracao": 1.0, "cauda_s": 0.0, "a0": 0.0},
             "segmentos": [{"bloco": 0, "tipo": "apresentador", "s": 0.0, "e": 15.0, "sub": 0, "de": 1}],
-            "janelas_split": [], "legendas": [leg(2.5, 4.0, "base"), leg(7.0, 8.5, "acima_cta")],
+            "janelas_split": [], "legendas": [leg(2.5, 4.0, "base"), leg(7.0, 8.5, "base")],
             "letterings": [lett("A", 4.5, 2.0), lett("B", 9.0, 2.0)],
             "hook": {"s": 0.0, "e": 2.0, "eyebrow": "A", "linha": "B", "destaque": "C", "estilo": "editorial"},
             "cta": {"inicio": 12.0, "logo": 12.2, "label": "saiba mais", "sem_lead": False}}
@@ -143,11 +143,11 @@ def test_os_limites_sao_os_do_plano():
 
 
 def test_a_posicao_da_timeline_aponta_para_a_faixa_certa_do_layout_texto():
-    """Desde 10/10/2026 o contrato e o layout_texto falam a mesma língua (base e acima_cta). A tabela é a inversa da do construir."""
+    """Desde 10/10/2026 o contrato e o layout_texto falam a mesma língua (só `base`). A tabela é a inversa da do construir."""
     from timeline import construir as TC
     assert gate_safezone.FAIXA_DA_POSICAO == {v: k for k, v in TC.POSICAO.items()}
-    assert set(gate_safezone.FAIXA_DA_POSICAO) == {"base", "acima_cta"}
-    for posicao in ("base", "acima_cta"):
+    assert set(gate_safezone.FAIXA_DA_POSICAO) == {"base"}
+    for posicao in ("base",):
         assert gate_safezone.faixa_da_legenda(posicao) == OL.FAIXA_LEGENDA[gate_safezone.FAIXA_DA_POSICAO[posicao]]
 
 
@@ -173,11 +173,9 @@ def test_as_faixas_das_legendas_vem_do_layout_texto_na_hora_da_chamada(monkeypat
 
 
 def test_so_as_posicoes_que_a_timeline_usa_entram_na_conta(monkeypatch):
-    """Uma faixa estourada que nenhuma legenda usa não reprova esta timeline."""
+    """Uma faixa estourada que nenhuma legenda usa não reprova esta timeline (aqui, nenhuma legenda e a faixa estoura)."""
     tl = timeline()
-    for leg in tl["legendas"]:
-        if leg["posicao"] == "base":
-            leg["posicao"] = "acima_cta"
+    tl["legendas"] = []
     novo = dict(OL.FAIXA_LEGENDA)
     novo["base"] = (1560, 1700)
     monkeypatch.setattr(OL, "FAIXA_LEGENDA", novo)
@@ -196,21 +194,12 @@ def test_legenda_suprimida_nao_entra_na_conta(monkeypatch):
 
 
 def test_a_faixa_de_1250_a_1690_so_gera_relato_e_nunca_reprova():
-    """A legenda de base (y 1554 a 1682) mora na faixa da máscara da Meta; a do CTA (972 a 1100) fica acima dela."""
+    """A legenda de base (y 1554 a 1682) mora na faixa da máscara da Meta: relato, nunca reprova."""
     g = gate_safezone.rodar_antes(timeline())
     assert g["resultado"] == "PASS"
     avisos = g["medido"]["avisos"]
     assert avisos and all("só relato" in a for a in avisos)
     assert any("base" in a for a in avisos)
-    assert not any("acima_cta" in a for a in avisos)               # a faixa do CTA (972 a 1100) está fora da faixa
-
-
-def test_timeline_so_com_a_legenda_do_cta_nao_tem_relato():
-    tl = timeline()
-    for leg in tl["legendas"]:
-        leg["posicao"] = "acima_cta"
-    g = gate_safezone.rodar_antes(tl)
-    assert g["resultado"] == "PASS" and g["medido"]["avisos"] == []
 
 
 def test_a_base_do_quadro_termina_dentro_da_zona_segura_com_folga_para_o_halo():

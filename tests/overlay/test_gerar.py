@@ -773,20 +773,9 @@ def test_equivalencia_eco_e_aparo_nos_letterings(original):
     assert comparar(velho, novo, gerar, n=1000)["ok"] == 1000
 
 
-# 10/10/2026: a UNICA mudança deliberada no gate de tela vazia é o texto do aborto por janela de CTA longa. A legenda não é
-# mais cortada na janela do CTA (continua acima da pílula), então a mensagem deixou de dizer que "rodaria sem legenda".
-MSG_CTA_ORIGINAL = (
-    ('A legenda do corpo e cortada "', 'O CTA fica "'),
-    ('f"nessa janela, entao {100 * _janela_cta / total:.0f}% do anuncio rodaria sem "',
-     'f"na tela por {100 * _janela_cta / total:.0f}% do anuncio. "'),
-    ('f"legenda. Quase sempre a causa e um insert com dur_max no MEIO do roteiro "',
-     'f"Quase sempre a causa e um insert com dur_max no MEIO do roteiro "'),
-)
-
-
 def test_equivalencia_gate_de_tela_vazia(original):
     velho = fatiar(original, [(1073, 1107)], ["hook_dur", "groups", "lett_windows", "cta_s", "total"],
-                   ["_pior", "_quando"], subst=MSG_CTA_ORIGINAL)
+                   ["_pior", "_quando"])
     novo = lambda hook_dur, groups, lett_windows, cta_s, total: TV.checar(    # noqa: E731
         hook_dur, groups, lett_windows, cta_s, total)
 

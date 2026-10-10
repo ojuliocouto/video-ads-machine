@@ -57,7 +57,7 @@ def test_o_gancho_termina_de_sair_antes_da_primeira_legenda_entrar(tipos, spans)
     fim_gancho = _fim_do_gancho(html)
     # grupos de legenda do corpo, incluindo os que já começavam com o gancho na tela (entram aparados em cap_gate)
     grupos = [dict(_grupo(3, False, start=s), end=s + 0.9) for s in (0.0, h.cap_gate - 0.4, h.cap_gate, h.cap_gate + 0.5)]
-    corpo = G.filtrar_corpo(grupos, h.cap_gate)
+    corpo = G.filtrar_corpo(grupos, h.cap_gate, logo_start=60.0)
     assert corpo, "o caso precisa ter legenda depois do gancho"
     entra = min(max(0.0, g["start"] - _avanco_da_legenda()) for g in corpo)    # o grupo SÓ aparece a partir daqui
     assert fim_gancho < entra, (fim_gancho, entra)

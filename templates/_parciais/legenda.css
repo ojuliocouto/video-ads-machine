@@ -6,8 +6,8 @@
          inteira: a camada acesa (`.fill`) é cortada pelo preenchimento e uma sombra nela pulsaria.
          Fundo claro na base (insert de página branca): o grupo ganha `cgrp-halo`, que soma camadas e opacidade ao
          MESMO halo, ainda sem caixa, até a letra passar de 4,5:1 no contraste_texto.py (a conta é overlay.fundo_claro).
-         Posição (bottom), recuo e corpo são do formato: moram no index.html. `cgrp-acima-cta` (o CTA na tela) sobe a
-         legenda para logo acima da pílula; as classes vêm de `overlay.layout_texto` e do `build_timeline`. */
+         Posição (bottom), recuo e corpo são do formato: moram no index.html. Não há legenda durante o CTA
+         (é lettering); as classes vêm do `build_timeline`. */
       #caps { position:absolute; inset:0; z-index:35; pointer-events:none; }
       /* gap de 18 px: o corpo é de 56 px e a linha de 3 a 4 palavras cabe em x 140 a 940 sem quebrar. */
       #caps .cgrp { position:absolute; left:0; right:0;

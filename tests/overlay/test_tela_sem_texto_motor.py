@@ -22,14 +22,14 @@ def grupo(*palavras):
 
 def test_grupo_que_comeca_no_gancho_e_termina_depois_entra_aparado():
     g = grupo(pal("transformou", 2.9, 3.3), pal("meu", 3.3, 3.45), pal("Claude", 3.45, 3.8))
-    saida = G.filtrar_corpo([g], 3.15)
+    saida = G.filtrar_corpo([g], 3.15, 99.0)
     assert len(saida) == 1 and saida[0]["start"] == 3.15 and saida[0]["end"] == 3.8
     assert [w["text"] for w in saida[0]["words"]] == ["transformou", "meu", "Claude"]
 
 
 def test_grupo_que_mal_passa_do_gancho_nao_vira_piscar():
     g = grupo(pal("a", 2.9, 3.3))
-    assert G.filtrar_corpo([g], 3.15) == []
+    assert G.filtrar_corpo([g], 3.15, 99.0) == []
 
 
 def test_eco_de_lettering_adiado_so_sai_se_encostar():

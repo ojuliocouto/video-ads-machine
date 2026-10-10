@@ -1,7 +1,7 @@
 """overlay.layout_texto: a faixa da legenda (uma posição só) e as janelas de layout (avatar cheio, split, insert).
 
 É a fonte única da faixa de legenda. Desde 10/10/2026 (dono, "Sim pros 2") a legenda mora na BASE do quadro em todo
-layout, e no CTA logo acima da pílula: acabaram as regras que quebravam o grupo na fronteira de uma troca de layout,
+layout (e não há legenda durante o CTA): acabaram as regras que quebravam o grupo na fronteira de uma troca de layout,
 desciam a legenda sobre card com texto, subiam para a costura do split e baixavam no look fechado (testes apagados junto
 com as funções). Ficaram as janelas por visita de insert e o relógio da footage:
 
@@ -30,12 +30,12 @@ def grupo(*palavras, **extra):
 # --- constantes e classe -------------------------------------------------------------------
 
 def test_faixas_de_cada_classe_de_legenda():
-    assert LT.FAIXA_LEGENDA == {"base": (1554, 1682), "acima_cta": (972, 1100)}
+    assert LT.FAIXA_LEGENDA == {"base": (1554, 1682)}
 
 
-def test_so_ha_duas_classes_a_base_e_acima_do_cta():
+def test_so_ha_uma_classe_a_base():
     assert LT.classe_do_grupo({}) == "base"
-    assert LT.classe_do_grupo({"acima_cta": True}) == "acima_cta"
+    assert LT.classe_do_grupo({"acima_cta": True}) == "base"                        # nem durante o CTA: ali não há legenda
     assert LT.classe_do_grupo({"baixa": True, "costura": True}) == "base"      # as flags de layout morreram
 
 
@@ -49,7 +49,7 @@ def test_a_faixa_da_base_bate_com_a_caixa_do_template_e_fica_dentro_da_zona_segu
     """A faixa do layout e o CSS são a mesma medida: a caixa termina em y 1682 (bottom 238 px), o teto da UI é 1690."""
     css = (Path(__file__).resolve().parents[2] / "templates" / "reel-editorial" / "index.html").read_text(encoding="utf-8")
     assert "#caps .cgrp { bottom:238px;" in css and LT.FAIXA_LEGENDA["base"][1] == 1920 - 238 <= 1690
-    assert "#caps .cgrp.cgrp-acima-cta { bottom:820px; }" in css and LT.FAIXA_LEGENDA["acima_cta"][1] == 1920 - 820
+    assert "acima-cta" not in css
 
 
 # --- janelas por visita -----------------------------------------------------------------------

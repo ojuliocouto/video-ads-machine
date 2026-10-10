@@ -6,9 +6,9 @@ legenda, lettering, CTA) e o maior buraco. Causa raiz que motivou o gate: cortar
 e subir o CTA em outro.
 
 Duas travas, nesta ordem:
-  - a janela do CTA é longa: desde 10/10/2026 a legenda continua nela (acima da pílula), mas uma janela de CTA
-    longa ainda é um CTA parado na tela por tempo demais. Quase sempre a causa é um insert com `dur_max` no
-    MEIO do roteiro puxando o `cta_start` para trás;
+  - a janela do CTA suprime a legenda do corpo: se for longa, o anúncio roda mudo em feed silencioso
+    sem o gate de tela vazia perceber (para o alpha, CTA é texto). Quase sempre a causa é um insert com
+    `dur_max` no MEIO do roteiro puxando o `cta_start` para trás;
   - o maior vão sem NENHUM texto. A causa quase sempre é o corte da legenda (`cta_start`)
     desencontrado da subida do CTA (`cta_s`), ou um lettering que não encaixou.
 """
@@ -54,8 +54,9 @@ def checar(hook_dur, groups, lett_windows, cta_s, total, fim_janela_cta=None):
     if _janela_cta > MAX_JANELA_CTA:
         sys.exit(
             f"JANELA DE CTA LONGA DEMAIS: {_janela_cta:.2f}s de audio a partir de "
-            f"{cta_s:.2f}s, num total de {total_cta:.2f}s. O CTA fica "
-            f"na tela por {100 * _janela_cta / total_cta:.0f}% do anuncio. Quase sempre a causa e um insert com dur_max no MEIO do roteiro "
+            f"{cta_s:.2f}s, num total de {total_cta:.2f}s. A legenda do corpo e cortada "
+            f"nessa janela, entao {100 * _janela_cta / total_cta:.0f}% do anuncio rodaria sem "
+            f"legenda. Quase sempre a causa e um insert com dur_max no MEIO do roteiro "
             f"puxando o cta_start pra tras.")
 
     print(f"   [tela] maior vao sem texto: {_pior:.2f}s de audio em {_quando:.2f}s "

@@ -211,7 +211,7 @@ def test_hook_cta_letterings_e_legendas_saem_no_relogio_unico(mundo):
     for lg in tl["legendas"]:
         assert lg["texto"] == " ".join(p["t"] for p in lg["palavras"])
         assert lg["texto"] in texto_roteiro, "legenda verbatim do roteiro"
-        assert lg["suprimida"] is False and lg["posicao"] in ("base", "acima_cta")
+        assert lg["suprimida"] is False and lg["posicao"] == "base"
 
 
 # ============================================================================ o relógio é o da footage
@@ -894,7 +894,7 @@ def test_m5_cli_nao_mede_mais_o_rosto_e_a_posicao_das_legendas_e_a_unica(mundo, 
     tl = TC.ler(destino)
     assert medidos == []
     posicoes = {lg["posicao"] for lg in tl["legendas"]}
-    assert posicoes <= {"base", "acima_cta"} and "base" in posicoes, posicoes
+    assert posicoes == {"base"}, posicoes
 
 
 def test_m5_o_look_aberto_ou_fechado_da_a_mesma_timeline(mundo, monkeypatch, capsys):

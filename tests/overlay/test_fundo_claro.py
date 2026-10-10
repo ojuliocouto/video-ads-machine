@@ -133,12 +133,11 @@ def test_excecao_na_medicao_tambem_vira_false(monkeypatch):
 def test_footage_mede_tres_amostras_dentro_do_grupo_na_faixa_da_classe(monkeypatch):
     vistas = []
     monkeypatch.setattr(FC, "_mediana_banda", lambda v, t, y0, y1: vistas.append((t, y0, y1)) or 200)
-    assert FC.fundo_claro_footage("f.mp4", 10.0, 12.0, "acima_cta") is True
-    assert vistas == [(10.5, 972, 1100), (11.0, 972, 1100), (11.5, 972, 1100)]
+    assert FC.fundo_claro_footage("f.mp4", 10.0, 12.0, "base") is True
+    assert vistas == [(10.5, 1554, 1682), (11.0, 1554, 1682), (11.5, 1554, 1682)]
 
 
-@pytest.mark.parametrize("classe,faixa", [("base", (1554, 1682)), ("acima_cta", (972, 1100)),
-                                          ("qualquer", (1554, 1682))])
+@pytest.mark.parametrize("classe,faixa", [("base", (1554, 1682)), ("qualquer", (1554, 1682))])
 def test_footage_usa_a_faixa_da_classe_e_cai_na_base(monkeypatch, classe, faixa):
     vistas = []
     monkeypatch.setattr(FC, "_mediana_banda", lambda v, t, y0, y1: vistas.append((y0, y1)) or 50)
@@ -187,13 +186,13 @@ def test_com_footage_mede_na_footage_na_classe_de_cada_grupo(v1, monkeypatch, ca
 
     def falso(video, ini, fim, classe, **k):
         chamadas.append((video.name, ini, fim, classe))
-        return "halo" if classe == "acima_cta" else "clara"
+        return "halo" if ini >= 5.0 else "clara"
 
     monkeypatch.setattr(FC, "tinta_footage", falso)
-    grupos = [g(1.0, 2.0, acima_cta=True), g(3.0, 4.0), g(5.0, 6.0)]
+    grupos = [g(1.0, 2.0), g(3.0, 4.0), g(5.0, 6.0)]
     FC.marcar_grupos_claros(grupos, "ad1", "lk", [], a0=0.0)
-    assert [x.get("halo") for x in grupos] == [True, None, None]
-    assert [c[3] for c in chamadas] == ["acima_cta", "base", "base"]
+    assert [x.get("halo") for x in grupos] == [None, None, True]
+    assert [c[3] for c in chamadas] == ["base", "base", "base"]
     assert chamadas[0][0] == "ad1_lk_footage_1x.mp4"
     assert ("[fundo claro] 1 de 3 grupo(s) com HALO FORTE (fundo claro na base), medidos na footage "
             "(ad1_lk_footage_1x.mp4)") in capsys.readouterr().out

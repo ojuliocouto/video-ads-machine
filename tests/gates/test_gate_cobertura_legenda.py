@@ -1,14 +1,14 @@
-"""W7.W (A2): gate_cobertura_legenda. Toda palavra falada FORA das janelas de lettering e gancho tem texto na tela.
+"""W7.W (A2): gate_cobertura_legenda. Toda palavra falada FORA das janelas de lettering, gancho e CTA tem texto na tela.
 
 O defeito que o gate existe para pegar (anúncio da prova, v2): o CTA entrou ~3 s antes de a voz dizer o botão e levou junto a
 legenda do bloco anterior: 24 palavras faladas sem texto nenhum, 6,6 s, e ninguém notou porque cada janela olhada sozinha
 estava "dentro do limite". O gate lê a timeline (o que está declarado na tela, no relógio da footage a 1x) e as palavras do
-alinhamento, e reprova quando mais de 3% das palavras que NÃO estão em lettering ou gancho ficam sem texto, ou quando o
+alinhamento, e reprova quando mais de 3% das palavras que NÃO estão em lettering, gancho ou CTA ficam sem texto, ou quando o
 CTA entra antes do início do bloco cta.
 
-10/10/2026 ("Sim pros 2"): o CTA deixou de ser janela isenta. A legenda continua durante o CTA, acima da pílula, e as palavras
-finais da fala precisam de texto como as outras. A palavra sob um LETTERING segue não contada nem penalizada (legenda e lettering
-nunca juntos, por design).
+10/10/2026 (decisão do dono): durante o CTA NÃO há legenda. O CTA é lettering ("lettering e legenda nunca juntos"), então a
+janela do CTA é isenta como a do lettering: a palavra falada sob o CTA não é contada nem penalizada. Uma versão com a legenda
+acima da pílula foi desfeita (empilhava texto no peito e lia 3:1 no gate de contraste).
 """
 import json
 import pytest
@@ -41,11 +41,11 @@ def timeline(legendas, cta_inicio=18.0, cta_bloco=18.0, dur=22.0, hook=(0.0, 2.0
 
 
 def cobertura_total():
-    """Legenda contínua de 2 s ao fim (22 s, o CTA inclusive), gancho de 0 a 2 s."""
-    return timeline([legenda(2.0 + k, 3.0 + k) for k in range(20)])
+    """Legenda contínua de 2 a 18 s, gancho de 0 a 2 s e CTA de 18 s ao fim."""
+    return timeline([legenda(2.0 + k, 3.0 + k) for k in range(16)])
 
 
-def test_legenda_continua_com_gancho_e_durante_o_cta_passa():
+def test_legenda_continua_com_gancho_e_cta_passa():
     g = G.rodar(cobertura_total(), palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "PASS" and g["saida"] == 0, g
     assert g["medido"]["sem_texto"] == 0
@@ -63,41 +63,30 @@ def test_o_fecho_sem_legenda_porque_o_cta_entrou_cedo_reprova():
 
 
 def test_cta_antes_do_bloco_cta_reprova_mesmo_com_a_legenda_em_dia():
-    leg = [legenda(2.0 + k, 3.0 + k) for k in range(20)]
+    leg = [legenda(2.0 + k, 3.0 + k) for k in range(16)]
     g = G.rodar(timeline(leg, cta_inicio=16.0, cta_bloco=18.0), palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "REPROVA"
     assert "antes do bloco cta" in g["motivo"] and g["medido"]["cta_antes_do_bloco_s"] == pytest.approx(2.0)
 
 
 def test_cta_na_ancora_depois_do_inicio_do_bloco_passa():
-    leg = [legenda(2.0 + k, 3.0 + k) for k in range(20)]
+    leg = [legenda(2.0 + k, 3.0 + k) for k in range(16)] + [legenda(18.0, 18.6)]
     g = G.rodar(timeline(leg, cta_inicio=18.6, cta_bloco=18.0), palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "PASS", g
 
 
 def test_legenda_suprimida_nao_conta_como_texto_na_tela():
-    leg = [legenda(2.0 + k, 3.0 + k, suprimida=(5 <= k <= 9)) for k in range(20)]
+    leg = [legenda(2.0 + k, 3.0 + k, suprimida=(5 <= k <= 9)) for k in range(16)]
     g = G.rodar(timeline(leg), palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "REPROVA" and g["medido"]["sem_texto"] >= 8
 
 
-def test_palavra_dentro_de_lettering_ou_gancho_nao_precisa_de_legenda_nem_e_penalizada():
-    # nenhuma legenda: a fala toda cai no gancho (0 a 2) e num lettering (2 a 22,35 s com a folga)
-    t = timeline([], cta_inicio=16.0, cta_bloco=16.0, letterings=[(2.35, 19.65)])
+def test_palavra_dentro_de_lettering_ou_gancho_ou_cta_nao_precisa_de_legenda():
+    # nenhuma legenda: a fala toda cai no gancho (0 a 2), num lettering (2 a 16) e no CTA (a partir de 16)
+    t = timeline([], cta_inicio=16.0, cta_bloco=16.0, letterings=[(2.35, 13.3)])
     g = G.rodar(t, palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "PASS", g
     assert g["medido"]["palavras_avaliadas"] < g["medido"]["palavras"]
-
-
-def test_as_palavras_finais_ditas_no_cta_precisam_de_legenda_agora():
-    """10/10/2026: a legenda continua no CTA. As 9 palavras finais sem texto na tela reprovam, que antes passavam isentas."""
-    leg = [legenda(2.0 + k, 3.0 + k) for k in range(16)]                  # legenda até 18 s, depois nada
-    g = G.rodar(timeline(leg, cta_inicio=18.0, cta_bloco=18.0), palavras(*fala(0.0, 22.0)))
-    assert g["resultado"] == "REPROVA" and g["medido"]["sem_texto"] >= 8
-    assert g["medido"]["vaos_com_fala"][0]["de_s"] == pytest.approx(18.0)
-    completa = G.rodar(timeline(leg + [legenda(18.0 + k, 19.0 + k) for k in range(4)], cta_inicio=18.0, cta_bloco=18.0),
-                       palavras(*fala(0.0, 22.0)))
-    assert completa["resultado"] == "PASS", completa
 
 
 def test_a_folga_do_lettering_tambem_e_isenta_a_legenda_sai_de_proposito():
@@ -105,7 +94,7 @@ def test_a_folga_do_lettering_tambem_e_isenta_a_legenda_sai_de_proposito():
     folga não é buraco."""
     from overlay import legendas
     assert G.FOLGA_LETTERING_S == legendas.FOLGA_LETT
-    leg = [legenda(2.0, 6.0), legenda(11.6, 22.0)]                    # buraco de 6 a 11,6 s
+    leg = [legenda(2.0, 6.0), legenda(11.6, 18.0)]                    # buraco de 6 a 11,6 s
     t = timeline(leg, letterings=[(6.35, 4.9)])                       # lettering de 6,35 a 11,25 s (folga: 6 a 11,6)
     g = G.rodar(t, palavras(*fala(0.0, 22.0)))
     assert g["resultado"] == "PASS", g
@@ -114,10 +103,10 @@ def test_a_folga_do_lettering_tambem_e_isenta_a_legenda_sai_de_proposito():
 def test_vao_curto_entre_dois_grupos_de_legenda_nao_e_palavra_perdida():
     """Entre um grupo e o seguinte há um piscar de até 0,5 s (a troca de layout, o piso de 0,2 s do grupo): a palavra que
     cai nele tem texto logo antes e logo depois."""
-    leg = [legenda(2.0, 6.0), legenda(6.4, 22.0)]                     # vão de 0,4 s
+    leg = [legenda(2.0, 6.0), legenda(6.4, 18.0)]                     # vão de 0,4 s
     g = G.rodar(timeline(leg), palavras((6.1, 6.3), *fala(7.0, 22.0)))
     assert g["resultado"] == "PASS", g
-    leg_longo = [legenda(2.0, 6.0), legenda(6.9, 22.0)]               # vão de 0,9 s: a palavra de 6,1 a 6,3 fica sem texto
+    leg_longo = [legenda(2.0, 6.0), legenda(6.9, 18.0)]               # vão de 0,9 s: a palavra de 6,1 a 6,3 fica sem texto
     g2 = G.rodar(timeline(leg_longo), palavras((6.1, 6.3), (6.4, 6.6), (6.6, 6.8)))
     assert g2["medido"]["sem_texto"] == 3
 

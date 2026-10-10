@@ -392,14 +392,14 @@ def _render_captions_html(groups: list[dict]) -> str:
     for group in groups:
         lines.append(
             # Posicao unica (10/10/2026, "Sim pros 2"): a legenda mora na BASE do quadro (y ~1660), em avatar cheio, em
-            # insert e em tela dividida; durante o CTA (`acima_cta`) sobe para logo acima da pilula. Acabaram `baixa`,
+            # insert e em tela dividida (e nao ha legenda durante o CTA, que e lettering). Acabaram `baixa`,
             # `costura` e o look fechado: uma posicao so, medida, nunca sobre peito ou maos.
             # `halo` vem do overlay.fundo_claro quando o fundo local e claro (insert de pagina branca na base): a
             # legenda segue BRANCA, sem caixa nem faixa, e o halo escuro em camadas fica mais forte ate passar de
             # 4,5:1 no gate de contraste. Antes a tinta invertia ou ganhava uma placa preta; os dois foram vetados
             # (23/09 "odiei o estilo da legenda", 10/10 "contorno em cada palavra" e caixa atras do peito).
             f'  <div class="cgrp'
-            f'{" cgrp-acima-cta" if group.get("acima_cta") else ""}{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-halo" if group.get("halo") else ""}{" cgrp-kwalt" if group.get("kw_alt") else ""}{" cgrp-kwbranco" if group.get("kw_branco") else ""}" '
+            f'{" cgrp-sem-lead" if group.get("sem_lead") else ""}{" cgrp-halo" if group.get("halo") else ""}{" cgrp-kwalt" if group.get("kw_alt") else ""}{" cgrp-kwbranco" if group.get("kw_branco") else ""}" '
             f'data-g-start="{group["start"]:.3f}" '
             f'data-g-end="{group["end"]:.3f}">'
         )

@@ -2,8 +2,9 @@
 
 Defeitos do `gen_ad_v2.py` original reproduzidos aqui:
 
-  - legenda não aparece enquanto o hook está na tela (cap_gate); NO CTA ela continua, `acima_cta` (10/10/2026);
-  - o grupo que atravessa a fronteira do logo é partido por palavra, não descartado;
+  - legenda não aparece enquanto o hook está na tela (cap_gate) nem a partir da janela do logo: o CTA é lettering e não
+    leva legenda (10/10/2026, decisão do dono);
+  - o grupo que atravessa a fronteira do logo é truncado, não descartado;
   - o eco (a mesma frase na legenda e no lettering) é descartado por inteiro, inclusive o grupo
     que só ENCOSTA no lettering ("o pulo do" fechava 0,05 s antes de "o pulo do gato");
   - legenda e lettering não dividem a tela: folga de 0,35 s de cada lado, e sobra de legenda
@@ -65,13 +66,13 @@ def test_agrupar_e_o_mesmo_que_o_build_timeline():
 
 # --- filtrar_corpo -------------------------------------------------------------------------------
 
-def test_so_ficam_os_grupos_depois_do_hook_e_o_cta_nao_corta_mais_a_legenda():
+def test_so_ficam_os_grupos_depois_do_hook_e_antes_da_janela_do_logo():
     gs = [grupo(pal("a", 1.0, 1.5)), grupo(pal("b", 3.0, 3.5)), grupo(pal("c", 5.0, 5.5)),
           grupo(pal("d", 9.9, 10.4)), grupo(pal("e", 9.96, 10.4)), grupo(pal("f", 12.0, 12.5))]
-    saida = G.filtrar_corpo(gs, 3.0)
+    saida = G.filtrar_corpo(gs, 3.0, 10.0)
     # W5.X: "b" nasce no fim do gancho e termina 0,5 s depois: entra (aparado no gancho), não deixa a tela vazia
-    # 10/10/2026: os grupos de depois do logo ("e" e "f" inclusive) ficam: a legenda continua no CTA
-    assert [g["words"][0]["text"] for g in saida] == ["b", "c", "d", "e", "f"]
+    # 10/10/2026: a janela do logo (e o CTA, que é lettering) continua sem legenda
+    assert [g["words"][0]["text"] for g in saida] == ["b", "c", "d"]
 
 
 # --- fechar_grupos ---------------------------------------------------------------------------------
@@ -83,30 +84,25 @@ def test_grupo_sem_palavra_ou_com_menos_de_0_20s_sai():
     assert G.fechar_grupos([vazio, curto, ok], 99.0) == [ok]
 
 
-def test_grupo_que_atravessa_o_logo_e_partido_por_palavra_nao_descartado():
-    # "o motor e mais." ficava atras do wordmark: a parte de antes termina no logo, a de depois nasce nele (acima do CTA)
+def test_grupo_que_atravessa_o_logo_e_truncado_nao_descartado():
+    # "o motor e mais." ficava atras do wordmark: corta ate o ultimo instante livre
     g = grupo(pal("o", 8.0, 8.5), pal("motor", 8.5, 11.0))
     saida = G.fechar_grupos([g], 10.0)
-    # "motor" (8,5 a 11,0) tem o meio (9,75 s) antes do logo: fica com o grupo de antes, e o grupo termina no logo
-    assert len(saida) == 1 and [w["text"] for w in saida[0]["words"]] == ["o", "motor"]
-    assert saida[0]["start"] == 8.0 and saida[0]["end"] == 10.0 and not saida[0].get("acima_cta")
+    assert saida == [g] and saida[0]["end"] == 10.0 and saida[0]["start"] == 8.0
 
 
-def test_o_piso_de_0_20s_vale_depois_da_particao():
-    """W3.X A1: o piso rodava ANTES de cortar no logo (herdado do gen_ad_v2.py:957-967), e o que o corte encurtava passava
-    com 0,1 s ou até invertido. O piso é a última palavra: vale sobre o grupo como ele fica."""
-    g = grupo(pal("a", 9.9, 11.0))                     # uma palavra só, que nasce antes do logo e acaba depois
-    saida = G.fechar_grupos([g], 10.0)
-    assert all(x["end"] - x["start"] >= 0.20 for x in saida)
+def test_o_piso_de_0_20s_vale_depois_do_truncamento():
+    """W3.X A1: o piso rodava ANTES de truncar no logo (herdado do gen_ad_v2.py:957-967), e o que o truncamento
+    encurtava passava com 0,1 s ou até invertido. O piso é a última palavra: vale sobre o grupo como ele fica."""
+    g = grupo(pal("a", 9.9, 11.0))                     # 1,1 s; vira 0,1 s depois de truncar: sai
+    assert G.fechar_grupos([g], 10.0) == []
 
 
-def test_grupo_empurrado_para_depois_do_logo_nunca_nasce_invertido():
+def test_grupo_que_nasce_depois_do_logo_nunca_fica_invertido_e_sai():
     """O caso medido pela auditoria (dur_max com o CTA logo depois do último split): um grupo que nasce em 13,37 com o logo
-    em 13,25 já está do lado do CTA e fica inteiro, nunca com início depois do fim."""
+    em 13,25 truncaria com início depois do fim; o contrato da timeline o recusa. Ele sai."""
     g = {"start": 13.37, "end": 14.2, "words": [pal("um", 13.0, 13.2), pal("que", 13.4, 13.6), pal("dois", 13.7, 14.0)]}
-    saida = G.fechar_grupos([g], 13.25)
-    assert all(x["start"] < x["end"] and x["end"] - x["start"] >= 0.20 for x in saida)
-    assert len(saida) == 1 and saida[0]["acima_cta"] is True and saida[0]["start"] == 13.37
+    assert G.fechar_grupos([g], 13.25) == []
 
 
 @pytest.mark.parametrize("logo", [5.0, 5.15, 5.3, 6.0, 9.0])
@@ -222,10 +218,10 @@ def test_sem_letterings_a_lista_passa_inteira():
 # --- html ---------------------------------------------------------------------------------------------------
 
 def test_html_e_o_do_build_timeline():
-    gs = [dict(grupo(pal("oi", 1.0, 1.4, kw=True), pal("mundo", 1.4, 1.9)), acima_cta=True, halo=True)]
+    gs = [dict(grupo(pal("oi", 1.0, 1.4, kw=True), pal("mundo", 1.4, 1.9)), halo=True)]
     html = G.html(gs)
     assert html == build_timeline._render_captions_html(gs)
-    assert "cgrp-acima-cta" in html and "cgrp-halo" in html and 'class="cw kw"' in html
+    assert "cgrp-halo" in html and 'class="cw kw"' in html
 
 
 def test_html_sem_grupos_e_um_wrapper_vazio():
