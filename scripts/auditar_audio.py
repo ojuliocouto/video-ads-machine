@@ -26,7 +26,10 @@ from pathlib import Path
 from caminhos import V1, CODIGO  # noqa: E402
 
 # Ritmo: uma fala de anuncio TEM pausa de fim de frase. Zero pausa longa = achatado.
-MIN_PAUSAS_LONGAS = 4          # pelo menos isso acima de PAUSA_LONGA num take normal
+# Proporcional à duração (W7.X), a mesma regra de gates/gate_entrada.py: 1 pausa a cada 15 s de fala, no mínimo 2
+# (a régua fixa de 4 reprovava a voz real normal de 56,6 s, que tem 3). Um teste confere que as duas casam.
+PAUSA_A_CADA_S = 15.0
+MIN_PAUSAS_LONGAS = 2
 PAUSA_LONGA = 0.60
 # Respiro audivel: energia DENTRO da pausa acima do piso de silencio.
 RESPIRO_DB = -34.0             # acima disso, dentro de uma pausa, e respiro audivel
@@ -37,6 +40,10 @@ RESPIRO_DB = -34.0             # acima disso, dentro de uma pausa, e respiro aud
 # a pausa de 0:12 que o diretor reclamou continuou igual mesmo depois de eu "corrigir".
 # Manopla duplicada e a mesma armadilha do config gerado: mexer num lugar so nao vale.
 PARAMS = {"KEEP_PAUSE_RATIO": "0.45", "KEEP_PAUSE": "0.26"}
+
+
+def pausas_exigidas(duracao_s):
+    return max(MIN_PAUSAS_LONGAS, int(duracao_s // PAUSA_A_CADA_S))
 
 
 def sh(cmd):
@@ -79,11 +86,11 @@ def auditar(limpo, bruto=None):
     info["maior_pausa"] = round(max([x for _, x in ps], default=0), 2)
 
     # 1) RITMO ACHATADO (o defeito do anúncio de referência)
-    if d > 30 and len(longas) < MIN_PAUSAS_LONGAS:
+    if d > 30 and len(longas) < pausas_exigidas(d):
         problemas.append(
             f"ritmo achatado: so {len(longas)} pausa(s) acima de {PAUSA_LONGA}s em "
-            f"{d:.0f}s de fala (minimo {MIN_PAUSAS_LONGAS}). A fala perde a respiracao "
-            "de fim de frase e soa picotada. Higienize com KEEP_PAUSE_RATIO/MAX maiores.")
+            f"{d:.0f}s de fala (minimo {pausas_exigidas(d)}). A fala perde a respiracao "
+            "de fim de frase e soa picotada. Grave com uma pausa curta entre as ideias.")
 
     # 2) RESPIRO AUDIVEL dentro de pausa longa (o defeito ORIGINAL, que a higienizacao
     #    existe pra resolver). Mede ENERGIA, nao duracao: pausa longa e limpa e boa.

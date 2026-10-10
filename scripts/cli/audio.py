@@ -9,7 +9,7 @@ inteiro. A higienização encurta só os silêncios grandes (pausa de respiraç�
 `auditar_audio`); a conferência é a do gate de entrada, sem a parte do avatar:
 
   respiro          energia acima de -34 dB dentro de pausa de 0,62 s ou mais (o Avatar V lipsynca a respiração)
-  ritmo achatado   voz de mais de 30 s com menos de 4 pausas acima de 0,60 s
+  ritmo achatado   voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s de fala (mínimo 2)
   fala preservada  bruto e limpo transcritos de novo: o corte não pode comer palavra
   fala x roteiro   o que se diz cobre o roteiro.md (até 2% de palavra faltando, nenhuma sequência de 3 sumida)
 

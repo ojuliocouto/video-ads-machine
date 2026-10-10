@@ -2,7 +2,7 @@
 
 Quatro conferências, cada uma com o número de onde veio:
   - respiro: energia acima de -34 dB dentro de uma pausa de 0,62 s ou mais reprova;
-  - ritmo achatado: voz de mais de 30 s com menos de 4 pausas acima de 0,60 s reprova;
+  - ritmo achatado: voz de mais de 30 s com menos pausas acima de 0,60 s do que 1 a cada 15 s (mínimo 2) reprova;
   - fala preservada: trecho do bruto que sobra com menos de 0,60 das letras no limpo reprova;
   - duração: avatar e voz limpa diferindo mais de 1,0 s reprova.
 
@@ -157,12 +157,31 @@ def test_pausas_do_envelope_o_respiro_fica_dentro_da_pausa():
 
 # --- ritmo achatado ------------------------------------------------------------------------------------
 
+def test_pausas_exigidas_cresce_com_a_duracao_1_a_cada_15_s_minimo_2():
+    """W7.X item 4: a régua fixa de 4 pausas reprovava voz real normal (57 s, 3 pausas)."""
+    assert G.pausas_exigidas(30.0) == 2 and G.pausas_exigidas(31.0) == 2 and G.pausas_exigidas(44.9) == 2
+    assert G.pausas_exigidas(45.0) == 3 and G.pausas_exigidas(56.6) == 3
+    assert G.pausas_exigidas(60.0) == 4 and G.pausas_exigidas(90.0) == 6
+
+
 def test_ritmo_achatado_puro():
     assert G.ritmo_achatado(31.0, []) == (True, 0)
-    assert G.ritmo_achatado(31.0, [0.8, 0.9, 1.0]) == (True, 3)          # 3 < 4
-    assert G.ritmo_achatado(31.0, [0.8, 0.9, 1.0, 0.7]) == (False, 4)
+    assert G.ritmo_achatado(31.0, [0.8]) == (True, 1)                    # 1 < 2
+    assert G.ritmo_achatado(31.0, [0.8, 0.9]) == (False, 2)
     assert G.ritmo_achatado(30.0, []) == (False, 0)                      # só vale acima de 30 s
     assert G.ritmo_achatado(40.0, [0.60, 0.6, 0.6, 0.6]) == (True, 0)    # 0,60 exatos não é MAIS que 0,60
+    # a voz real da prova de aluno: 56,6 s e 3 pausas passa; 2 pausas nessa mesma voz reprova
+    assert G.ritmo_achatado(56.6, [0.8, 0.9, 1.0]) == (False, 3)
+    assert G.ritmo_achatado(56.6, [0.8, 0.9]) == (True, 2)
+    assert G.ritmo_achatado(120.0, [0.8] * 7) == (True, 7)               # 120 s pedem 8
+
+
+def test_motivo_do_ritmo_achatado_nao_manda_o_aluno_mexer_em_variavel_escondida():
+    fontes = [(RAIZ / "scripts" / "gates" / "gate_entrada.py"), (RAIZ / "scripts" / "cli" / "audio.py"),
+              (RAIZ / "scripts" / "auditar_audio.py")]
+    for f in fontes:
+        texto = f.read_text(encoding="utf-8")
+        assert "Higienize com KEEP_PAUSE" not in texto, "%s manda o aluno mexer em KEEP_PAUSE_RATIO" % f.name
 
 
 def test_voz_de_32_segundos_sem_pausa_reprova_por_ritmo_achatado(tmp_path):
@@ -301,7 +320,8 @@ def test_limiares_do_plano():
     assert G.RESPIRO_DB_GATE == -34.0
     assert G.AVATAR_DUR_TOL == 1.0
     assert G.FRACAO_LETRAS_DANO == 0.60
-    assert G.MIN_PAUSAS_LONGAS == 4 and G.PAUSA_LONGA == 0.60 and G.DUR_MIN_RITMO_S == 30.0
+    assert G.MIN_PAUSAS_LONGAS == 2 and G.PAUSA_A_CADA_S == 15.0
+    assert G.PAUSA_LONGA == 0.60 and G.DUR_MIN_RITMO_S == 30.0
 
 
 def test_constantes_iguais_as_do_passo_que_o_gate_fiscaliza():
@@ -310,6 +330,9 @@ def test_constantes_iguais_as_do_passo_que_o_gate_fiscaliza():
     assert G.RESPIRO_DB_GATE == A.RESPIRO_DB
     assert G.PAUSA_LONGA == A.PAUSA_LONGA
     assert G.MIN_PAUSAS_LONGAS == A.MIN_PAUSAS_LONGAS
+    assert G.PAUSA_A_CADA_S == A.PAUSA_A_CADA_S
+    for d in (30.5, 44.0, 45.0, 56.6, 60.0, 100.0):
+        assert G.pausas_exigidas(d) == A.pausas_exigidas(d), d
     assert G.FRACAO_LETRAS_DANO == A.FRACAO_LETRAS_DANO
     assert G.MIN_LETRAS_TRECHO == A.MIN_LETRAS_TRECHO
 
@@ -353,3 +376,29 @@ def test_roda_como_script_e_sai_2_sem_projeto(tmp_path):
     p = subprocess.run([sys.executable, str(RAIZ / "scripts" / "gates" / "gate_entrada.py"), "nao-existe",
                         "--estado", str(estado)], capture_output=True, text=True)
     assert p.returncode == 2, p.stdout + p.stderr
+
+
+# --- a voz real da prova de aluno (W7.X item 4) --------------------------------------------------------
+
+VOZ_REAL = Path("/Users/ojuliocouto/Downloads/Nova Gravação 62.m4a")
+
+
+@pytest.mark.lento
+@pytest.mark.midia_real
+def test_voz_real_de_57_s_higienizada_pelo_vam_passa_na_regra_de_ritmo(tmp_path):
+    """A gravação real normal (61 s bruta, 56,6 s limpa, 3 pausas acima de 0,60 s) reprovava com a régua fixa de 4.
+    Mede só o ritmo (sem transcritor): higieniza como o `vam audio` e aplica a MESMA regra do gate."""
+    if not VOZ_REAL.is_file():
+        pytest.skip("a gravação real da prova (Nova Gravação 62.m4a) não está nesta máquina")
+    from audio import pausas_reais
+    from cli import audio as cli_audio
+    limpo = cli_audio.higienizar(VOZ_REAL, tmp_path / "limpo.mp3", 1.35)
+    db, jan = pausas_reais.envelope_db(limpo)
+    d = len(db) * jan
+    pausas = G.pausas_do_envelope(db, jan)
+    internas = [(i, f) for i, f in pausas if i > 1e-9 and f < d - 1e-9]
+    achatado, n = G.ritmo_achatado(d, [f - i for i, f in internas])
+    assert d > G.DUR_MIN_RITMO_S
+    assert not achatado, "voz real de %.1f s com %d pausa(s) longa(s) (exigidas %d) reprovou" % (
+        d, n, G.pausas_exigidas(d))
+    assert n >= 2
