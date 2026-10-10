@@ -38,14 +38,34 @@ _CACHE_FUNDO = {}
 # para a tinta clara, o 10 para a escura: a parte do fundo que apaga a letra) e as DUAS camadas, com folga.
 META = 5.0                    # 4,5:1 com 10% de folga (sombra, compressão, a medida do gate no anel)
 ACESA_CLARA, ACESA_ESCURA = 241, 19         # #F5EFE6 e #12141A, em cinza
-APAGADA_CLARA_ALFA = 0.70                   # legenda.css: rgba(245,239,230,.70)
+APAGADA_CLARA_ALFA = 0.80                   # legenda.css: rgba(245,239,230,.80) (era .70: 3,6:1 sobre a placa, W7.Z)
 APAGADA_ESCURA_ALFA = 0.75                  # legenda.css: rgba(18,20,26,.75) (era .62: 1,32:1 no v1)
-PLACA_ALFA = 0.82                           # legenda.css e hook.css: rgba(8,9,14,.82)
+PLACA_ALFA = 0.88                           # legenda.css: rgba(8,9,14,.88) (era .82; o gancho segue em .82 no hook.css)
 PLACA_COR = 9
 CAIXA_X = (130, 950)                        # a largura útil da legenda (o recuo do .cgrp)
 FAIXA_HOOK = {"9x16": (880, 1190)}          # tinta do gancho medida no render da W5.A (y 910 a 1165)
 CAIXA_X_HOOK = (160, 920)
 LIMIAR_HOOK_P90 = LIMIAR_FUNDO_CLARO        # acima disso no p90, o branco fino do gancho apaga (4,1:1 no v1)
+
+
+# --- W7.Z: a cor do DESTAQUE (palavra de ênfase) também se decide pelo fundo local ---------------------------------------
+# A terracota (#E87D4E, luminância 0,32) sobre a camisa laranja do avatar media 1,01:1, e a camada apagada dela (alfa .62)
+# não passava de 4,5:1 nem sobre fundo escuro. Duas cores, as duas camadas (acesa e apagada do karaokê) em cada decisão,
+# com a mesma folga (META) da tinta: a MARCA (terracota; sobre tinta invertida, a terracota escura), a alternativa CLARA
+# (amarelo) e, se nenhuma passa, a placa escura.
+KW_MARCA, KW_MARCA_ALFA = (232, 125, 78), 0.88          # legenda.css: #E87D4E e rgba(232,125,78,.88) (era .62: 3:1 até sobre fundo escuro)
+KW_ESCURA, KW_ESCURA_ALFA = (178, 67, 26), 0.75         # legenda.css: #B2431A e rgba(178,67,26,.75) (sobre tinta invertida)
+KW_ALT, KW_ALT_ALFA = (255, 209, 102), 0.80             # legenda.css: #FFD166 e rgba(255,209,102,.80)
+
+
+class Tinta(str):
+    """A tinta ("clara", "invertida" ou "placa") com a cor do destaque que combina com ela em `.enfase` ("marca" ou
+    "clara"; None sem destaque). É uma `str`: quem compara com "placa" não nota a diferença."""
+
+    def __new__(cls, valor, enfase=None):
+        obj = super().__new__(cls, valor)
+        obj.enfase = enfase
+        return obj
 
 
 def _lum(v):
@@ -72,13 +92,58 @@ def sob_placa(fundo):
     return PLACA_COR * PLACA_ALFA + fundo * (1 - PLACA_ALFA)
 
 
-def decidir_tinta(p10, p90):
-    """"clara", "invertida" ou "placa" para o fundo de percentis (p10, p90), em cinza 0 a 255."""
-    if min(_razao(camada_clara(p90, True), p90), _razao(camada_clara(p90, False), p90)) >= META:
+def _lum_rgb(rgb):
+    return 0.2126 * _lum(rgb[0]) + 0.7152 * _lum(rgb[1]) + 0.0722 * _lum(rgb[2])
+
+
+def _razao_cor(rgb, fundo):
+    """Contraste WCAG de uma cor RGB contra um fundo em cinza (0 a 255)."""
+    a, b = _lum_rgb(rgb), _lum(fundo)
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
+
+def _camadas_ok(cor, alfa_apagada, fundos):
+    """As duas camadas de uma cor de destaque (acesa e apagada, esta misturada com o fundo) passam de META contra cada
+    fundo da lista. Num fundo da mesma luminância da cor a razão cai para 1 e a cor não passa (o 1,01:1 da prova)."""
+    for f in fundos:
+        apagada = tuple(c * alfa_apagada + f * (1 - alfa_apagada) for c in cor)
+        if _razao_cor(cor, f) < META or _razao_cor(apagada, f) < META:
+            return False
+    return True
+
+
+def decidir_enfase(tinta, p10, p90):
+    """A cor do destaque para uma tinta e um fundo (p10, p90): "marca" (a terracota; com a tinta invertida, a terracota
+    escura), "clara" (o amarelo) ou None quando nenhuma das duas passa (quem chama sobe a tinta para a placa).
+    O fundo crítico é a faixa inteira entre p10 e p90 (uma cor de meio-tom some em qualquer fundo perto dela); na placa,
+    a placa escura sobre os dois extremos."""
+    fundos = (sob_placa(p10), sob_placa(p90)) if tinta == "placa" else (p10, p90)
+    marca, alfa_marca = (KW_ESCURA, KW_ESCURA_ALFA) if tinta == "invertida" else (KW_MARCA, KW_MARCA_ALFA)
+    if _camadas_ok(marca, alfa_marca, fundos):
+        return "marca"
+    if tinta != "invertida" and _camadas_ok(KW_ALT, KW_ALT_ALFA, fundos):
         return "clara"
-    if min(_razao(camada_escura(p10, True), p10), _razao(camada_escura(p10, False), p10)) >= META:
-        return "invertida"
-    return "placa"
+    return None
+
+
+def decidir_tinta(p10, p90, kw=False):
+    """"clara", "invertida" ou "placa" para o fundo de percentis (p10, p90), em cinza 0 a 255.
+
+    Com `kw` (o grupo tem palavra de ênfase) a decisão também passa pelo destaque (W7.Z): a tinta só fica se a cor do
+    destaque lê nela; senão sobe para a placa. O resultado é uma `Tinta` que leva a cor do destaque em `.enfase`."""
+    if min(_razao(camada_clara(p90, True), p90), _razao(camada_clara(p90, False), p90)) >= META:
+        tinta = "clara"
+    elif min(_razao(camada_escura(p10, True), p10), _razao(camada_escura(p10, False), p10)) >= META:
+        tinta = "invertida"
+    else:
+        tinta = "placa"
+    if not kw:
+        return tinta
+    enfase = decidir_enfase(tinta, p10, p90)
+    if enfase is None and tinta != "placa":
+        tinta = "placa"
+        enfase = decidir_enfase(tinta, p10, p90)
+    return Tinta(tinta, enfase)
 
 
 def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
@@ -107,14 +172,14 @@ def _percentis_banda(video, t, y0, y1, x0=CAIXA_X[0], x1=CAIXA_X[1]):
         return None
 
 
-def _tinta_dos_percentis(percentis):
+def _tinta_dos_percentis(percentis, kw=False):
     """A tinta ("clara", "invertida" ou "placa") para as medidas (p10, p90) de um ou mais instantes, pelo pior fundo
     deles (o maior p90 e o menor p10). None sem medida. É a REGRA da tinta: o build (`tinta_footage`, no instante de
     cada grupo) e a prancha (`decisao_do_quadro`, num quadro) passam por aqui."""
     ps = [x for x in percentis if x is not None]
     if not ps:
         return None
-    return decidir_tinta(min(p[0] for p in ps), max(p[1] for p in ps))
+    return decidir_tinta(min(p[0] for p in ps), max(p[1] for p in ps), kw)
 
 
 def _gancho_pede_placa(p90s):
@@ -122,11 +187,12 @@ def _gancho_pede_placa(p90s):
     return bool(p90s) and max(p90s) > LIMIAR_HOOK_P90
 
 
-def tinta_footage(video, ini, fim, classe):
+def tinta_footage(video, ini, fim, classe, kw=False):
     """A tinta do grupo ("clara", "invertida" ou "placa") medida na footage, em 3 instantes dentro dele, com o pior
-    fundo dos três (o maior p90 e o menor p10). None sem medida."""
+    fundo dos três (o maior p90 e o menor p10). None sem medida. `kw`: o grupo tem palavra de ênfase e a tinta leva a cor
+    do destaque (`Tinta.enfase`)."""
     y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
-    return _tinta_dos_percentis(_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8))
+    return _tinta_dos_percentis([_percentis_banda(video, ini + (fim - ini) * f, y0, y1) for f in (0.2, 0.5, 0.8)], kw)
 
 
 def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
@@ -144,7 +210,7 @@ def hook_pede_placa(video, a0, hook_gone, formato="9x16"):
     return _gancho_pede_placa(p90s)
 
 
-def decisao_do_quadro(imagem, classe="padrao", formato="9x16"):
+def decisao_do_quadro(imagem, classe="padrao", formato="9x16", kw=False):
     """A decisão do overlay para UM quadro de footage (um PNG ou um vídeo, lido no instante 0):
     {"legenda": "clara" | "invertida" | "placa" | None, "gancho": "placa" | "fino"}.
 
@@ -152,7 +218,7 @@ def decisao_do_quadro(imagem, classe="padrao", formato="9x16"):
     `tinta_footage` (legenda) e `hook_pede_placa` (gancho), aplicadas a um quadro só. Uma regra, dois chamadores:
     a prancha nunca desenha legenda ou gancho por uma regra própria."""
     y0, y1 = FAIXA_LEGENDA.get(classe, FAIXA_LEGENDA["padrao"])
-    legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1)])
+    legenda = _tinta_dos_percentis([_percentis_banda(imagem, 0.0, y0, y1)], kw)
     faixa = FAIXA_HOOK.get(formato)
     p90s = []
     if faixa:
@@ -280,13 +346,17 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
     if _fmp4.exists() and a0 is not None:
         n = npl = 0
         for g in groups:
-            _r = tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g))
+            _kw = any(w.get("kw") for w in g.get("words") or [])
+            _r = (tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g), kw=True) if _kw
+                  else tinta_footage(_fmp4, g["start"] - a0, g["end"] - a0, classe_do_grupo(g)))
             if _r == "invertida":
                 g["claro"] = True
                 n += 1
             elif _r == "placa":
                 g["placa"] = True
                 npl += 1
+            if _kw and getattr(_r, "enfase", None) == "clara":
+                g["kw_alt"] = True
         print(f"   [fundo claro] {n} de {len(groups)} grupo(s) com tinta INVERTIDA e {npl} com PLACA, "
               f"medidos na footage ({_fmp4.name})", flush=True)
     elif mapa_insert:
@@ -296,6 +366,8 @@ def marcar_grupos_claros(groups, ad, look, mapa_insert, a0=None):
             _jan = next((w for w in mapa_insert if w["a"] <= _meio <= w["b"]), None)
             if not _jan:
                 continue
+            if classe_do_grupo(g) == "costura":
+                continue       # a emenda do split tem um degradê escuro por construção: a mediana do arquivo-fonte não a vê
             _tsrc = _jan["start"] + max(0.0, _meio - _jan["s2"]) * _jan["speed"]
             if fundo_claro(_jan["file"], round(_tsrc, 1)):
                 g["claro"] = True

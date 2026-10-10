@@ -66,7 +66,9 @@
       /* LOGO e CTA, posicionados juntos: pílula em y ~1219-1350 e o logo abaixo. O logo leva o próprio
          fundo radial (o wordmark é claro). Em tela dividida os dois descem para a faixa da costura. */
       #ev-logo { bottom:333px; width:500px; padding:78px 120px; box-sizing:content-box;
-        background:radial-gradient(ellipse 42% 40% at 50% 50%, rgba(4,5,10,.88) 0%, rgba(4,5,10,.52) 46%, rgba(4,5,10,0) 72%); }
+        /* W7.Z: o logo da Escola tem um sol terracota (luminância 0,28): sobre o fundo de .02 a .03 media 4,2:1 a 4,5:1 durante
+           o CTA inteiro (36,6 a 42,0 s da prova), abaixo do piso. Mais denso no miolo e no anel, o fundo local cai a ~.01. */
+        background:radial-gradient(ellipse 42% 40% at 50% 50%, rgba(4,5,10,.97) 0%, rgba(4,5,10,.82) 46%, rgba(4,5,10,0) 72%); }
       #cta.cta-split { bottom:965px; }
       #cta.cta-split .pill { font-size:52px; }
       #ev-logo.logo-split { bottom:800px; width:330px; }

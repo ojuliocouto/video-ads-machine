@@ -24,11 +24,12 @@
       #caps .cw .base, #caps .cw .fill { display:block; }
       #caps .cw .fill { position:absolute; left:0; top:0; white-space:pre;
         clip-path:inset(0 100% 0 0); }
-      /* camada apagada a 70%: com 52% a palavra ainda não falada caía para 3,2:1 e o gate de contraste achou
-         30 faixas abaixo do piso. */
-      #caps .cw .base { color:rgba(245,239,230,.70); }
+      /* camada apagada a 80%: com 52% a palavra ainda não falada caía para 3,2:1 e o gate de contraste achou
+         30 faixas abaixo do piso; com 70% a palavra meio preenchida, ao lado da já acesa, media 3,6:1 sobre a placa na
+         costura do split (18,0 s da prova da W7.Z). A diferença para a camada acesa (alfa cheio) segue visível. */
+      #caps .cw .base { color:rgba(245,239,230,.80); }
       #caps .cw .fill { color:#F5EFE6; }
-      #caps .cw.kw .base { color:rgba(232,125,78,.62); }
+      #caps .cw.kw .base { color:rgba(232,125,78,.88); }
       #caps .cw.kw .fill { color:#E87D4E; }
       /* sobre insert claro a tinta inverte, e as duas camadas invertem junto */
       /* .75 (era .62): a camada apagada escura virava cinza médio sobre o insert claro, 3,05 e 1,32:1 no render da W5.A;
@@ -43,10 +44,14 @@
          o fundo). Posição e tamanho são medidos no navegador, nas caixas das palavras, pelo timeline.js: a largura
          acompanha a LINHA MAIS LARGA do grupo, nunca a tela toda. A cor e o alfa são os de overlay.fundo_claro
          (PLACA_COR, PLACA_ALFA). Sem medida ela nasce com tamanho zero: o gate de contraste acusa, nunca vaza. */
-      #caps .cplaca { position:absolute; left:0; top:0; width:0; height:0; background:rgba(8,9,14,.82);
+      #caps .cplaca { position:absolute; left:0; top:0; width:0; height:0; background:rgba(8,9,14,.88);
         border-radius:16px; pointer-events:none; }
       #caps .cgrp-placa .cw { filter:none; text-shadow:none; }
       #caps .cgrp-claro .cw.kw .fill { color:#B2431A; }
+      /* COR ALTERNATIVA DO DESTAQUE (W7.Z): quando a terracota não lê no fundo local (a camisa laranja do avatar media
+         1,01:1) o grupo ganha `cgrp-kwalt` e o destaque vira amarelo. A conta é overlay.fundo_claro.decidir_enfase. */
+      #caps .cgrp-kwalt .cw.kw .base { color:rgba(255,209,102,.80); }
+      #caps .cgrp-kwalt .cw.kw .fill { color:#FFD166; }
       /* TINTA INVERTIDA SOBRE FUNDO CLARO (28/08/2026): o grupo ganha `cgrp-claro` quando o insert do trecho
          tem mediana de luminância acima de 119 (onde tinta branca cruza 4,5:1). Escuro sobre página branca dá
          ~15:1 sem mexer em geometria; a sombra vira clara para segurar meio-tom. */

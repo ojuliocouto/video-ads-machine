@@ -79,24 +79,46 @@
       });
 
       // ===== LEGENDAS (data-driven): cada .cgrp tem data-g-start/data-g-end; cada .cw, data-w-start/data-w-end =====
+      // TROCA SECA (W7.Z). Quando um grupo substitui o outro no mesmo lugar (colado, a menos de 0,05 s), o novo entrava com
+      // opacidade 0 a 1 em 0,18 s e o velho saía em 0,1 s: nos quadros da troca os dois eram texto de meia opacidade, um
+      // em cima do outro, e o contraste caía a 1,0:1 sobre a camisa e sobre a costura do split. Agora o grupo colado entra
+      // com opacidade cheia (só a escala faz o pop) e o que o próximo substitui sai CORTADO em gEnd. O grupo que vem depois
+      // de uma pausa, ou que vai para uma, mantém o fade: nele o texto não está do outro lado e a dissolução é perdoada.
+      function transicaoDaLegenda(o) {
+        var gStart = o.gStart, gEnd = o.gEnd;
+        var colado = (o.fimAnterior !== null && gStart - o.fimAnterior < 0.05);
+        return {
+          gIn: (colado || o.semLead) ? gStart : Math.max(0, gStart - 0.12),
+          entradaSeca: colado,
+          saidaSeca: (o.inicioProximo !== null && o.inicioProximo - gEnd < 0.05)
+        };
+      }
       var _fimAnterior = null;
-      document.querySelectorAll("#caps .cgrp").forEach(function (grp) {
+      var _grupos = Array.prototype.slice.call(document.querySelectorAll("#caps .cgrp"));
+      _grupos.forEach(function (grp, _k) {
         var gStart = parseFloat(grp.dataset.gStart);
         var gEnd = parseFloat(grp.dataset.gEnd);
         grp.style.cssText = "opacity:0;visibility:hidden;";
         // ENTRA ANTES DO ANTERIOR SAIR, mas só depois de pausa (26 e 27/08/2026). Antecipar 0,12 s mata a
         // piscada entre grupos (41 micro-apagões medidos); grupo COLADO no anterior entra na hora, senão os
         // dois ficam na tela ao mesmo tempo.
-        var _colado = (_fimAnterior !== null && gStart - _fimAnterior < 0.05);
         // `cgrp-sem-lead`: o grupo nasce a menos de 0,16 s de uma troca de layout; a antecipação apareceria
         // ainda no layout antigo com a posição do novo. Entra na hora.
         var _semLead = grp.classList.contains("cgrp-sem-lead");
-        var gIn = (_colado || _semLead) ? gStart : Math.max(0, gStart - 0.12);
+        var _prox = _grupos[_k + 1];
+        var tr = transicaoDaLegenda({ gStart: gStart, gEnd: gEnd, fimAnterior: _fimAnterior, semLead: _semLead,
+                                      inicioProximo: _prox ? parseFloat(_prox.dataset.gStart) : null });
+        var gIn = tr.gIn;
         _fimAnterior = gEnd;
         tl.set(grp, { visibility: "visible" }, gIn);
         // pop de grupo: o grupo inteiro chega com escala 1,22 -> 1 rápido; só transform e opacidade
         gsap.set(grp, { scale: 1.22, transformOrigin: "50% 80%" });
-        tl.to(grp, { opacity: 1, scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
+        if (tr.entradaSeca) {
+          tl.set(grp, { opacity: 1 }, gIn);
+          tl.to(grp, { scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
+        } else {
+          tl.to(grp, { opacity: 1, scale: 1, duration: 0.18, ease: "power3.out" }, gIn);
+        }
         grp.querySelectorAll(".cw").forEach(function (span) {
           var wStart = parseFloat(span.dataset.wStart);
           var wEnd = parseFloat(span.dataset.wEnd);
@@ -113,8 +135,11 @@
                            ease: "none", overwrite: "auto" }, wStart);
           }
         });
-        // a saída termina EXATAMENTE em gEnd (antes vazava 0,10 s por cima do próximo grupo)
-        tl.to(grp, { opacity: 0, duration: 0.1, ease: "power1.in" }, gEnd - 0.1);
+        // a saída termina EXATAMENTE em gEnd (antes vazava 0,10 s por cima do próximo grupo); cortada quando o próximo
+        // grupo entra no mesmo quadro
+        if (!tr.saidaSeca) {
+          tl.to(grp, { opacity: 0, duration: 0.1, ease: "power1.in" }, gEnd - 0.1);
+        }
         tl.set(grp, { opacity: 0, visibility: "hidden" }, gEnd);
       });
 

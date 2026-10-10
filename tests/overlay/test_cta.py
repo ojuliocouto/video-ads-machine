@@ -207,3 +207,14 @@ def test_lead_do_cta_vira_o_lead_do_botao():
     assert 'id="cta-pill">SAIBA MAIS</div>' in html
     assert ">toque em</div>" in html and ">toca em</div>" not in html
 
+
+
+def test_logo_do_cta_tem_fundo_denso_o_bastante_para_o_sol_terracota_ler_a_4_5_para_1():
+    """W7.Z: o sol do logo (luminância 0,28) contra o fundo local de .02 a .03 media 4,2:1 a 4,5:1 por 5 s. O fundo radial
+    do logo tem que chegar a um alfa interno de pelo menos .95 e a um anel (46% do raio) de pelo menos .80."""
+    import re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[2] / "templates" / "reel-editorial" / "index.html").read_text(encoding="utf-8")
+    m = re.search(r"#ev-logo \{[^}]*radial-gradient\(ellipse[^,]*, rgba\(4,5,10,([0-9.]+)\) 0%, rgba\(4,5,10,([0-9.]+)\) 46%", html, re.S)
+    assert m, "o fundo radial do logo mudou de forma: ajuste este teste junto"
+    assert float(m.group(1)) >= 0.95 and float(m.group(2)) >= 0.80
