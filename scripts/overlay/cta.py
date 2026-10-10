@@ -5,10 +5,12 @@ um anúncio de 13 s com a tela literalmente vazia (o gate acusou 17% sem texto):
 é cortada a partir do logo e o CTA é o que ocupa o lugar dela. O `cta_s` do HTML copia o `cta_start`;
 se mexer aqui, o resto acompanha sozinho.
 
-O CTA sobe quando a imagem VOLTA ao apresentador no fim (insert com `dur_max`), não no início do
-último bloco. SÓ o ÚLTIMO insert do roteiro manda: um cap no meio do anúncio (usado para cortar
-piscada dentro do asset) não pode adiantar o CTA nem matar a legenda. Ancorar no bloco marcado com
-"+ logo" quebrou um anúncio de 1,98 s de fala no último bloco: o pico de intenção passava batido.
+O CTA entra na ÂNCORA do bloco cta e NUNCA antes do início dele (W7.W, A2). A regra antiga subia o CTA quando a imagem
+VOLTAVA ao apresentador depois do último insert com `dur_max`: no anúncio da prova isso foi 36,6 s, cerca de 3 s antes da
+voz dizer "tocar aqui em Saiba Mais" (39,5 s), e a legenda do bloco anterior sumiu por 6,6 s com 24 palavras faladas sem
+texto (o CTA ocupa o lugar da legenda). Um `dur_max` no último insert só devolve a imagem ao avatar: não adianta o CTA.
+A âncora é a palavra em que o bloco cta VERBALIZA o botão: o lead ("toque aqui em") ou, sem lead, a primeira palavra do
+rótulo ("Saiba Mais"). Sem a palavra na fala, o início do bloco.
 
 O logo antecipa o pill em LOGO_LEAD (0,9 s: ainda anima, e perde só 0,9 s de legenda em vez de 3 s),
 mas SÓ quando o bloco anterior ao CTA é avatar. Se for insert, o logo sobe por cima do b-roll: caiu
@@ -28,18 +30,50 @@ _LEAD = re.compile(r'<div data-hf-id="hf-laqu" class="lead">([^<]*)</div>\n?[ \t
 _TEXTO_DO_BOTAO = re.compile(r'(<div data-hf-id="hf-wto1" class="pill" id="cta-pill">)[^<]*')
 
 
-def calcular_cta_start(blocks, spans, retorno_avatar):
-    """O instante em que o CTA sobe: a volta ao avatar do último insert, se for antes do último bloco;
-    senão o início do último bloco."""
-    _ult_insert = max((i for i, b in enumerate(blocks) if b["type"] == "insert"),
-                      default=-1)
-    _fim = [t for i, t in retorno_avatar if i == _ult_insert]
-    if _fim and _fim[-1] < spans[-1][0]:
-        cta_start = _fim[-1]
-        print(f"   [cta] imagem volta pro avatar em {cta_start:.2f}s: CTA fica "
-              f"{spans[-1][1] - cta_start:.1f}s na tela", flush=True)
-    else:
-        cta_start = spans[-1][0]
+def _norm(texto):
+    from overlay.transcricao import norm
+    return norm(texto)
+
+
+def _palavra_do_lead(palavras, lead):
+    """Índice da palavra falada que abre o lead. O lead é escrito como o botão ("toque aqui em") e falado como o
+    apresentador fala ("tocar aqui em"): o verbo muda e o resto da frase não. Com 2 palavras ou mais, a frase falada tem
+    que repetir o RESTO do lead e a âncora é a palavra logo antes dela; com 1, a palavra tem que ser a mesma."""
+    toks = [_norm(t) for t in str(lead).split() if _norm(t)]
+    if not toks:
+        return None
+    normas = [_norm(w["text"]) for w in palavras]
+    resto = toks[1:] if len(toks) > 1 else toks
+    desloc = 1 if len(toks) > 1 else 0
+    for i in range(desloc, len(normas) - len(resto) + 1):
+        if normas[i:i + len(resto)] == resto:
+            return i - desloc
+    return None
+
+
+def _palavra_do_rotulo(palavras, rotulo):
+    toks = [_norm(t) for t in str(rotulo).split() if _norm(t)]
+    if not toks:
+        return None
+    return next((i for i, w in enumerate(palavras) if _norm(w["text"]) == toks[0]), None)
+
+
+def calcular_cta_start(blocks, spans, retorno_avatar=None, words=None, cfg=None):
+    """O instante em que o CTA entra: a âncora do último bloco (a palavra do lead, ou do rótulo) e, sem ela na fala,
+    o início do bloco. Nunca antes do início do bloco. `retorno_avatar` é aceito e IGNORADO (a regra antiga que o
+    usava sumiu: ver o topo do módulo)."""
+    inicio, fim = spans[-1]
+    cta_start = inicio
+    palavras = [w for w in (words or []) if inicio - 1e-6 <= float(w["start"]) < fim]
+    cfg = cfg or {}
+    if palavras and blocks[-1]["type"] == "cta":
+        i = _palavra_do_lead(palavras, cfg["cta_lead"]) if cfg.get("cta_lead") and not cfg.get("cta_sem_lead") else None
+        if i is None and cfg.get("cta_label"):
+            i = _palavra_do_rotulo(palavras, cfg["cta_label"])
+        if i is not None:
+            cta_start = max(inicio, float(palavras[i]["start"]))
+    if cta_start > inicio:
+        print(f"   [cta] entra na ancora do bloco, em {cta_start:.2f}s (o bloco comeca em {inicio:.2f}s)", flush=True)
     return cta_start
 
 

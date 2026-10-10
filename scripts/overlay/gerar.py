@@ -132,7 +132,7 @@ def main(cfg_path):
     # ---------- inserts: ritmo, visitas, janelas de layout e arquivos ----------
     plano_ritmo, _ = (spans_m.plano_da_timeline(tl, blocks, inserts_map) if tl
                       else spans_m.plano_de_ritmo(blocks, spans, inserts_map))
-    visitas, retorno_avatar = brolls_m.planejar_visitas(blocks, spans, inserts_map, plano_ritmo)
+    visitas, _retorno_avatar = brolls_m.planejar_visitas(blocks, spans, inserts_map, plano_ritmo)
     janelas_split, janelas_texto, mapa_insert = layout_texto.janelas_por_visita(visitas)
     if tl:
         janelas_split = [(j["s"], j["e"]) for j in tl["janelas_split"]]
@@ -149,7 +149,7 @@ def main(cfg_path):
           f"letts={[(l['id'], l['start'], l['split']) for l in letts]}", flush=True)
 
     # ---------- CTA, logo e legendas ----------
-    cta_start = cta_m.calcular_cta_start(blocks, spans, retorno_avatar)
+    cta_start = cta_m.calcular_cta_start(blocks, spans, words=words, cfg=cfg)
     lead = cta_m.logo_lead(blocks)
     logo_start = cta_m.logo_start(cta_start, lead)
     groups = _montar_legendas(words, cfg, ad, look, h, logo_start, janelas_split, janelas_texto, mapa_insert,

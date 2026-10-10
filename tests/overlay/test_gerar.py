@@ -643,15 +643,17 @@ def test_equivalencia_cta_start_e_logo(original):
                    ["cta_start", "LOGO_LEAD", "logo_start"])
 
     def novo(blocks, spans, retorno):
-        cta_start = CTA.calcular_cta_start(blocks, spans, retorno)
+        # W7.W (A2): única divergência deliberada do original. O CTA não sobe mais quando a imagem volta ao avatar
+        # (`retorno`), e sim no início do bloco cta; sem retorno as duas regras são a mesma e é isso que se confere.
+        cta_start = CTA.calcular_cta_start(blocks, spans, retorno_avatar=retorno)
+        assert cta_start == spans[-1][0]
         lead = CTA.logo_lead(blocks)
         return cta_start, lead, CTA.logo_start(cta_start, lead)
 
     def gerar(rnd):
         n = rnd.randint(1, 6)
         blocos = g_blocos(rnd, n, ("insert", "insert", "orig"))
-        retorno = [(rnd.randint(0, n - 1), round(rnd.uniform(0, 30), 2)) for _ in range(rnd.randint(0, 3))]
-        return blocos, g_spans(rnd, n, 30.0), retorno
+        return blocos, g_spans(rnd, n, 30.0), []
 
     assert comparar(velho, novo, gerar)["ok"] == 400
 

@@ -23,31 +23,76 @@ TIPOS = blocos("insert", "orig", "insert", "orig")
 
 
 # --- cta_start -------------------------------------------------------------------------------
+# W7.W (A2): o CTA entra na ÂNCORA do bloco cta e nunca antes do início dele. A regra antiga subia o CTA quando a imagem
+# VOLTAVA ao apresentador depois do último insert com `dur_max`: no prova-interna isso foi 36,6 s, ~3 s antes da voz dizer
+# "tocar aqui em Saiba Mais" (39,5 s), e a legenda do bloco anterior sumiu por 6,6 s (24 palavras faladas sem texto).
+
+def fala(*pares):
+    """Palavras no formato do overlay: [(texto, início, fim)] -> [{text, start, end}]."""
+    return [{"text": t, "start": s, "end": e} for t, s, e in pares]
+
+
+def blocos_cta(narr_cta="É só tocar aqui em Saiba Mais"):
+    b = blocos("insert", "orig", "insert", "cta")
+    b[-1]["narr"] = narr_cta
+    return b
+
+
+SPANS_CTA = [(0.0, 5.0), (5.0, 10.0), (10.0, 16.0), (16.0, 20.0)]
+PALAVRAS_CTA = fala(("É", 16.0, 16.2), ("só", 16.2, 16.5), ("tocar", 16.5, 16.9), ("aqui", 16.9, 17.1),
+                    ("em", 17.1, 17.3), ("Saiba", 17.3, 17.7), ("Mais", 17.7, 18.0))
+
 
 def test_sem_cap_o_cta_sobe_no_inicio_do_ultimo_bloco():
-    assert C.calcular_cta_start(TIPOS, SPANS, []) == 16.0
+    assert C.calcular_cta_start(TIPOS, SPANS) == 16.0
 
 
-def test_cap_do_ultimo_insert_adianta_o_cta_pra_quando_a_imagem_volta(capsys):
-    assert C.calcular_cta_start(TIPOS, SPANS, [(2, 14.0)]) == 14.0
-    assert "[cta] imagem volta pro avatar em 14.00s: CTA fica 6.0s na tela" in capsys.readouterr().out
+def test_cap_do_ultimo_insert_nao_adianta_o_cta():
+    """O CTA nunca entra antes do início do bloco cta, mesmo com `dur_max` no insert anterior (a imagem volta ao
+    avatar em 14,0 s e o CTA continua em 16,0 s)."""
+    assert C.calcular_cta_start(TIPOS, SPANS, retorno_avatar=[(2, 14.0)]) == 16.0
 
 
-def test_cap_de_um_insert_do_meio_nao_adianta_o_cta():
-    assert C.calcular_cta_start(TIPOS, SPANS, [(0, 3.0)]) == 16.0
+def test_o_cta_nunca_entra_antes_do_inicio_do_bloco_cta_seja_qual_for_o_retorno_do_avatar():
+    for retorno in ([(2, 0.0)], [(2, 12.0), (2, 14.5)], [(0, 3.0)], [(2, 17.0)], [(2, 16.0)]):
+        assert C.calcular_cta_start(TIPOS, SPANS, retorno_avatar=retorno) >= SPANS[-1][0]
 
 
-def test_retorno_depois_do_inicio_do_ultimo_bloco_e_ignorado():
-    assert C.calcular_cta_start(TIPOS, SPANS, [(2, 17.0)]) == 16.0
-    assert C.calcular_cta_start(TIPOS, SPANS, [(2, 16.0)]) == 16.0       # estrito
+def test_o_cta_entra_na_palavra_do_lead_quando_o_bloco_a_diz():
+    """O lead "toque aqui em" vira o `tocar aqui em` falado: o CTA entra no `tocar` (a verbalização do lead), não no `É só`."""
+    t = C.calcular_cta_start(blocos_cta(), SPANS_CTA, words=PALAVRAS_CTA, cfg={"cta_lead": "toque aqui em"})
+    assert t == pytest.approx(16.5)
 
 
-def test_com_varios_retornos_do_mesmo_bloco_vale_o_ultimo():
-    assert C.calcular_cta_start(TIPOS, SPANS, [(2, 12.0), (2, 14.5)]) == 14.5
+def test_sem_lead_o_cta_entra_na_primeira_palavra_do_rotulo():
+    t = C.calcular_cta_start(blocos_cta(), SPANS_CTA, words=PALAVRAS_CTA, cfg={"cta_label": "SAIBA MAIS"})
+    assert t == pytest.approx(17.3)
+
+
+def test_ancora_que_nao_aparece_na_fala_cai_no_inicio_do_bloco():
+    t = C.calcular_cta_start(blocos_cta("Inscreva-se agora mesmo"), SPANS_CTA,
+                             words=fala(("Inscreva-se", 16.0, 16.6), ("agora", 16.6, 17.0), ("mesmo", 17.0, 17.4)),
+                             cfg={"cta_lead": "toque aqui em", "cta_label": "SAIBA MAIS"})
+    assert t == 16.0
+
+
+def test_palavra_de_fora_do_bloco_cta_nao_serve_de_ancora():
+    """"aqui em" falado no bloco anterior não puxa o CTA para antes do bloco cta."""
+    antes = fala(("toque", 9.0, 9.3), ("aqui", 9.3, 9.6), ("em", 9.6, 9.9))
+    t = C.calcular_cta_start(blocos_cta("Inscreva-se agora mesmo"), SPANS_CTA,
+                             words=antes + fala(("Inscreva-se", 16.0, 16.6)), cfg={"cta_lead": "toque aqui em"})
+    assert t == 16.0
+
+
+def test_lead_de_uma_palavra_casa_a_palavra_exata():
+    t = C.calcular_cta_start(blocos_cta("Então clique abaixo"), SPANS_CTA,
+                             words=fala(("Então", 16.0, 16.3), ("clique", 16.3, 16.7), ("abaixo", 16.7, 17.1)),
+                             cfg={"cta_lead": "clique"})
+    assert t == pytest.approx(16.3)
 
 
 def test_roteiro_sem_insert_nenhum_sobe_no_ultimo_bloco():
-    assert C.calcular_cta_start(blocos("orig", "orig"), [(0, 5), (5, 9)], [(0, 1.0)]) == 5
+    assert C.calcular_cta_start(blocos("orig", "orig"), [(0, 5), (5, 9)]) == 5
 
 
 # --- logo ----------------------------------------------------------------------------------------

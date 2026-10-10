@@ -176,10 +176,10 @@ def _texto_da_tela(blocks, words, spans_, plano, inserts_map, cfg, medir_rosto):
     ov = OT.palavras_da_timeline(words)
     OT.marcar_kw(ov, cfg.get("kw_phrases", []))
     h = OH.calcular_hook(blocks, spans_)
-    visitas, retorno_avatar = OB.planejar_visitas(blocks, spans_, inserts_map, plano)
+    visitas, _retorno_avatar = OB.planejar_visitas(blocks, spans_, inserts_map, plano)
     js, jt, mapa = OL.janelas_por_visita(visitas)
     letts, lett_windows = OLE.montar(cfg.get("letterings", []), ov, spans_, blocks, js)
-    cta_start = OC.calcular_cta_start(blocks, spans_, retorno_avatar)
+    cta_start = OC.calcular_cta_start(blocks, spans_, words=ov, cfg=cfg)
     logo_start = OC.logo_start(cta_start, OC.logo_lead(blocks))
     groups = OG._montar_legendas(ov, cfg, cfg.get("ad", ""), cfg.get("look", ""), h, logo_start, js, jt, mapa,
                                  letts, lett_windows, medir_rosto=medir_rosto or (lambda avatar: None),

@@ -767,6 +767,21 @@ def test_a1_nenhuma_legenda_invertida_nos_25_cenarios_do_diferencial(nome, model
         assert lg["e"] - lg["s"] >= 0.20 - 1e-9, f"{nome}: legenda {k} com {lg['e'] - lg['s']:.3f}s"
 
 
+@pytest.mark.parametrize("modelo", ["auditoria", "pausa_por_bloco"])
+@pytest.mark.parametrize("nome", sorted(_cenarios_da_timeline()))
+def test_w7w_o_cta_nunca_entra_antes_do_inicio_do_bloco_cta(nome, modelo, tmp_path, capsys):
+    """W7.W (A2): o CTA entra na âncora do bloco cta, nunca antes do início dele, com `dur_max` no último insert ou sem
+    (o cenário da auditoria tem os dois). Antes, a volta da imagem ao avatar adiantava o CTA ~3 s sobre a voz."""
+    cen = _cenarios_da_timeline()[nome]
+    try:
+        tl = _construir_cenario(cen, tmp_path, modelo)
+    except TC.ErroTimeline:
+        return
+    ultimo = tl["blocos"][-1]
+    assert tl["cta"]["inicio"] >= ultimo["s"] - 1e-9, \
+        f"{nome}: CTA em {tl['cta']['inicio']} antes do bloco {ultimo['tipo']} de {ultimo['s']}"
+
+
 def test_a1_os_cenarios_fixos_sao_os_25_do_diferencial_mais_o_da_auditoria():
     from tests.overlay import test_gerar as TG
 
