@@ -327,14 +327,6 @@ def test_legendar_cli_gera_o_ass_da_peca_pelo_leitor(tmp_path, monkeypatch, caps
 
 # --- queimar_legenda -----------------------------------------------------------------------
 
-def test_escapar_filtro_protege_os_caracteres_do_filtro_do_ffmpeg():
-    assert queimar_legenda.escapar_filtro("/a/b c/legenda.ass") == "/a/b c/legenda.ass"
-    assert queimar_legenda.escapar_filtro("C:/x") == "C\\:/x"
-    assert queimar_legenda.escapar_filtro("a,b") == "a\\,b"
-    assert queimar_legenda.escapar_filtro("d'a") == "d\\'a"
-    assert queimar_legenda.escapar_filtro("a\\b") == "a\\\\b"
-
-
 def test_sem_a_fonte_inter_para_com_uma_mensagem_so(tmp_path):
     vazia = tmp_path / "fontes"
     vazia.mkdir()

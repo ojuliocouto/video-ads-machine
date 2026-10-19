@@ -51,6 +51,7 @@ determinísticos e o nome leva a versão do desenho.
 import os
 import threading
 
+import plataforma
 import push_in
 
 from . import enquadramento as enq
@@ -101,7 +102,10 @@ def painel_vertical(src, alvo_w, alvo_h, expo, crop_dims=None):
 
 
 def _png_da_moldura(asp, dir_molduras, prefixo, largura_janela=None):
-    """Gera (uma vez por aspecto) o PNG da moldura e devolve (medidas, caminho para o filtro)."""
+    """Gera (uma vez por aspecto) o PNG da moldura e devolve (medidas, caminho CRU do PNG).
+
+    O caminho volta sem escape: quem monta o filtro `movie=` o escapa com `plataforma.escapar_filtro` (as duas camadas do
+    ffmpeg; escapar só o `:` aqui quebrava em `=`, `'`, `,`, `[` e `\\`)."""
     import moldura
 
     nome = f"{prefixo}_{asp:.4f}.png".replace(".", "_", 1)
@@ -116,7 +120,7 @@ def _png_da_moldura(asp, dir_molduras, prefixo, largura_janela=None):
             m = moldura.medidas(asp)
         finally:
             moldura.LARGURA_JANELA = antes
-    return m, destino.replace("\\", "/").replace(":", "\\:")
+    return m, destino
 
 
 def _push_in(src, jw, jh, dur, start, rotulo):
@@ -152,7 +156,7 @@ def painel_mockup(src, expo, dur, start, dir_molduras):
     return (f"[t2]{expo}scale={jw}:{jh},setsar=1{_mov}[tvid];"
             f"color=black@0:s={cw}x{ch}:r={FPS},format=rgba,setsar=1[tcv];"
             f"[tcv][tvid]overlay={vx}:{vy}:shortest=1[tcard];"
-            f"movie={png},format=rgba,setsar=1[tmold];"
+            f"movie={plataforma.escapar_filtro(png)},format=rgba,setsar=1[tmold];"
             f"[tcard][tmold]overlay=0:0[tfg];")
 
 
@@ -224,7 +228,7 @@ def fc_tela_cheia_moldura(sp, bg_offset, expo, m, png, mov, N, crop_expr=None):
             f"[t2]{expo}{escala},setsar=1{mov}[vid];"
             f"color=black@0:s={cw}x{ch}:r={FPS},format=rgba,setsar=1[cv];"
             f"[cv][vid]overlay={vx}:{vy}:shortest=1[card];"
-            f"movie={png},format=rgba,setsar=1[mold];"
+            f"movie={plataforma.escapar_filtro(png)},format=rgba,setsar=1[mold];"
             f"[card][mold]overlay=0:0[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1,fps={FPS},{cap(N)}[v]")
 
