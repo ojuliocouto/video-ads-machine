@@ -11,7 +11,7 @@ pega o take cru, de camera, e monta o corte inteiro.
     # planejar e renderizar, com o gate de conferencia
     python3 cortar_ar_morto.py take.mov --saida cortado.mp4
 
-    # reaproveitar transcricao ja feita (nao roda o parakeet de novo)
+    # reaproveitar transcricao ja feita (nao transcreve de novo)
     python3 cortar_ar_morto.py take.mov --json bruto.json --saida cortado.mp4
 
     # afrouxar/apertar
@@ -26,13 +26,15 @@ import argparse, array, json, math, os, re, shutil, subprocess, sys, tempfile, w
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ar_morto import PADRAO, blocos_de_fala, planejar_cortes, segmentos_manter
+from audio import transcrever as _T
+from audio.backends import parakeet as _PK
 
 JAN = 0.02
 
 
 def sh(cmd, **kw):
     return subprocess.run(cmd, shell=isinstance(cmd, str), check=True,
-                          capture_output=True, text=True, **kw)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
 
 
 def duracao(path):
@@ -67,24 +69,68 @@ def curva_db(wav_path, jan=JAN):
     return [20 * math.log10(v / pico) if v > 0 else -99.0 for v in rms]
 
 
-def transcrever(wav_path, saida_dir):
-    """parakeet-mlx em json (token a token). Whisper esta proibido nesta casa."""
-    if not shutil.which("parakeet-mlx"):
-        raise SystemExit("parakeet-mlx nao encontrado no PATH")
-    sh(["parakeet-mlx", wav_path, "--output-format", "json",
-        "--output-dir", saida_dir])
+def _modulo_do_corte(amb, backend):
+    """O backend que transcreve para o corte: o primeiro local da ordem (parakeet, depois faster-whisper).
+    A Groq NUNCA serve: o tempo por palavra dela não é confiável, e cortar pelo tempo errado come fala."""
+    if backend is not None and not isinstance(backend, str):
+        if getattr(backend, "NOME", None) == "groq":
+            raise SystemExit("A Groq não serve para cortar ar morto: o tempo por palavra dela não é confiável. "
+                             "Instale um transcritor local: python3 -m pip install faster-whisper")
+        return backend
+    try:
+        return _T.escolher_backend(amb, preferido=backend, excluir=("groq",))
+    except _T.SemTranscritor as e:
+        raise SystemExit(str(e))
+
+
+def _json_no_formato_do_parakeet(palavras):
+    """Palavras do seletor `[{text,start,end}]` no JSON que o parakeet-mlx grava, para o resto do corte (tokens_de,
+    texto_de, blocos_de_fala) não perceber de qual backend a transcrição veio. Cada palavra vira um token com espaço
+    na frente (abre palavra), em uma sentença só."""
+    tokens = [{"text": " " + p["text"], "start": p["start"], "end": p["end"]} for p in palavras]
+    texto = " ".join(p["text"] for p in palavras)
+    ini = palavras[0]["start"] if palavras else 0.0
+    fim = palavras[-1]["end"] if palavras else 0.0
+    return {"text": texto, "sentences": [{"text": texto, "start": ini, "end": fim, "tokens": tokens}]}
+
+
+def transcrever(wav_path, saida_dir, amb=None, backend=None):
+    """Transcreve com palavras e tempos; devolve o caminho de um JSON no formato do parakeet-mlx.
+
+    O backend sai do seletor de áudio (`audio.transcrever`), sem a Groq. Com o parakeet (Apple Silicon) o comando é o
+    de sempre: `parakeet-mlx` direto no wav, sem chunk, e o JSON dele é devolvido como veio. Com o faster-whisper
+    (Windows, Linux, Mac Intel) as palavras viram o mesmo JSON por `_json_no_formato_do_parakeet`.
+    """
+    amb = amb if amb is not None else _T.Ambiente.real()
+    modulo = _modulo_do_corte(amb, backend)
     base = os.path.splitext(os.path.basename(wav_path))[0]
-    return os.path.join(saida_dir, base + ".json")
+    destino = os.path.join(saida_dir, base + ".json")
+    if getattr(modulo, "NOME", None) == "parakeet":
+        exe = _PK.achar_executavel(amb)
+        if not exe:
+            raise SystemExit("parakeet-mlx nao encontrado: python3 -m pip install parakeet-mlx")
+        sh([exe, wav_path, "--output-format", "json", "--output-dir", saida_dir])
+        return destino
+    try:
+        palavras = _T.transcrever(wav_path, cache_dir=os.path.join(saida_dir, "cache_asr"), backend=modulo,
+                                  amb=amb, idioma="pt")
+    except _T.SemTranscritor as e:
+        raise SystemExit(str(e))
+    with open(destino, "w", encoding="utf-8") as f:
+        json.dump(_json_no_formato_do_parakeet(palavras), f, ensure_ascii=False)
+    return destino
 
 
 def tokens_de(json_path):
-    d = json.load(open(json_path))
+    with open(json_path, encoding="utf-8") as f:
+        d = json.load(f)
     return [(t["start"], t["end"], t["text"])
             for s in d.get("sentences", []) for t in s.get("tokens", [])]
 
 
 def texto_de(json_path):
-    return json.load(open(json_path)).get("text", "")
+    with open(json_path, encoding="utf-8") as f:
+        return json.load(f).get("text", "")
 
 
 def palavras(txt):
@@ -130,7 +176,7 @@ def main():
 
     jpath = a.json_path
     if not jpath:
-        print("transcrevendo com parakeet (token a token)")
+        print("transcrevendo (palavra a palavra, pelo seletor de backend)")
         jpath = transcrever(wav, tmp)
 
     toks = tokens_de(jpath)
@@ -148,7 +194,7 @@ def main():
         print(f"  {s:7.3f} -> {e:7.3f}  ({e-s:.3f}s)")
 
     if a.segmentos:
-        with open(a.segmentos, "w") as f:
+        with open(a.segmentos, "w", encoding="utf-8") as f:
             for s, e in segs:
                 f.write(f"{s} {e}\n")
         print(f"\nsegmentos salvos em {a.segmentos}")

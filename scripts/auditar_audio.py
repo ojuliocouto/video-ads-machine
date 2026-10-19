@@ -21,8 +21,11 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+from audio import transcrever as _T
+from audio.backends import parakeet as _PK
 from caminhos import V1, CODIGO  # noqa: E402
 
 # Ritmo: uma fala de anuncio TEM pausa de fim de frase. Zero pausa longa = achatado.
@@ -47,7 +50,7 @@ def pausas_exigidas(duracao_s):
 
 
 def sh(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def dur(p):
@@ -129,16 +132,47 @@ def auditar(limpo, bruto=None):
     return problemas, info
 
 
-def _transcrever(caminho):
-    """Parakeet e o padrao da casa; Whisper esta proibido (trava a maquina do diretor)."""
-    import re as _re
-    saida = Path("/tmp") / (Path(caminho).stem + ".txt")
-    subprocess.run(["parakeet-mlx", str(caminho), "--output-format", "txt",
-                    "--output-dir", "/tmp"], capture_output=True, text=True)
-    if not saida.exists():
+def _normalizar_fala(txt):
+    return re.sub(r"[^a-zà-ú0-9 ]+", " ", (txt or "").lower()).split()
+
+
+def _transcrever(caminho, amb=None, backend=None):
+    """Palavras normalizadas da fala de `caminho`, ou None se nenhum transcritor serviu.
+
+    O backend sai do seletor de áudio (`audio.transcrever`): parakeet no Apple Silicon, senão faster-whisper, senão
+    Groq. Aqui só importa o TEXTO (o gate compara duas transcrições), então qualquer backend serve. Com o parakeet o
+    comando é o de sempre (`parakeet-mlx ... --output-format txt`), numa pasta temporária do sistema. O openai-whisper
+    puro segue proibido (trava a máquina do diretor). Sem nenhum transcritor, AVISA alto em vez de fingir que conferiu.
+    """
+    amb = amb if amb is not None else _T.Ambiente.real()
+    try:
+        if backend is not None and not isinstance(backend, str):
+            modulo = backend
+        else:
+            modulo = _T.escolher_backend(amb, preferido=backend)
+    except _T.SemTranscritor as e:
+        print(f"AUDIO: a conferência de fala NÃO rodou: {e}", file=sys.stderr)
         return None
-    txt = saida.read_text().lower()
-    return _re.sub(r"[^a-zà-ú0-9 ]+", " ", txt).split()
+    with tempfile.TemporaryDirectory(prefix="auditar_audio_") as pasta:
+        if getattr(modulo, "NOME", None) == "parakeet":
+            exe = _PK.achar_executavel(amb)
+            if not exe:
+                print("AUDIO: a conferência de fala NÃO rodou: parakeet-mlx não encontrado "
+                      "(python3 -m pip install parakeet-mlx)", file=sys.stderr)
+                return None
+            saida = Path(pasta) / (Path(caminho).stem + ".txt")
+            subprocess.run([exe, str(caminho), "--output-format", "txt", "--output-dir", pasta],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if not saida.exists():
+                return None
+            return _normalizar_fala(saida.read_text(encoding="utf-8", errors="replace"))
+        try:
+            palavras = _T.transcrever(caminho, cache_dir=Path(pasta) / "cache_asr", backend=modulo, amb=amb,
+                                      idioma="pt")
+        except _T.SemTranscritor as e:
+            print(f"AUDIO: a conferência de fala NÃO rodou: {e}", file=sys.stderr)
+            return None
+        return _normalizar_fala(" ".join(p["text"] for p in palavras))
 
 
 # Um trecho so conta como DANO quando sobra menos que isso das letras do original.
@@ -202,7 +236,8 @@ def main():
         env.update(PARAMS)
         print(f"higienizando com ritmo preservado ({PARAMS})...")
         r = subprocess.run([sys.executable, str(CODIGO / "higienizar_audio.py"),
-                            str(bruto), str(saida)], capture_output=True, text=True, env=env)
+                            str(bruto), str(saida)], capture_output=True, text=True, env=env,
+                           encoding="utf-8", errors="replace")
         print(r.stdout[-400:] if r.stdout else r.stderr[-400:])
         if not saida.exists():
             sys.exit("AUDIO: higienizacao nao produziu arquivo")
