@@ -256,6 +256,97 @@ def test_sem_ffprobe_sai_com_dois_antes_de_gastar_o_render(tmp_path, monkeypatch
     assert chamou == [] and "ffprobe" in capsys.readouterr().err
 
 
+# --- armadilhas do Windows (W2.U3): provadas por monkeypatch, sem estar no Windows -------------------------------
+
+def test_ffprobe_com_fim_de_linha_do_windows_e_lido(tmp_path, monkeypatch):
+    """O ffprobe do Windows imprime `2.000000\\r\\n`; o parse tem que dar o número, com ou sem linhas a mais."""
+    monkeypatch.setattr(fumaca, "_ffprobe", lambda: "ffprobe")
+    for saida in ("2.000000\r\n", "2.000000\r\n\r\n", "  2.000000  \r\n", "2.000000\r\nlixo\r\n"):
+        monkeypatch.setattr(fumaca.subprocess, "run",
+                            lambda cmd, _s=saida, **kw: subprocess.CompletedProcess(cmd, 0, _s, ""))
+        assert fumaca.duracao(tmp_path / "f.mp4") == 2.0, repr(saida)
+
+
+def test_o_ffprobe_e_chamado_pelo_caminho_completo_e_com_texto_utf8(tmp_path, monkeypatch):
+    chamado = {}
+
+    def run(cmd, **kw):
+        chamado.update(cmd=list(cmd), kw=kw)
+        return subprocess.CompletedProcess(cmd, 0, "2.0\r\n", "")
+
+    monkeypatch.setattr(fumaca, "_ffprobe", lambda: "C:\\Dados\\ffmpeg\\bin\\ffprobe.exe")
+    monkeypatch.setattr(fumaca.subprocess, "run", run)
+    fumaca.duracao(tmp_path / "Pasta com espaço" / "f.mp4")
+    assert chamado["cmd"][0] == "C:\\Dados\\ffmpeg\\bin\\ffprobe.exe"
+    assert chamado["cmd"][-1] == str(tmp_path / "Pasta com espaço" / "f.mp4")      # um argumento só, com os espaços
+    assert chamado["kw"]["encoding"] == "utf-8" and chamado["kw"]["errors"] == "replace"
+
+
+def test_o_html_do_projeto_sai_com_lf_e_sem_caminho_de_disco(tmp_path):
+    projeto = fumaca.montar_projeto(tmp_path / "p")
+    cru = (projeto / "index.html").read_bytes()
+    assert b"\r" not in cru, "o write_text do Windows gravaria CRLF"
+    html = cru.decode("utf-8")
+    assert not re.search(r"[A-Za-z]:[\\/](?:Users|Dados|Program)", html)               # nenhum caminho de disco no HTML
+    assert "file:" not in html and not re.search(r"/(?:Users|home)/\w", html)
+    for rel in re.findall(r'url\("([^"]+)"\)', html):
+        assert rel.startswith("fonts/") and "\\" not in rel, rel                       # barra normal, relativa ao projeto
+
+
+def test_projeto_em_pasta_com_espaco_e_acento_monta_e_confere_as_fontes(tmp_path):
+    projeto = fumaca.montar_projeto(tmp_path / "João Silva" / "Meus Vídeos" / "projeto")
+    assert fumaca.conferir_fontes(projeto) == []
+    assert (projeto / "meta.json").is_file()
+
+
+def test_a_pasta_de_trabalho_vem_no_caminho_completo(tmp_path, monkeypatch):
+    """Com `..` (e, no Windows, com nome curto 8.3) o `resolve()` devolve o caminho real, o mesmo que o Node enxerga."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    monkeypatch.setattr(fumaca.tempfile, "mkdtemp", lambda prefix="": str(tmp_path / "a" / ".." / "b"))
+    pasta = fumaca.pasta_de_trabalho()
+    assert pasta == (tmp_path / "b").resolve() and ".." not in pasta.parts
+
+
+def test_o_render_recebe_o_projeto_numa_pasta_com_espaco_como_um_argumento_so(tmp_path, monkeypatch):
+    pacote = tmp_path / "raiz" / "node_modules" / "hyperframes"
+    (pacote / "dist").mkdir(parents=True)
+    (pacote / "package.json").write_text('{"bin": {"hyperframes": "./dist/cli.js"}}', encoding="utf-8")
+    (pacote / "dist" / "cli.js").write_text("//", encoding="utf-8")
+    projeto = tmp_path / "Pasta com espaço" / "projeto"
+    destino = tmp_path / "Pasta com espaço" / "fumaca.mp4"
+    chamados = []
+    monkeypatch.setattr(fumaca.subprocess, "run",
+                        lambda cmd, **kw: chamados.append(list(cmd)) or subprocess.CompletedProcess(cmd, 0, "", ""))
+    fumaca.renderizar(tmp_path / "raiz", projeto, destino)
+    (cmd,) = chamados
+    assert str(projeto) in cmd and str(destino) in cmd                               # cada caminho é um elemento só
+    linha = subprocess.list2cmdline(cmd)                                             # o que o Windows monta de verdade
+    assert '"%s"' % projeto in linha and '"%s"' % destino in linha
+
+
+def test_executar_roda_dentro_de_um_temp_com_espaco_e_acento(tmp_path, monkeypatch, capsys):
+    base = tmp_path / "Usuário Com Espaço" / "Temp"
+    base.mkdir(parents=True)
+    monkeypatch.setattr(fumaca.tempfile, "tempdir", str(base))
+    vistos = {}
+
+    def renderizar(raiz, projeto, destino, **kw):
+        vistos["projeto"] = Path(projeto)
+        vistos["fontes"] = fumaca.conferir_fontes(projeto)
+        Path(destino).write_bytes(b"x" * 100)
+        return 0, ""
+
+    monkeypatch.setattr(fumaca, "renderizar", renderizar)
+    monkeypatch.setattr(fumaca, "_ffprobe", lambda: "ffprobe")
+    monkeypatch.setattr(fumaca, "conferir_mp4", lambda mp4: (True, "2,00 s"))
+    destino = tmp_path / "saida com espaço" / "fumaca.mp4"
+    assert vam.main(["fumaca", "--saida", str(destino)]) == 0
+    assert "Usuário Com Espaço" in str(vistos["projeto"]) and vistos["fontes"] == []
+    assert destino.is_file()
+    assert not vistos["projeto"].exists()                                            # a pasta de trabalho some no fim
+
+
 # --- o render de verdade ------------------------------------------------------------------------------------------
 
 @pytest.mark.lento

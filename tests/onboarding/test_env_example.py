@@ -18,7 +18,8 @@ SCRIPTS = RAIZ / "scripts"
 ENV_EXAMPLE = RAIZ / ".env.example"
 
 # O que o sistema operacional define e nenhum aluno configura: não vai no .env.example.
-DO_SISTEMA = {"HOME", "PATH", "USERPROFILE", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV"}
+# (PROGRAMFILES e LOCALAPPDATA: as pastas de programas do Windows, onde o motor procura o Chrome e o Edge.)
+DO_SISTEMA = {"HOME", "PATH", "USERPROFILE", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV", "PROGRAMFILES", "LOCALAPPDATA"}
 
 
 def _eh_ambiente(no):

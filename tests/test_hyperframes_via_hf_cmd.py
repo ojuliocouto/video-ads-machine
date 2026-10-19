@@ -219,6 +219,16 @@ def test_achar_navegador_pelo_path_do_windows(tmp_path, monkeypatch):
     assert str(insert_ui._achar_navegador()) == "C:\\Dados\\bin\\msedge.exe"
 
 
+def test_navegadores_do_windows_so_vem_das_variaveis_do_sistema(monkeypatch):
+    """Sem as variáveis não há pasta cravada de reserva: o Chrome real da máquina de quem testa não pode aparecer."""
+    for var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        monkeypatch.delenv(var, raising=False)
+    assert insert_ui._navegadores_do_windows() == []
+    monkeypatch.setenv("PROGRAMFILES", "C:\\Dados\\Programas")
+    achados = [str(c) for c in insert_ui._navegadores_do_windows()]
+    assert len(achados) == 2 and all(a.startswith(str(insert_ui.Path("C:\\Dados\\Programas"))) for a in achados)
+
+
 def test_achar_navegador_fora_do_windows_nao_olha_as_pastas_do_windows(tmp_path, monkeypatch):
     monkeypatch.setattr(plataforma, "_sistema", lambda: "linux")
     monkeypatch.setattr(insert_ui.Path, "home", classmethod(lambda cls: tmp_path / "home"))

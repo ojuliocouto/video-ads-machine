@@ -55,11 +55,18 @@ def test_o_template_nao_carrega_js_proprio_so_o_marcador(fmt):
     assert corpos == ["/* PARCIAL:timeline.js */"], corpos
 
 
+def _scripts_sem_vendor(html):
+    """Os <script> da página sem a cópia local do GSAP (`templates/_vendor`), que o setup baixa e o resolvedor embute."""
+    vendor = H.VENDOR_GSAP.read_text(encoding="utf-8", errors="replace").strip() if H.VENDOR_GSAP.is_file() else None
+    return [c for c in _scripts(html) if vendor is None or c.strip() != vendor]
+
+
 def test_os_dois_formatos_usam_o_mesmo_timeline_js():
     js = (PARCIAIS / "timeline.js").read_text(encoding="utf-8")
     hashes = set()
     for fmt in TEMPLATES:
-        corpos = _scripts(_resolvido(fmt))
+        # com ou sem `_vendor/gsap.min.js` no disco (o setup baixa), sobra só o script da timeline
+        corpos = _scripts_sem_vendor(_resolvido(fmt))
         assert len(corpos) == 1, fmt
         assert corpos[0].strip() == js.strip(), fmt
         hashes.add(hashlib.sha256(corpos[0].strip().encode("utf-8")).hexdigest())

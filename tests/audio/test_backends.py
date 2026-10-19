@@ -6,11 +6,13 @@ falsa e o HTTP da Groq é um transporte injetado. Nenhuma chamada paga, nenhuma 
 import json
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+import plataforma
 from audio import transcrever as T
 from audio.backends import faster_whisper as FW
 from audio.backends import groq as G
@@ -38,6 +40,13 @@ def amb(sistema="Darwin", arquitetura="arm64", executaveis=(), modulos=(), env=N
 
 
 # =========================== parakeet ===========================================================
+
+# O parakeet-mlx só existe no Apple Silicon (`disponivel` exige macOS arm64). Os três testes abaixo rodam um
+# executável falso `#!/bin/sh` de verdade; o Windows não executa script de shell sem extensão (WinError 193), então lá
+# o mesmo contrato é coberto pelos testes com `executar` injetado (mais abaixo), que não dependem de shell.
+so_fora_do_windows = pytest.mark.skipif(plataforma.eh_windows(),
+                                        reason="executável falso #!/bin/sh não roda no Windows; parakeet é só Apple Silicon")
+
 
 def _executavel(pasta, nome="parakeet-mlx", corpo="#!/bin/sh\nexit 0\n"):
     pasta.mkdir(parents=True, exist_ok=True)
@@ -111,6 +120,7 @@ def test_parakeet_sem_tokens_cai_na_sentenca():
     assert palavras[0]["start"] == 1.0 and palavras[-1]["end"] == 2.0
 
 
+@so_fora_do_windows
 def test_parakeet_chama_o_executavel_com_json_e_chunk_e_le_o_arquivo(tmp_path):
     corpo = ("#!/bin/sh\n"
              'while [ "$#" -gt 0 ]; do case "$1" in --output-dir) D="$2"; shift;; '
@@ -129,6 +139,7 @@ def test_parakeet_chama_o_executavel_com_json_e_chunk_e_le_o_arquivo(tmp_path):
     assert (trabalho / "fala.json").exists()
 
 
+@so_fora_do_windows
 def test_parakeet_com_falha_do_executavel_cita_a_saida_de_erro(tmp_path):
     _executavel(tmp_path / "bin", corpo="#!/bin/sh\necho 'modelo nao encontrado' >&2\nexit 4\n")
     audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
@@ -136,11 +147,54 @@ def test_parakeet_com_falha_do_executavel_cita_a_saida_de_erro(tmp_path):
         PK.transcrever(audio, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t")
 
 
+@so_fora_do_windows
 def test_parakeet_sem_arquivo_de_saida_e_erro_nao_lista_vazia(tmp_path):
     _executavel(tmp_path / "bin", corpo="#!/bin/sh\nexit 0\n")
     audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
     with pytest.raises(PK.ErroParakeet, match="json"):
         PK.transcrever(audio, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t")
+
+
+def _com_executar(tmp_path, escrever=None, codigo=0, erro=""):
+    """Um `executar` injetado no lugar do subprocess: guarda o argv e, se pedido, grava o json no --output-dir.
+    Roda igual em qualquer sistema (não depende de shell)."""
+    chamadas = []
+
+    def executar(cmd):
+        chamadas.append(list(cmd))
+        if escrever is not None:
+            pasta = Path(cmd[cmd.index("--output-dir") + 1])
+            (pasta / (Path(cmd[1]).stem + ".json")).write_text(json.dumps(escrever), encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, codigo, "", erro)
+
+    return amb(executaveis=("parakeet-mlx",)), executar, chamadas
+
+
+def test_parakeet_injetado_monta_o_comando_com_json_e_chunk_e_le_o_arquivo(tmp_path):
+    a, executar, chamadas = _com_executar(tmp_path, escrever=SAIDA_PARAKEET)
+    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
+    trabalho = tmp_path / "trabalho"
+    palavras = PK.transcrever(audio, amb=a, workdir=trabalho, executar=executar)
+    assert [p["text"] for p in palavras] == ["Você", "perde", "três", "horas."]
+    _monotonico(palavras)
+    (cmd,) = chamadas
+    assert cmd[1] == str(audio) and cmd[cmd.index("--output-format") + 1] == "json"
+    assert cmd[cmd.index("--output-dir") + 1] == str(trabalho)
+    assert cmd[cmd.index("--chunk-duration") + 1] == "15" and cmd[cmd.index("--overlap-duration") + 1] == "3"
+
+
+def test_parakeet_injetado_com_falha_cita_a_saida_de_erro(tmp_path):
+    a, executar, _ = _com_executar(tmp_path, codigo=4, erro="modelo nao encontrado")
+    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
+    with pytest.raises(PK.ErroParakeet, match="modelo nao encontrado"):
+        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=executar)
+
+
+def test_parakeet_injetado_sem_arquivo_de_saida_e_erro(tmp_path):
+    a, executar, _ = _com_executar(tmp_path)
+    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
+    with pytest.raises(PK.ErroParakeet, match="json"):
+        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=executar)
 
 
 # =========================== parakeet, perfil "alinhamento" (W3.X A2) ===========================
