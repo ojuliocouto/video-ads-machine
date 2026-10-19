@@ -13,12 +13,26 @@ from pathlib import Path
 
 import pytest
 
+import plataforma
 from onboarding import doctor as D
 from onboarding.checks import (ffmpeg_libass, fontes, heygen, node_hyperframes, python_deps,
                                rede, transcritor)
 
 RAIZ_REAL = Path(__file__).resolve().parent.parent.parent
 CHAVE = "hg_chave_secreta_de_teste_123456"
+FONTE_VALIDA = b"wOF2" + b"\x00" * 2048        # magia woff2 e mais de 1 KB: o que uma fonte de verdade tem
+
+
+@pytest.fixture(autouse=True)
+def _sistema_mac(monkeypatch):
+    """Os consertos dependem do sistema de quem roda (`plataforma.eh_windows()`): cada teste fixa o sistema, e quem
+    exercita o Windows troca por "win32"."""
+    monkeypatch.setattr(plataforma, "_sistema", lambda: "darwin")
+
+
+@pytest.fixture
+def windows(monkeypatch):
+    monkeypatch.setattr(plataforma, "_sistema", lambda: "win32")
 
 
 # --- repo falso e ambiente falso ---------------------------------------------------------------
@@ -32,15 +46,23 @@ def _escrever(caminho, conteudo="x", modo=None):
     return caminho
 
 
+def _fonte(caminho, conteudo=FONTE_VALIDA):
+    caminho = Path(caminho)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    caminho.write_bytes(conteudo)
+    return caminho
+
+
 @pytest.fixture
 def repo(tmp_path):
     """Repo falso saudável: package.json pinado, HyperFrames instalado, fontes e GSAP local."""
     raiz = tmp_path / "repo"
     _escrever(raiz / "package.json", json.dumps({"dependencies": {"hyperframes": "0.7.56"}}))
-    _escrever(raiz / "node_modules/.bin/hyperframes", "#!/bin/sh\necho 0.7.56\n", 0o755)
-    _escrever(raiz / "node_modules/hyperframes/package.json", json.dumps({"version": "0.7.56"}))
+    _escrever(raiz / "node_modules/hyperframes/package.json",
+              json.dumps({"version": "0.7.56", "bin": {"hyperframes": "dist/cli.js"}}))
+    _escrever(raiz / "node_modules/hyperframes/dist/cli.js", "console.log('0.7.56')\n")
     for nome in ("inter-400.woff2", "inter-700.woff2", "playfair-italic-500.woff2"):
-        _escrever(raiz / "fonts" / nome)
+        _fonte(raiz / "fonts" / nome)
     _escrever(raiz / "templates/reel-editorial/index.html", """
         <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
         @font-face { src:url("fonts/inter-400.woff2") format("woff2"); }
@@ -70,14 +92,25 @@ def exe(nome, *args):
                         and all(a in [str(x) for x in cmd] for a in args))
 
 
+def node_versao():
+    """`node --version` (exatamente dois argumentos): não casa com `node <cli.js> --version` do HyperFrames."""
+    return lambda cmd: os.path.basename(str(cmd[0])) == "node" and [str(c) for c in cmd[1:]] == ["--version"]
+
+
+def hyperframes_versao():
+    """`node <cli.js do pacote> --version`, o comando que `plataforma.hf_cmd` monta."""
+    return lambda cmd: (os.path.basename(str(cmd[0])) == "node" and len(cmd) == 3
+                        and str(cmd[1]).endswith("cli.js") and str(cmd[2]) == "--version")
+
+
 def python_c():
     return lambda cmd: (os.path.basename(str(cmd[0])).startswith("python") and "-c" in cmd)
 
 
 REGRAS_SAUDAVEIS = [
     (exe("ffmpeg", "-vf"), (0, "")),
-    (exe("node", "--version"), (0, "v22.11.0")),
-    (exe("hyperframes", "--version"), (0, "0.7.56")),
+    (node_versao(), (0, "v22.11.0")),
+    (hyperframes_versao(), (0, "0.7.56")),
     (python_c(), (0, "3 11\n\n")),
     (exe("parakeet-mlx", "--help"), (0, "usage")),
 ]
@@ -175,7 +208,7 @@ def test_ffmpeg_com_erro_qualquer_e_fail_sem_traceback_e_com_saida_curta(repo):
 # --- node_hyperframes ----------------------------------------------------------------------------
 
 def node_com(versao):
-    return [(exe("node", "--version"), (0, versao))] + REGRAS_SAUDAVEIS
+    return [(node_versao(), (0, versao))] + REGRAS_SAUDAVEIS
 
 
 def test_node_ausente_e_fail(repo):
@@ -203,22 +236,32 @@ def test_node_com_saida_ilegivel_e_fail_sem_traceback(repo):
     conserto_de_uma_linha(r)
 
 
-def test_binario_do_hyperframes_ausente_e_fail_com_setup(repo):
-    (repo / "node_modules/.bin/hyperframes").unlink()
+def test_pacote_do_hyperframes_ausente_e_fail_com_setup(repo):
+    (repo / "node_modules/hyperframes/package.json").unlink()
     r = node_hyperframes.checar(amb_falso(repo))
-    assert r.status == "FAIL"
+    assert r.status == "FAIL" and "HyperFrames" in r.detalhe
     assert "bash scripts/setup.sh" in r.conserto
     conserto_de_uma_linha(r)
 
 
-def test_binario_sem_permissao_de_execucao_e_fail(repo):
-    (repo / "node_modules/.bin/hyperframes").chmod(0o644)
+def test_cli_do_hyperframes_que_o_bin_aponta_ausente_e_fail(repo):
+    (repo / "node_modules/hyperframes/dist/cli.js").unlink()
     r = node_hyperframes.checar(amb_falso(repo))
     assert r.status == "FAIL" and "bash scripts/setup.sh" in r.conserto
 
 
+def test_o_hyperframes_roda_por_node_e_nao_pelo_script_do_npm_em_bin(repo):
+    """O `.bin/hyperframes` do npm é um script de shell: no Windows dá erro 193. O check usa `plataforma.hf_cmd`."""
+    chamadas = []
+    r = node_hyperframes.checar(amb_falso(repo, chamadas=chamadas))
+    assert r.status == "OK"
+    cmd = [c for c in chamadas if len(c) == 3][0]
+    assert cmd == ["/falso/bin/node"] + plataforma.hf_cmd(repo)[1:] + ["--version"]
+    assert all(".bin" not in str(parte) for c in chamadas for parte in c)
+
+
 def test_binario_que_nao_executa_e_fail(repo):
-    regras = [(exe("hyperframes", "--version"), (1, "SyntaxError: bad"))] + REGRAS_SAUDAVEIS
+    regras = [(hyperframes_versao(), (1, "SyntaxError: bad"))] + REGRAS_SAUDAVEIS
     r = node_hyperframes.checar(amb_falso(repo, regras=regras))
     assert r.status == "FAIL" and "bash scripts/setup.sh" in r.conserto
 
@@ -229,7 +272,8 @@ def test_binario_instalado_e_na_versao_pinada_e_ok(repo):
 
 
 def test_versao_instalada_diferente_da_pinada_e_warn(repo):
-    _escrever(repo / "node_modules/hyperframes/package.json", json.dumps({"version": "0.8.143"}))
+    _escrever(repo / "node_modules/hyperframes/package.json",
+              json.dumps({"version": "0.8.143", "bin": {"hyperframes": "dist/cli.js"}}))
     r = node_hyperframes.checar(amb_falso(repo))
     assert r.status == "WARN" and "0.8.143" in r.detalhe and "0.7.56" in r.detalhe
     assert "bash scripts/setup.sh" in r.conserto
@@ -472,7 +516,7 @@ def test_pasta_de_fontes_ausente_e_fail(repo):
 def test_vam_fonts_aponta_para_outra_pasta(repo, tmp_path):
     outra = tmp_path / "minhas-fontes"
     for nome in ("inter-400.woff2", "inter-700.woff2", "playfair-italic-500.woff2"):
-        _escrever(outra / nome)
+        _fonte(outra / nome)
     for f in (repo / "fonts").iterdir():
         f.unlink()
     r = fontes.checar(amb_falso(repo, env={"VAM_FONTS": str(outra)}))
@@ -563,7 +607,7 @@ def test_main_sai_0_com_ambiente_saudavel_e_imprime_um_painel(repo, capsys):
 
 
 def test_main_barra_quando_o_binario_do_hyperframes_falta(repo, capsys):
-    (repo / "node_modules/.bin/hyperframes").unlink()
+    (repo / "node_modules/hyperframes/package.json").unlink()
     rc = D.main([], amb=amb_saudavel(repo))
     saida = capsys.readouterr().out
     assert rc == 1
@@ -581,7 +625,7 @@ def test_main_warn_sozinho_nao_barra_e_mostra_o_conserto(repo, capsys):
 
 
 def test_main_cada_linha_de_conserto_e_uma_linha(repo, capsys):
-    (repo / "node_modules/.bin/hyperframes").unlink()
+    (repo / "node_modules/hyperframes/package.json").unlink()
     D.main([], amb=amb_falso(repo, executaveis=(), modulos=(), http=http_falso((401, "x"))))
     linhas = capsys.readouterr().out.splitlines()
     for i, linha in enumerate(linhas):
@@ -618,6 +662,174 @@ def test_ambiente_real_monta_sem_estourar_e_o_executar_real_nao_levanta(tmp_path
     amb = D.AmbienteDoctor.real(raiz=tmp_path)
     rc, saida = amb.executar(["comando-que-nao-existe-vam"], timeout=5)
     assert rc != 0 and isinstance(saida, str)
+
+
+# --- W1.B: o doctor no Windows e a fonte que não é fonte ----------------------------------------------
+
+def test_ffmpeg_usa_o_escapar_filtro_da_plataforma_nas_duas_camadas(repo, monkeypatch):
+    assert not hasattr(ffmpeg_libass, "_escapar_filtro"), "o escape de uma camada só quebra em `C:`"
+    monkeypatch.setattr(plataforma, "escapar_filtro", lambda caminho: "ESCAPADO<%s>" % Path(caminho).name)
+    chamadas = []
+    ffmpeg_libass.checar(amb_falso(repo, chamadas=chamadas))
+    sonda = [c for c in chamadas if "-vf" in c][0]
+    assert sonda[sonda.index("-vf") + 1] == "subtitles=ESCAPADO<sonda.ass>"
+
+
+@pytest.mark.skipif(not __import__("shutil").which("ffmpeg"), reason="sem ffmpeg nesta máquina")
+def test_ffmpeg_real_renderiza_o_ass_numa_pasta_com_dois_pontos_e_virgula(tmp_path, monkeypatch):
+    """O escape de uma camada falhava em `:` (o `C:` do Windows) e em `,`; o de duas camadas passa no ffmpeg de verdade."""
+    import shutil
+    import tempfile
+    pasta = tmp_path / "a:b,c;d"
+    pasta.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(pasta))
+    amb = D.AmbienteDoctor(raiz=tmp_path, which=shutil.which, executar=D._executar_real)
+    r = ffmpeg_libass.checar(amb)
+    if r.status != "OK":
+        assert "libass" in r.detalhe or "No such filter" in r.detalhe, r.detalhe   # ffmpeg sem libass: não é este teste
+        pytest.skip("o ffmpeg desta máquina não tem libass")
+    assert r.status == "OK"
+
+
+def test_ffmpeg_ausente_no_windows_manda_o_winget(repo, windows):
+    r = ffmpeg_libass.checar(amb_falso(repo, executaveis=("ffprobe",)))
+    assert "winget install -e --id Gyan.FFmpeg" in r.conserto and "brew" not in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_ffmpeg_ausente_no_mac_continua_mandando_o_brew(repo):
+    r = ffmpeg_libass.checar(amb_falso(repo, executaveis=("ffprobe",)))
+    assert "brew install ffmpeg" in r.conserto and "winget" not in r.conserto
+
+
+def test_ffmpeg_sem_libass_no_windows_manda_o_winget(repo, windows):
+    regras = [(exe("ffmpeg", "-vf"), (1, "No such filter: 'subtitles'"))] + REGRAS_SAUDAVEIS
+    r = ffmpeg_libass.checar(amb_falso(repo, regras=regras))
+    assert "winget install -e --id Gyan.FFmpeg" in r.conserto
+
+
+def test_ffmpeg_com_biblioteca_quebrada_no_windows_manda_reinstalar_pelo_winget(repo, windows):
+    regras = [(exe("ffmpeg", "-vf"), (1, "error while loading shared libraries: x"))] + REGRAS_SAUDAVEIS
+    r = ffmpeg_libass.checar(amb_falso(repo, regras=regras))
+    assert "winget" in r.conserto and "brew" not in r.conserto
+
+
+def test_node_ausente_no_windows_manda_o_winget(repo, windows):
+    r = node_hyperframes.checar(amb_falso(repo, executaveis=("ffmpeg", "ffprobe")))
+    assert "winget install -e --id OpenJS.NodeJS.LTS" in r.conserto and "brew" not in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_node_antigo_no_windows_manda_o_winget(repo, windows):
+    r = node_hyperframes.checar(amb_falso(repo, regras=node_com("v20.1.0")))
+    assert "winget install -e --id OpenJS.NodeJS.LTS" in r.conserto
+
+
+def test_node_ausente_no_mac_continua_mandando_o_brew(repo):
+    r = node_hyperframes.checar(amb_falso(repo, executaveis=("ffmpeg", "ffprobe")))
+    assert "brew install node@22" in r.conserto and "winget" not in r.conserto
+
+
+def test_python_antigo_no_windows_manda_o_winget(repo, windows):
+    r = python_deps.checar(amb_falso(repo, regras=py_com("3 8\n\n")))
+    assert r.status == "FAIL" and "winget install -e --id Python.Python.3.12" in r.conserto
+    assert "brew" not in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_python_antigo_no_mac_continua_mandando_o_brew(repo):
+    r = python_deps.checar(amb_falso(repo, regras=py_com("3 8\n\n")))
+    assert "brew install python@3.12" in r.conserto and "winget" not in r.conserto
+
+
+def test_o_venv_do_windows_fica_em_scripts_python_exe(repo, windows):
+    venv_py = _escrever(repo / ".venv/Scripts/python.exe", "x", 0o755)
+    chamadas = []
+    python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n"), chamadas=chamadas))
+    assert chamadas[0][0] == str(venv_py)
+
+
+def test_o_venv_do_windows_nao_procura_em_bin(repo, windows):
+    _escrever(repo / ".venv/bin/python", "x", 0o755)
+    chamadas = []
+    python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n"), chamadas=chamadas))
+    assert chamadas[0][0] == "/falso/bin/python3"
+
+
+def test_opencv_ruim_no_windows_cita_o_python_do_venv_do_windows(repo, windows):
+    _escrever(repo / ".venv/Scripts/python.exe", "x", 0o755)
+    r = python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n5.0.0\n")))
+    assert r.status == "FAIL" and "Scripts" in r.conserto and "bin/python" not in r.conserto
+
+
+def test_transcritor_no_windows_aceita_faster_whisper_e_explica_que_o_parakeet_e_so_do_mac(repo, windows):
+    r = transcritor.checar(amb_falso(repo, sistema="Windows", arquitetura="AMD64",
+                                     executaveis=(), modulos=("faster_whisper",)))
+    assert r.status == "OK" and "faster_whisper" in r.detalhe
+    assert "parakeet" in r.detalhe and "Mac" in r.detalhe
+    conserto_de_uma_linha(r)
+
+
+def test_transcritor_no_mac_nao_fala_do_parakeet_so_do_mac(repo):
+    r = transcritor.checar(amb_falso(repo, executaveis=("ffmpeg", "parakeet-mlx"), modulos=()))
+    assert r.status == "OK" and "só" not in r.detalhe and "Mac" not in r.detalhe
+
+
+def test_transcritor_sem_nada_no_windows_manda_faster_whisper_e_explica_o_parakeet(repo, windows):
+    r = transcritor.checar(amb_falso(repo, sistema="Windows", arquitetura="AMD64", executaveis=(), modulos=()))
+    assert r.status == "FAIL" and "faster-whisper" in r.conserto and "parakeet" in r.conserto and "Mac" in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_fonte_woff2_de_verdade_passa(repo):
+    r = fontes.checar(amb_falso(repo))
+    assert r.status == "OK"
+
+
+def test_fonte_que_virou_texto_do_symlink_do_git_e_fail(repo):
+    """No Windows sem `core.symlinks`, o git grava o alvo do link como texto num arquivo pequeno."""
+    (repo / "fonts/inter-400.woff2").write_text("../../fonts/inter-400.woff2", encoding="utf-8")
+    r = fontes.checar(amb_falso(repo))
+    assert r.status == "FAIL" and "inter-400.woff2" in r.detalhe and "woff2" in r.detalhe
+    assert "core.symlinks" in r.conserto and "clone de novo" in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_fonte_com_a_magia_certa_mas_menor_que_1_kb_e_fail(repo):
+    _fonte(repo / "fonts/inter-700.woff2", b"wOF2" + b"\x00" * 100)
+    r = fontes.checar(amb_falso(repo))
+    assert r.status == "FAIL" and "inter-700.woff2" in r.detalhe
+
+
+def test_fonte_grande_sem_a_magia_woff2_e_fail(repo):
+    _fonte(repo / "fonts/inter-700.woff2", b"<html>" + b"x" * 4000)
+    r = fontes.checar(amb_falso(repo))
+    assert r.status == "FAIL" and "inter-700.woff2" in r.detalhe
+
+
+def test_fonte_falsa_dentro_da_pasta_fonts_de_um_template_tambem_e_fail(repo):
+    _fonte(repo / "templates/reel-editorial/fonts/inter-400.woff2", b"../../../fonts/inter-400.woff2")
+    r = fontes.checar(amb_falso(repo))
+    assert r.status == "FAIL" and "reel-editorial" in r.detalhe
+
+
+def test_fonte_ttf_pequena_nao_entra_na_conta_do_woff2(repo):
+    _fonte(repo / "fonts/anton-400.ttf", b"\x00\x01\x00\x00")
+    assert fontes.checar(amb_falso(repo)).status == "OK"
+
+
+def test_fonte_falsa_em_vam_fonts_tambem_e_fail(repo, tmp_path):
+    outra = tmp_path / "minhas-fontes"
+    for nome in ("inter-400.woff2", "inter-700.woff2", "playfair-italic-500.woff2"):
+        _fonte(outra / nome)
+    (outra / "inter-400.woff2").write_text("link", encoding="utf-8")
+    r = fontes.checar(amb_falso(repo, env={"VAM_FONTS": str(outra)}))
+    assert r.status == "FAIL" and "inter-400.woff2" in r.detalhe
+
+
+def test_todas_as_fontes_do_repo_de_verdade_sao_woff2_de_verdade():
+    amb = D.AmbienteDoctor(raiz=RAIZ_REAL)
+    assert fontes.checar(amb).status == "OK"
 
 
 # --- compatibilidade com o Python 3.9 do macOS ------------------------------------------------------

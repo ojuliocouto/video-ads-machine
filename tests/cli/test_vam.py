@@ -12,6 +12,7 @@ de anúncio do dono, e quem é medido não assina (o montador nunca escreve `not
 """
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import pytest
 
+import plataforma
 import vam
 from projeto import pastas, status
 
@@ -79,11 +81,129 @@ def test_sem_argumento_mostra_a_ajuda_e_sai_com_dois(capsys):
 def test_python_do_venv_so_reexecuta_quando_ha_venv_e_nao_e_ele_que_roda(tmp_path):
     raiz = tmp_path / "repo"
     assert vam.python_do_venv(raiz, "/usr/bin/python3") is None             # sem .venv: segue com quem roda
-    py = raiz / ".venv" / "bin" / "python3"
+    py = plataforma.venv_python(raiz)                                       # o do sistema de quem roda
     py.parent.mkdir(parents=True)
     py.write_text("")
     assert vam.python_do_venv(raiz, "/usr/bin/python3") == py
     assert vam.python_do_venv(raiz, str(py)) is None                        # já é ele: não reexecuta em laço
+
+
+def test_python_do_venv_no_windows_fica_em_scripts_python_exe(tmp_path, monkeypatch):
+    monkeypatch.setattr(plataforma, "_sistema", lambda: "win32")
+    raiz = tmp_path / "repo"
+    (raiz / ".venv" / "bin").mkdir(parents=True)
+    (raiz / ".venv" / "bin" / "python3").write_text("")
+    assert vam.python_do_venv(raiz, "C:\\Python312\\python.exe") is None       # só tem o do Mac/Linux: não serve no Windows
+    py = raiz / ".venv" / "Scripts" / "python.exe"
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    assert vam.python_do_venv(raiz, "C:\\Python312\\python.exe") == py
+
+
+def test_python_do_venv_no_mac_acha_bin_python(tmp_path, monkeypatch):
+    monkeypatch.setattr(plataforma, "_sistema", lambda: "darwin")
+    raiz = tmp_path / "repo"
+    py = raiz / ".venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    assert vam.python_do_venv(raiz, "/usr/bin/python3") == py
+
+
+class _Terminou(object):
+    def __init__(self, returncode):
+        self.returncode = returncode
+
+
+def _com_venv_falso(monkeypatch, tmp_path, retorno):
+    """Faz o `vam` achar um venv e troca o `subprocess.run` dele por um gravador."""
+    chamadas = []
+
+    def run(cmd, **kw):
+        chamadas.append((list(cmd), kw))
+        if isinstance(retorno, BaseException):
+            raise retorno
+        return _Terminou(retorno)
+
+    py = tmp_path / "venv-python"
+    monkeypatch.delenv("VAM_SEM_VENV", raising=False)
+    monkeypatch.setattr(vam, "python_do_venv", lambda raiz, exe, prefixo=None: py)
+    monkeypatch.setattr(vam.subprocess, "run", run)
+    monkeypatch.setattr(sys, "argv", ["vam.py", "doctor", "--raiz", "x"])
+    return py, chamadas
+
+
+def test_reexecutar_no_venv_repassa_o_codigo_de_saida_do_filho(monkeypatch, tmp_path):
+    """No Windows o `os.execv` perde o código de saída: o vam roda o filho e sai com o código dele."""
+    py, chamadas = _com_venv_falso(monkeypatch, tmp_path, 3)
+    with pytest.raises(SystemExit) as saiu:
+        vam._reexecutar_no_venv()
+    assert saiu.value.code == 3
+    cmd, kw = chamadas[0]
+    assert cmd == [str(py), str(SCRIPTS / "vam.py"), "doctor", "--raiz", "x"]
+
+
+def test_reexecutar_no_venv_poe_pythonutf8_no_filho_e_nao_muda_o_ambiente_do_pai(monkeypatch, tmp_path):
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    _py, chamadas = _com_venv_falso(monkeypatch, tmp_path, 0)
+    with pytest.raises(SystemExit) as saiu:
+        vam._reexecutar_no_venv()
+    assert saiu.value.code == 0
+    assert chamadas[0][1]["env"]["PYTHONUTF8"] == "1"
+    assert "PYTHONUTF8" not in os.environ
+
+
+def test_reexecutar_no_venv_trava_o_filho_contra_laco_de_reexecucao(monkeypatch, tmp_path):
+    _py, chamadas = _com_venv_falso(monkeypatch, tmp_path, 0)
+    with pytest.raises(SystemExit):
+        vam._reexecutar_no_venv()
+    assert chamadas[0][1]["env"]["VAM_SEM_VENV"] == "1"
+    assert os.environ.get("VAM_SEM_VENV") is None
+
+
+def test_python_do_venv_com_venv_que_e_link_nao_reexecuta_quando_o_prefixo_e_o_destino_do_link(tmp_path):
+    """Um `.venv` que é um link para outra pasta: o `sys.prefix` do filho é o destino real, e não pode virar laço."""
+    real = tmp_path / "outro-lugar" / "venv"
+    py = plataforma.venv_python(real)
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    raiz = tmp_path / "repo"
+    raiz.mkdir()
+    try:
+        (raiz / ".venv").symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("sem permissão para criar link simbólico nesta máquina")
+    assert vam.python_do_venv(raiz, "/usr/bin/python3", prefixo=str(real)) is None
+
+
+def test_reexecutar_no_venv_nao_usa_execv(monkeypatch, tmp_path):
+    _com_venv_falso(monkeypatch, tmp_path, 0)
+    monkeypatch.setattr(vam.os, "execv", lambda *a: pytest.fail("os.execv perde o código de saída no Windows"))
+    with pytest.raises(SystemExit):
+        vam._reexecutar_no_venv()
+
+
+def test_reexecutar_no_venv_com_ctrl_c_sai_com_130_sem_traceback(monkeypatch, tmp_path):
+    _com_venv_falso(monkeypatch, tmp_path, KeyboardInterrupt())
+    with pytest.raises(SystemExit) as saiu:
+        vam._reexecutar_no_venv()
+    assert saiu.value.code == 130
+
+
+def test_vam_sem_venv_1_nao_reexecuta(monkeypatch, tmp_path):
+    _py, chamadas = _com_venv_falso(monkeypatch, tmp_path, 0)
+    monkeypatch.setenv("VAM_SEM_VENV", "1")
+    assert vam._reexecutar_no_venv() is None and chamadas == []
+
+
+def test_sem_venv_diferente_nao_reexecuta(monkeypatch, tmp_path):
+    _py, chamadas = _com_venv_falso(monkeypatch, tmp_path, 0)
+    monkeypatch.setattr(vam, "python_do_venv", lambda raiz, exe, prefixo=None: None)
+    assert vam._reexecutar_no_venv() is None and chamadas == []
+
+
+def test_a_ajuda_lista_o_comando_fumaca(capsys):
+    assert vam.main(["--help"]) == 0
+    assert "fumaca" in capsys.readouterr().out
 
 
 def test_rodar_o_vam_py_direto_mostra_a_ajuda(tmp_path):

@@ -18,16 +18,19 @@ O fluxo do modo avatar, na ordem:
     status [<slug>]                onde cada projeto parou e o próximo passo
 
 Take de câmera: `vam gravado` (vários takes) e `vam oneshot` (um take). Inserts de UI: `vam insert`.
+Prova de fumaça do render (o HyperFrames renderiza um overlay de 2 s nesta máquina): `vam fumaca --saida fumaca.mp4`.
 
 Os subcomandos moram em scripts/cli/<nome>.py (cada um com `registrar(subparsers)` e `executar(args) -> int`) e são
 descobertos sozinhos. Saídas: 0 fez · 1 defeito medido · 2 pedido ou insumo inválido.
 
-Se o repo tem `.venv` (criado pelo `bash setup.sh`) e quem roda não é o Python dele, o vam se reexecuta com ele:
-as dependências (numpy, opencv, pillow) moram lá. VAM_SEM_VENV=1 desliga isso.
+Se o repo tem `.venv` (criado pelo `bash setup.sh`) e quem roda não é o Python dele, o vam roda o Python dele como
+processo filho (PYTHONUTF8=1) e sai com o código de saída do filho: as dependências (numpy, opencv, pillow) moram lá.
+VAM_SEM_VENV=1 desliga isso. (Não usa `os.execv`: no Windows ele perde o código de saída.)
 """
 import argparse
 import importlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,26 +39,40 @@ RAIZ = SCRIPTS.parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import plataforma  # noqa: E402  (precisa do SCRIPTS no sys.path)
+
 
 def python_do_venv(raiz, executavel, prefixo=None):
     """O Python do `.venv` do repo, se existe e não é ele que já está rodando; senão None (não reexecuta em laço)."""
     venv = Path(raiz) / ".venv"
-    py = venv / "bin" / "python3"
+    py = plataforma.venv_python(raiz)           # .venv/bin/python (Mac, Linux) ou .venv/Scripts/python.exe (Windows)
     if not py.exists():
         return None
     if os.path.abspath(str(executavel)) == os.path.abspath(str(py)):
         return None
-    if prefixo is not None and os.path.abspath(str(prefixo)) == os.path.abspath(str(venv)):
-        return None
+    if prefixo is not None and os.path.realpath(str(prefixo)) == os.path.realpath(str(venv)):
+        return None                             # realpath: um `.venv` que é link para outra pasta não vira laço
     return py
 
 
 def _reexecutar_no_venv():
+    """Roda este mesmo comando no Python do `.venv` e sai com o código de saída dele; sem `.venv` útil, não faz nada.
+
+    `subprocess.run` e não `os.execv`: no Windows o execv não substitui o processo, o pai sai na hora com 0 e o código
+    de saída do filho se perde. PYTHONUTF8=1 vai só para o filho (o console do Windows usa cp1252 e quebra o acento)."""
     if os.environ.get("VAM_SEM_VENV") == "1":
         return
     py = python_do_venv(RAIZ, sys.executable, sys.prefix)
-    if py is not None:
-        os.execv(str(py), [str(py), str(Path(__file__).resolve())] + sys.argv[1:])
+    if py is None:
+        return
+    env = dict(os.environ)
+    env["PYTHONUTF8"] = "1"
+    env["VAM_SEM_VENV"] = "1"                   # o filho nunca se reexecuta de novo, aconteça o que acontecer
+    try:
+        codigo = subprocess.run([str(py), str(Path(__file__).resolve())] + sys.argv[1:], env=env).returncode
+    except KeyboardInterrupt:                   # o Ctrl-C também chegou ao filho, que já encerrou
+        sys.exit(130)
+    sys.exit(codigo)
 
 
 class _SemDependencia(object):

@@ -5,13 +5,19 @@ build faz) quais backends estão disponíveis, na ordem dele: parakeet (Apple Si
 faster-whisper (qualquer máquina) e Groq (nuvem, precisa de GROQ_API_KEY). O único
 acréscimo é rodar o `parakeet-mlx --help`: um launcher órfão (venv apagado) aparece como
 "disponível" e só estoura na hora de transcrever.
+
+No Windows o parakeet não existe (é Apple Silicon): faster-whisper é o transcritor normal e conta OK. O detalhe diz
+isso, para o aluno não achar que falta algo.
 """
 import importlib
 import sys
 
+import plataforma
+
 from ..doctor import FAIL, OK, WARN, Resultado
 
 NOME = "transcritor"
+SO_NO_MAC = "o parakeet só roda em Mac com Apple Silicon; no Windows o transcritor é o faster-whisper"
 
 
 def checar(amb):
@@ -33,12 +39,15 @@ def checar(amb):
                              "reinstale com `%s -m pip install --force-reinstall parakeet-mlx` "
                              "(ou defina GROQ_API_KEY para usar a Groq)" % sys.executable)
         return Resultado(NOME, FAIL, "nenhum transcritor disponível nesta máquina",
-                         T.mensagem_sem_transcritor(tamb))
+                         T.mensagem_sem_transcritor(tamb)
+                         + ((" (" + SO_NO_MAC + ")") if plataforma.eh_windows() else ""))
     principal, reserva = nomes[0], nomes[1:]
     nota = " (nuvem, pago por uso)" if principal == "groq" else ""
     detalhe = "usa %s%s" % (principal, nota)
     if reserva:
         detalhe += "; reserva: " + ", ".join(reserva)
+    if plataforma.eh_windows():
+        detalhe += " (%s)" % SO_NO_MAC
     if quebrado is not None:
         return Resultado(NOME, WARN, "o parakeet-mlx não executa (%s); %s" % (quebrado, detalhe),
                          "reinstale com `%s -m pip install --force-reinstall parakeet-mlx`"
