@@ -44,11 +44,11 @@ The skill itself is `SKILL.md`: a router with the checklists, the numbers and th
 
 Prerequisites:
 
-- macOS (Apple Silicon is the official platform) or Linux
-- Python 3.9 or newer
+- macOS (Apple Silicon or Intel), Linux, or Windows 10/11 (native, inside the Claude desktop app, no WSL)
+- Python 3.9 or newer (3.12 recommended)
 - Node.js 22 or newer
 - ffmpeg built with libass
-- Claude Code
+- Claude Code or the Claude desktop app. On Windows both run shell commands through Git Bash, so install Git for Windows
 
 ```bash
 git clone <repo-url> video-ads-machine      # into your Claude Code skills folder
@@ -57,7 +57,34 @@ bash scripts/setup.sh                       # creates .venv, installs HyperFrame
 python3 scripts/vam.py doctor               # must end with no FAIL
 ```
 
-`setup.sh` is idempotent and no step aborts the next ones; whatever fails becomes one line with the fix command. `bash scripts/setup.sh --checar` only reports. The doctor checks ffmpeg with libass, Node and the repo's HyperFrames, the Python dependencies, a transcriber (`parakeet-mlx`, `faster-whisper` or Groq), the fonts, the local GSAP copy and the HeyGen key with your balance. Any FAIL stops everything.
+### Windows (native)
+
+Open a terminal (PowerShell) and install the prerequisites, one command each:
+
+```powershell
+winget install -e --id Git.Git
+winget install -e --id Python.Python.3.12
+winget install -e --id OpenJS.NodeJS.LTS
+winget install -e --id Gyan.FFmpeg
+```
+
+Then close and reopen the Claude app, so the new PATH applies. Run the same `git clone` and `bash scripts/setup.sh` from the Claude app (it runs commands through Git Bash). On Windows, write `python scripts/vam.py ...` where this README says `python3 scripts/vam.py ...`: the `python3` of Windows may be the Microsoft Store shortcut, which does not run Python. `setup.sh` skips that shortcut on its own.
+
+### Transcriber per system
+
+| System | Transcriber | Where it runs |
+|---|---|---|
+| Mac Apple Silicon | `parakeet-mlx` | local |
+| Mac Intel, Linux, Windows | `faster-whisper`, language forced to Portuguese | local |
+| any system without a local transcriber | Groq | cloud, pay per use, fallback only |
+
+Take cutting (one-shot and camera takes) refuses Groq, because its word timing is not reliable enough to cut on.
+
+### Quick render check
+
+`python3 scripts/vam.py fumaca --saida fumaca.mp4` renders a 2-second overlay in 10 to 20 seconds, with no project and no media. It exits 0 only if Node, HyperFrames, Chromium and the fonts work on this machine. Run it after the doctor, before the first ad.
+
+`setup.sh` is idempotent and no step aborts the next ones; whatever fails becomes one line with the fix command. `bash scripts/setup.sh --checar` only reports. The doctor checks ffmpeg with libass, Node and the repo's HyperFrames, the Python dependencies, a transcriber (`parakeet-mlx` on Apple Silicon, `faster-whisper` elsewhere, Groq as a cloud fallback), the fonts, the local GSAP copy and the HeyGen key with your balance. Any FAIL stops everything.
 
 ## Accounts and keys
 

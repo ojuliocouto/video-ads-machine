@@ -2,7 +2,7 @@
 
 Este guia leva você da instalação ao primeiro anúncio vertical (9:16) entregue, comando por comando, no caminho do avatar. No fim há as variações para take gravado e para take único. Você conversa com o Claude Code; ele roda os comandos e lê as respostas. Os comandos estão aqui para você entender e conferir o que ele faz.
 
-Todo comando abaixo é rodado na raiz da pasta do repo. `python3 scripts/vam.py` é a CLI única; todo comando termina com um destes códigos: **0** fez, **1** defeito medido no seu material, **2** pedido ou insumo inválido. Quando algo trava, rode `python3 scripts/vam.py status <nome-do-projeto>`: ele diz a etapa e o próximo comando.
+Todo comando abaixo é rodado na raiz da pasta do repo. `python3 scripts/vam.py` (no Windows, `python scripts/vam.py`) é a CLI única; todo comando termina com um destes códigos: **0** fez, **1** defeito medido no seu material, **2** pedido ou insumo inválido. Quando algo trava, rode `python3 scripts/vam.py status <nome-do-projeto>`: ele diz a etapa e o próximo comando.
 
 ## Sumário
 
@@ -20,8 +20,19 @@ Todo comando abaixo é rodado na raiz da pasta do repo. `python3 scripts/vam.py`
 
 ## 1. O que você precisa antes de começar
 
-- Mac (Apple Silicon) ou Linux, com Python 3.9 ou mais novo, Node 22 ou mais novo e ffmpeg com libass (`brew install ffmpeg` no Mac).
-- Claude Code instalado.
+- Mac (Apple Silicon ou Intel), Linux ou Windows 10 ou 11 (nativo, sem WSL), com Python 3.9 ou mais novo, Node 22 ou mais novo e ffmpeg com libass.
+- Claude Code ou o app desktop do Claude instalado.
+- No Mac: `brew install python@3.12 node@22 ffmpeg`. No Debian ou Ubuntu: `sudo apt install python3 python3-venv nodejs ffmpeg` (o Node precisa ser o 22 ou mais novo).
+- No Windows, instale o Git for Windows (ele traz o Git Bash, por onde o Claude roda os comandos) e os outros três, um comando de cada vez, no PowerShell:
+
+```
+winget install -e --id Git.Git
+winget install -e --id Python.Python.3.12
+winget install -e --id OpenJS.NodeJS.LTS
+winget install -e --id Gyan.FFmpeg
+```
+
+  Depois feche e abra o app do Claude, para o PATH novo valer. No guia inteiro, onde está `python3 scripts/vam.py`, escreva `python scripts/vam.py`: o `python3` do Windows pode ser o atalho da Microsoft Store, que não executa Python.
 - Uma conta na HeyGen com a chave de API (só para o avatar). É paga por uso, em dólar: um anúncio de cerca de 1 minuto custa de US$ 3,20 a US$ 4,40 de avatar, e o sistema para sozinho se um job passar de US$ 5,00.
 - Um roteiro curto (de 30 a 60 segundos de fala).
 - Um gravador de voz (o celular serve), em lugar silencioso, com a sua voz de verdade. Não existe voz sintética aqui.
@@ -39,6 +50,16 @@ python3 scripts/vam.py doctor
 O `setup.sh` cria o `.venv`, instala o HyperFrames (que renderiza o texto na tela), guarda uma cópia do GSAP e cria o arquivo `.env`. Abra o `.env` e coloque a chave: `HEYGEN_API_KEY=...`. O arquivo fica fora do git e nunca vai para lugar nenhum.
 
 O `doctor` mostra `OK`, `WARN` ou `FAIL` por item, com a linha do conserto. **`FAIL` para tudo.** Aplique o conserto e rode o doctor de novo até não sobrar nenhum `FAIL`. `WARN` pode ficar.
+
+O transcritor (o que escreve a sua fala para conferir o áudio) é local e depende da máquina. No Mac com Apple Silicon é o `parakeet-mlx`. No Mac Intel, no Linux e no Windows é o `faster-whisper`, com o idioma forçado em português. A Groq (nuvem, paga por uso) só entra como reserva, e o corte de take não aceita a Groq.
+
+Com o doctor limpo, faça a prova rápida do render:
+
+```
+python3 scripts/vam.py fumaca --saida fumaca.mp4
+```
+
+Ela renderiza um vídeo de 2 segundos em 10 a 20 segundos, sem projeto e sem material seu. Saída 0 quer dizer que o Node, o HyperFrames, o Chromium e as fontes funcionam nesta máquina. Se falhar, o erro diz o que consertar antes de você gastar um anúncio.
 
 ## 3. Preparar o que é seu
 

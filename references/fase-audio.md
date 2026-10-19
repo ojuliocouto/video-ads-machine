@@ -29,7 +29,7 @@ Pausa longa e limpa é ritmo e é boa: o que se mede é energia dentro da pausa,
 
 ## Quando o transcritor erra
 
-A fala x roteiro usa o transcritor da máquina (parakeet, faster-whisper ou Groq, nessa ordem). Se o nome do produto sai errado ("Cloud" por "Claude"), declare a variante em `_local/glossario.json`. Não edite o roteiro para casar com o erro do ASR.
+A fala x roteiro usa o transcritor da máquina (parakeet no Apple Silicon, faster-whisper nos outros sistemas e Groq só como reserva na nuvem). Se o nome do produto sai errado ("Cloud" por "Claude"), declare a variante em `_local/glossario.json`. Não edite o roteiro para casar com o erro do ASR.
 
 ## Regras
 

@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Video Ads Machine
 
-Do roteiro ao anúncio 9:16, com gates medidos e duas aprovações humanas. Tudo roda na máquina de quem usa, pela CLI única `vam`. **Toda vez que esta skill diz `vam <comando>`, rode `python3 scripts/vam.py <comando>` na raiz do repo.** Cada comando termina com 0 (fez), 1 (defeito medido) ou 2 (pedido ou insumo inválido) e imprime o próximo passo.
+Do roteiro ao anúncio 9:16, com gates medidos e duas aprovações humanas. Tudo roda na máquina de quem usa, pela CLI única `vam`. **Toda vez que esta skill diz `vam <comando>`, rode `python3 scripts/vam.py <comando>` na raiz do repo (no Windows, `python scripts/vam.py <comando>`).** Cada comando termina com 0 (fez), 1 (defeito medido) ou 2 (pedido ou insumo inválido) e imprime o próximo passo.
 
 ## 1. Quando usar e quando NÃO usar
 
@@ -28,6 +28,17 @@ Se a skill vizinha não estiver instalada, diga isso ao usuário em vez de impro
 ## 2. Passo 0: `vam doctor` barra
 
 Antes de qualquer render ou crédito, rode `vam doctor`. Ele confere ffmpeg com libass, Node e o HyperFrames do repo, as dependências Python, o transcritor (parakeet, faster-whisper ou Groq), as fontes e a chave do HeyGen com o saldo. Cada item sai OK, WARN ou FAIL com uma linha de conserto. **Qualquer FAIL para tudo**: rode o conserto impresso (quase sempre `bash scripts/setup.sh`) e o doctor de novo. WARN passa. Sem chave do HeyGen o modo avatar fica desligado, e o gravado e o one-shot seguem. Contas, chaves e custo em `references/onboarding.md`.
+
+**Sistemas**: macOS (Apple Silicon e Intel), Linux e Windows 10 ou 11, nativo. No Windows a skill roda dentro do app desktop do Claude, que executa os comandos pelo Git Bash (vem com o Git for Windows). Não use WSL. Pré-requisitos do Windows, um comando por item (depois de instalar, feche e abra o app do Claude, para o PATH valer):
+
+```
+winget install -e --id Git.Git
+winget install -e --id Python.Python.3.12
+winget install -e --id OpenJS.NodeJS.LTS
+winget install -e --id Gyan.FFmpeg
+```
+
+**Transcritor** (sempre local; a Groq só entra como reserva na nuvem): Mac Apple Silicon usa `parakeet-mlx`. Mac Intel, Linux e Windows usam `faster-whisper`, com o idioma forçado em português. O corte de take (one-shot e gravado) recusa a Groq. **Prova rápida do render**: `vam fumaca --saida fumaca.mp4` renderiza um overlay de 2 s em 10 a 20 s e sai com 0 só se o Node, o HyperFrames, o Chromium e as fontes funcionam nesta máquina.
 
 ## 3. Escolha o caminho
 
