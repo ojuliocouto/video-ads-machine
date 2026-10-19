@@ -33,6 +33,7 @@ sombra grande, fundo escuro.
     raio                24px
 """
 import os
+import tempfile
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -149,7 +150,7 @@ def png_navegador(aspecto, destino, rotulo=None):
 if __name__ == "__main__":
     import sys
     asp = float(sys.argv[1]) if len(sys.argv) > 1 else 16 / 9
-    out = sys.argv[2] if len(sys.argv) > 2 else "/tmp/moldura.png"
+    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(tempfile.gettempdir(), "moldura.png")
     m = png_navegador(asp, out)
     print(f"  aspecto {asp:.3f} -> janela {m['janela_w']}x{m['janela_h']}  "
           f"card {m['card_w']}x{m['card_h']}  canvas {m['canvas_w']}x{m['canvas_h']}")

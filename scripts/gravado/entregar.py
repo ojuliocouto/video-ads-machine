@@ -30,7 +30,6 @@ que devolve (ok, motivo))`.
 import argparse
 import hashlib
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -39,6 +38,7 @@ if __package__ in (None, ""):            # rodado como script: tira scripts/grav
     sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != _AQUI]
     sys.path.insert(0, str(_AQUI.parent))
 
+import plataforma  # noqa: E402
 from gravado import (auditar, gate_ar_morto, gate_emendas, gate_envelope, gate_fala,  # noqa: E402
                      gate_legenda, gate_offscript, gate_redundancia, gate_repeticao,
                      gate_retomada, gate_sincronia, gate_voz_distante, legendar, queimar_legenda)
@@ -168,9 +168,7 @@ def _sha256(caminho):
 
 
 def _abrir(pasta):
-    ferramenta = {"darwin": "open", "linux": "xdg-open"}.get(sys.platform)
-    if ferramenta and shutil.which(ferramenta):
-        subprocess.run([ferramenta, str(pasta)], capture_output=True)
+    plataforma.abrir_pasta(pasta)
 
 
 def entregar(proj, gates=None, abrir=False, leitor=None):
