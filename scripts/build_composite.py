@@ -44,6 +44,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cache_overlay  # noqa: E402
+import plataforma  # noqa: E402
 from caminhos import CODIGO, RAIZ, TEMPLATES  # noqa: E402
 
 # Aceleração PADRÃO do arquivo entregue com avatar (o projeto.json manda: 1,35 com avatar e 1,2 com take real).
@@ -71,7 +72,7 @@ class ErroDoMotor(RuntimeError):
 
 
 def _rodar(cmd, etapa, **kw):
-    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, **kw)
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
     if r.returncode != 0:
         quem = " ".join(Path(str(c)).name for c in cmd[:2])
         raise ErroDoMotor(etapa, "%s saiu com %d: %s" % (quem, r.returncode,
@@ -81,7 +82,8 @@ def _rodar(cmd, etapa, **kw):
 
 def vdur(f):
     o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                        "-of", "default=nw=1:nk=1", str(f)], capture_output=True, text=True).stdout.strip()
+                        "-of", "default=nw=1:nk=1", str(f)], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace").stdout.strip()
     return float(o) if o else 0.0
 
 
@@ -116,8 +118,15 @@ def assinatura_template(formato):
     return html_injecao.assinatura_template(t) if t.is_file() else "ausente"
 
 
+def hyperframes_cmd():
+    """O argv que roda o HyperFrames do repo (`["node", <cli.js>]`, via `plataforma.hf_cmd`). Levanta ErroHyperFrames
+    se o pacote não está instalado."""
+    return plataforma.hf_cmd(RAIZ)
+
+
 def hyperframes():
-    """O binário do HyperFrames do repo (node_modules/.bin, instalado pelo setup.sh na versão pinada)."""
+    """O shim `node_modules/.bin/hyperframes`. DEPRECIADO: no Windows o shim é um script de shell sem extensão e não
+    executa. Quem roda o HyperFrames usa `hyperframes_cmd()`; esta função fica só para quem ainda lê o caminho."""
     return RAIZ / "node_modules" / ".bin" / "hyperframes"
 
 
@@ -289,7 +298,7 @@ class Motor(object):
         tela vazia ou janela de CTA longa NÃO é erro de ferramenta: fica em `saida_overlay` para o gate_tela_vazia."""
         self.overlay_dir.mkdir(parents=True, exist_ok=True)
         r = subprocess.run([sys.executable, str(CODIGO / "gen_ad_v2.py"), str(self.config)], capture_output=True,
-                           text=True, env=self.env_motor(), cwd=str(CODIGO))
+                           text=True, encoding="utf-8", errors="replace", env=self.env_motor(), cwd=str(CODIGO))
         texto = (r.stdout or "") + (r.stderr or "")
         self.saida_overlay = (r.returncode, texto)
         if r.returncode != 0:
@@ -307,7 +316,8 @@ class Motor(object):
         only.mkdir(parents=True)
         (only / "index.html").write_text((self.overlay_dir / "index_overlay.html").read_text(encoding="utf-8"),
                                          encoding="utf-8")
-        os.symlink(self.overlay_dir / "fonts", only / "fonts")
+        # cópia, não symlink: o symlink pede privilégio no Windows (e a pasta de fontes é pequena)
+        shutil.copytree(str(self.overlay_dir / "fonts"), str(only / "fonts"), dirs_exist_ok=True)
         shutil.copy(self.overlay_dir / "logo.png", only / "logo.png")
         if (self.overlay_dir / "meta.json").exists():
             shutil.copy(self.overlay_dir / "meta.json", only / "meta.json")
@@ -324,16 +334,17 @@ class Motor(object):
             if movs and cache_overlay.reaproveitavel(html, movs[-1], sig):
                 self.overlay_mov = movs[-1]
                 return self.overlay_mov
-        hf = hyperframes()
-        if not hf.exists():
-            raise ErroDoMotor("render_overlay", "o HyperFrames não está instalado em %s: rode bash setup.sh" % hf)
+        try:
+            hf = hyperframes_cmd()
+        except plataforma.ErroHyperFrames as erro:
+            raise ErroDoMotor("render_overlay", "%s (rode bash setup.sh)" % erro)
         only = self.projeto_do_overlay()
-        _rodar([hf, "render", ".", "--format", "mov", "-f", "30", "--workers", "1",
+        _rodar(hf + ["render", ".", "--format", "mov", "-f", "30", "--workers", "1",
                 "--experimental-fast-capture=false"], "render_overlay", cwd=str(only))
         movs = sorted((only / "renders").glob("*.mov"), key=lambda p: p.stat().st_mtime)
         if not movs:
             raise ErroDoMotor("render_overlay", "o HyperFrames não gravou o MOV em %s" % (only / "renders"))
-        sig.write_text(cache_overlay.assinatura([html]))
+        sig.write_text(cache_overlay.assinatura([html]), encoding="utf-8")
         self.overlay_mov = movs[-1]
         return self.overlay_mov
 
@@ -388,7 +399,7 @@ class Motor(object):
                 parcial], "timestamp")
         pts = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time",
                               "-of", "csv=p=0", "-read_intervals", "%+0.2", str(parcial)],
-                             capture_output=True, text=True).stdout.split()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
         if pts and min(float(x) for x in pts if x) < -0.001:
             raise ErroDoMotor("timestamp", "timestamp de vídeo negativo depois do remux (%s): o arquivo "
                                            "desincroniza no player" % pts[:3])

@@ -30,7 +30,7 @@ horizontal (`moldura.py`). `painel` (1080x1150) é o painel de cima do split 60/
 
 ## O render
 
-`motor_padrao()` escolhe, nesta ordem: o `node_modules/.bin/hyperframes` do repo e, sem ele, um Chrome do sistema dirigido pelo Playwright (screenshot por
+`motor_padrao()` escolhe, nesta ordem: o HyperFrames do repo (`plataforma.hf_cmd`: `node <cli.js>`) e, sem ele, um Chrome do sistema dirigido pelo Playwright (screenshot por
 quadro e ffmpeg). Sem nenhum dos dois sai UMA linha com `bash scripts/setup.sh`. O motor é um objeto
 chamável `motor(pedido)`: nos testes entra um falso, e o render de verdade fica no teste `lento`.
 A saída é atômica: o vídeo nasce num temporário ao lado do destino e só então vira o arquivo final.
@@ -45,6 +45,8 @@ import subprocess
 import tempfile
 from collections import namedtuple
 from pathlib import Path
+
+import plataforma
 
 RAIZ = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = RAIZ / "templates" / "inserts_ui"
@@ -776,7 +778,7 @@ def _fim(texto, linhas=3):
 def _executar(cmd, cwd=None, timeout=900):
     try:
         r = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           universal_newlines=True, errors="replace", timeout=timeout)
+                           universal_newlines=True, encoding="utf-8", errors="replace", timeout=timeout)
         return r.returncode, r.stdout
     except subprocess.TimeoutExpired:
         return 124, "tempo esgotado (%d s)" % timeout
@@ -788,12 +790,13 @@ class MotorHyperframes:
     """`hyperframes render <pasta> -o <mp4> --fps N`: a composição já é uma pasta de projeto."""
     nome = "hyperframes"
 
-    def __init__(self, binario, executar=None):
-        self.binario = str(binario)
+    def __init__(self, comando, executar=None):
+        # `comando` é o argv do HyperFrames (`plataforma.hf_cmd`); um texto vira um argv de um item
+        self.comando = [str(comando)] if isinstance(comando, (str, bytes, os.PathLike)) else [str(c) for c in comando]
         self._executar = executar or _executar
 
     def __call__(self, pedido):
-        cmd = [self.binario, "render", str(pedido.pasta), "-o", str(pedido.saida),
+        cmd = self.comando + ["render", str(pedido.pasta), "-o", str(pedido.saida),
                "--fps", str(pedido.fps), "--workers", "2", "--quiet"]
         rc, saida = self._executar(cmd, cwd=str(pedido.pasta), timeout=900)
         if rc != 0:
@@ -847,23 +850,41 @@ class MotorNavegador:
             raise RenderFalhou("o ffmpeg saiu com erro %s: %s" % (rc, _fim(saida)))
 
 
+def _navegadores_do_mac():
+    return [Path(c) for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                              "/Applications/Chromium.app/Contents/MacOS/Chromium",
+                              "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                              "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser")]
+
+
+def _navegadores_do_windows():
+    """Os lugares onde o instalador do Chrome e do Edge grava o .exe: Arquivos de Programas, x86 e %LOCALAPPDATA%."""
+    chrome = Path("Google") / "Chrome" / "Application" / "chrome.exe"
+    edge = Path("Microsoft") / "Edge" / "Application" / "msedge.exe"
+    bases = []
+    for var, padrao in (("PROGRAMFILES", "C:\\Program Files"), ("PROGRAMFILES(X86)", "C:\\Program Files (x86)"),
+                        ("LOCALAPPDATA", "")):
+        base = os.environ.get(var) or padrao
+        if base:
+            bases.append(Path(base))
+    return [base / exe for exe in (chrome, edge) for base in bases]
+
+
 def _achar_navegador():
     """Um Chrome, Chromium ou Edge do sistema (ou o headless shell que o HyperFrames baixa), ou None."""
-    mac = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-           "/Applications/Chromium.app/Contents/MacOS/Chromium",
-           "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-           "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"]
-    for c in mac:
-        if Path(c).is_file():
-            return Path(c)
-    for nome in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome",
-                 "microsoft-edge"):
+    windows = plataforma.eh_windows()
+    for c in (_navegadores_do_windows() if windows else _navegadores_do_mac()):
+        if c.is_file():
+            return c
+    nomes = (("chrome.exe", "msedge.exe", "chrome", "msedge") if windows else
+             ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome", "microsoft-edge"))
+    for nome in nomes:
         achado = shutil.which(nome)
         if achado:
             return Path(achado)
     cache = Path.home() / ".cache" / "hyperframes" / "chrome"
     if cache.is_dir():
-        for c in sorted(cache.glob("**/chrome-headless-shell")):
+        for c in sorted(cache.glob("**/chrome-headless-shell.exe" if windows else "**/chrome-headless-shell")):
             if c.is_file() and os.access(str(c), os.X_OK):
                 return c
     return None
@@ -877,9 +898,10 @@ def _playwright_disponivel():
 def motor_padrao(raiz=None):
     """O motor de render disponível: o HyperFrames do repo e, sem ele, um Chrome do sistema com Playwright."""
     raiz = Path(raiz) if raiz is not None else RAIZ
-    binario = raiz / "node_modules" / ".bin" / "hyperframes"
-    if binario.is_file() and os.access(str(binario), os.X_OK):
-        return MotorHyperframes(binario)
+    try:
+        return MotorHyperframes(plataforma.hf_cmd(raiz))
+    except plataforma.ErroHyperFrames:
+        pass                # sem o pacote instalado: cai no Chrome do sistema
     navegador = _achar_navegador()
     if navegador and _playwright_disponivel():
         return MotorNavegador(navegador)

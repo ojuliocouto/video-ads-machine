@@ -612,18 +612,19 @@ def test_formatar_pt_br():
 # --- escolha do motor --------------------------------------------------------------------------
 
 def _hyperframes_falso(raiz):
-    pasta = raiz / "node_modules" / ".bin"
-    pasta.mkdir(parents=True)
-    hf = pasta / "hyperframes"
-    hf.write_text("#!/bin/sh\nexit 0\n")
-    hf.chmod(0o755)
-    return hf
+    """node_modules/hyperframes/ com o `bin` do package.json (o que `plataforma.hf_cmd` lê); devolve o cli.js."""
+    pacote = raiz / "node_modules" / "hyperframes"
+    (pacote / "dist").mkdir(parents=True)
+    (pacote / "package.json").write_text('{"bin": {"hyperframes": "./dist/cli.js"}}', encoding="utf-8")
+    cli = pacote / "dist" / "cli.js"
+    cli.write_text("// cli\n", encoding="utf-8")
+    return cli
 
 
 def test_motor_padrao_prefere_o_hyperframes_do_repo(tmp_path):
-    hf = _hyperframes_falso(tmp_path)
+    cli = _hyperframes_falso(tmp_path)
     motor = insert_ui.motor_padrao(tmp_path)
-    assert motor.nome == "hyperframes" and Path(motor.binario) == hf
+    assert motor.nome == "hyperframes" and motor.comando == ["node", str(cli)]
 
 
 def test_sem_hyperframes_usa_o_chrome_do_sistema_com_playwright(tmp_path, monkeypatch):
@@ -667,9 +668,9 @@ def test_comando_do_hyperframes(tmp_path):
         pedido.saida.write_bytes(b"x")
         return 0, ""
 
-    insert_ui.MotorHyperframes("/x/hyperframes", executar=executar)(pedido)
+    insert_ui.MotorHyperframes(["node", "/x/cli.js"], executar=executar)(pedido)
     (cmd,) = chamadas
-    assert cmd[:2] == ["/x/hyperframes", "render"]
+    assert cmd[:3] == ["node", "/x/cli.js", "render"]
     assert str(pedido.pasta) in cmd
     assert cmd[cmd.index("-o") + 1] == str(pedido.saida)
     assert cmd[cmd.index("--fps") + 1] == "30"
