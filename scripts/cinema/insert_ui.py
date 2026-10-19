@@ -862,9 +862,10 @@ def _navegadores_do_windows():
     chrome = Path("Google") / "Chrome" / "Application" / "chrome.exe"
     edge = Path("Microsoft") / "Edge" / "Application" / "msedge.exe"
     bases = []
-    for var, padrao in (("PROGRAMFILES", "C:\\Program Files"), ("PROGRAMFILES(X86)", "C:\\Program Files (x86)"),
-                        ("LOCALAPPDATA", "")):
-        base = os.environ.get(var) or padrao
+    # Só as variáveis do sistema: o Windows sempre define as três. Um "C:\\Program Files" cravado como reserva faz o
+    # motor achar o Chrome real da máquina mesmo quando quem chama (ou o teste) tirou a variável de propósito.
+    for var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        base = os.environ.get(var)
         if base:
             bases.append(Path(base))
     return [base / exe for exe in (chrome, edge) for base in bases]

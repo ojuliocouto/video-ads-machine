@@ -108,7 +108,9 @@ def montar_projeto(pasta):
                         'id="hook" class="clip" data-start="0" data-duration="%s"' % DURACAO_S)
     for classe, texto in zip(("eyebrow", "l1", "accent"), TEXTO_DO_GANCHO):
         html = re.sub(r'(class="%s">)[^<]*(</div>)' % classe, lambda m: m.group(1) + texto + m.group(2), html, count=1)
-    (pasta / "index.html").write_text(html, encoding="utf-8")
+    # newline="\n": o write_text do Windows trocaria cada LF por CRLF; o HTML sai igual nos três sistemas
+    with open(str(pasta / "index.html"), "w", encoding="utf-8", newline="\n") as arquivo:
+        arquivo.write(html)
     if (pasta / "fonts").exists():
         shutil.rmtree(pasta / "fonts")
     shutil.copytree(str(TEMPLATE_DIR / "fonts"), str(pasta / "fonts"))
@@ -134,6 +136,15 @@ def conferir_fontes(projeto):
             problemas.append("%s não é uma fonte woff2 (%d bytes, começa com %r): no Windows isso é um symlink do git "
                              "que virou texto" % (rel, arquivo.stat().st_size, inicio))
     return problemas
+
+
+def pasta_de_trabalho():
+    """Uma pasta temporária nova, já no caminho completo (sem `..`, sem link, sem nome curto 8.3).
+
+    No Windows o `%TEMP%` de um runner ou de um usuário com nome longo vem no formato curto (`C:\\Users\\RUNNER~1\\...`).
+    O HyperFrames compara o caminho do arquivo servido com o da pasta do projeto, e a mesma pasta escrita de dois
+    jeitos (curto e longo) reprova a comparação. `resolve()` troca pelo nome real."""
+    return Path(tempfile.mkdtemp(prefix="vam-fumaca-")).resolve()
 
 
 def renderizar(raiz, projeto, destino, timeout=TIMEOUT_RENDER_S):
@@ -169,7 +180,7 @@ def executar(args):
     except OSError as e:
         C.erro(NOME, "não consegui preparar %s: %s" % (destino, e))
         return C.SAIDA_USO
-    trabalho = Path(tempfile.mkdtemp(prefix="vam-fumaca-"))
+    trabalho = pasta_de_trabalho()
     try:
         try:
             projeto = montar_projeto(trabalho / "projeto")
