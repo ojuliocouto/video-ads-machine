@@ -7,6 +7,10 @@ provar, sem rede e sem instalar nada, que:
   - a segunda execução não reinstala nada;
   - o Python do sistema (PEP 668, "externally-managed-environment") nunca recebe `pip install`;
   - um passo que falha não derruba os seguintes, e o resumo no fim lista o conserto de cada um.
+
+No Windows os mesmos testes rodam no Git Bash (W2): os stubs são scripts de bash gravados com LF, o PATH usa o separador
+do sistema, as ferramentas básicas do PATH falso são pequenos scripts que chamam o `/usr/bin/<nome>` do Git Bash (o
+symlink para um .exe não executa) e os caminhos que o script imprime (`/c/pasta`) são comparados no formato dele.
 """
 import os
 import re
@@ -17,9 +21,11 @@ from pathlib import Path
 
 import pytest
 
+import plataforma
+from tests.fixtures.git_bash import BASH, caminho_bash, caminho_msys
+
 RAIZ_REAL = Path(__file__).resolve().parent.parent.parent
 SETUP_REAL = RAIZ_REAL / "scripts" / "setup.sh"
-BASH = "/bin/bash" if Path("/bin/bash").exists() else shutil.which("bash")
 
 # O que o setup.sh e os stubs chamam, fora os stubs. Sem python, node, npm nem curl: esses são sempre os falsos.
 FERRAMENTAS_DO_SISTEMA = ("dirname", "sed", "head", "tr", "cat", "cut", "wc", "grep", "cksum", "mkdir", "cp", "mv", "rm",
@@ -101,6 +107,47 @@ exit 0
 '''
 
 
+def escrever_script(caminho, conteudo):
+    """Grava um script de bash com LF e permissão de execução, em qualquer sistema (o `write_text` do Windows poria CRLF
+    e o `#!/bin/bash\\r` não existe)."""
+    caminho = Path(caminho)
+    caminho.write_bytes(conteudo.encode("utf-8"))
+    caminho.chmod(0o755)
+    return caminho
+
+
+def pasta_usr_bin_do_git_bash(bash=None):
+    """A pasta `usr/bin` do Git for Windows, de onde vêm dirname, sed, cp... Só faz sentido no Windows."""
+    bash = Path(bash or BASH)
+    for pasta in (bash.parent, bash.parent.parent / "usr" / "bin", bash.parent.parent.parent / "usr" / "bin"):
+        if (pasta / "dirname.exe").is_file():
+            return pasta
+    return None
+
+
+def montar_ferramentas(destino, nomes, windows, usr_bin=None):
+    """Põe em `destino` as ferramentas básicas do sistema que o PATH falso deixa passar.
+
+    Fora do Windows: um symlink para o executável do PATH real. No Windows o symlink para um `.exe` não executa no
+    Git Bash ("command not found"), então cada ferramenta vira um script que faz `exec /usr/bin/<nome>`: o caminho
+    absoluto do Git Bash acha o programa e a DLL dele sem precisar de /usr/bin no PATH. Só entra o que existe em
+    `usr_bin`. Devolve os nomes montados."""
+    destino = Path(destino)
+    feitos = []
+    for nome in nomes:
+        if windows:
+            if usr_bin is None or not (Path(usr_bin) / (nome + ".exe")).is_file():
+                continue
+            escrever_script(destino / nome, '#!/bin/bash\nexec "/usr/bin/%s" "$@"\n' % nome)
+        else:
+            origem = shutil.which(nome)
+            if not origem:
+                continue
+            (destino / nome).symlink_to(origem)
+        feitos.append(nome)
+    return feitos
+
+
 @pytest.fixture
 def mundo(tmp_path):
     """Repo falso + PATH falso. Devolve um objeto com `rodar(...)` e acesso ao log."""
@@ -116,49 +163,57 @@ class Mundo(object):
         self.home = base / "home"
         self.home.mkdir(parents=True)
         self.bin.mkdir()
-        self.log.write_text("")
+        self.log.write_text("", encoding="utf-8")
         # O PATH do setup tem só os stubs e estas ferramentas do sistema. Nada de /usr/bin inteiro: num runner Linux ele
         # traz python3.12, node e curl de verdade, que o setup preferiria aos stubs.
         self.ferramentas = base / "ferramentas"
         self.ferramentas.mkdir()
-        for nome in FERRAMENTAS_DO_SISTEMA:
-            origem = shutil.which(nome)
-            if origem:
-                (self.ferramentas / nome).symlink_to(origem)
+        montar_ferramentas(self.ferramentas, FERRAMENTAS_DO_SISTEMA, plataforma.eh_windows(),
+                           pasta_usr_bin_do_git_bash() if plataforma.eh_windows() else None)
         for nome, conteudo in (("python3", PY_SISTEMA), ("venv-python", PY_VENV), ("npm", NPM),
                                ("hyperframes", HYPERFRAMES), ("node", NODE), ("curl", CURL), ("uname", UNAME)):
-            alvo = self.bin / nome
-            alvo.write_text(conteudo)
-            alvo.chmod(0o755)
+            escrever_script(self.bin / nome, conteudo)
         (repo / "scripts").mkdir(parents=True)
         shutil.copy(str(SETUP_REAL), str(repo / "scripts" / "setup.sh"))
-        (repo / "scripts" / "init_local.py").write_text("")
-        (repo / "scripts" / "som_cortes.py").write_text("")
-        (repo / "scripts" / "vam.py").write_text("")
+        (repo / "scripts" / "init_local.py").write_text("", encoding="utf-8")
+        (repo / "scripts" / "som_cortes.py").write_text("", encoding="utf-8")
+        (repo / "scripts" / "vam.py").write_text("", encoding="utf-8")
         (repo / "package.json").write_text(
-            '{\n  "dependencies": {\n    "hyperframes": "0.7.56"\n  }\n}\n')
-        (repo / "requirements.txt").write_text("numpy\nopencv-python-headless\npillow\nscipy\n")
-        (repo / ".env.example").write_text("# chave\nHEYGEN_API_KEY=\n")
+            '{\n  "dependencies": {\n    "hyperframes": "0.7.56"\n  }\n}\n', encoding="utf-8")
+        (repo / "requirements.txt").write_text("numpy\nopencv-python-headless\npillow\nscipy\n", encoding="utf-8")
+        (repo / ".env.example").write_text("# chave\nHEYGEN_API_KEY=\n", encoding="utf-8")
         (repo / "templates" / "reel-editorial").mkdir(parents=True)
         (repo / "templates" / "reel-editorial" / "index.html").write_text(
-            '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>')
+            '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>', encoding="utf-8")
+
+    def cm(self, *partes):
+        """Um caminho do repo no formato em que o setup o escreve no log (`/c/pasta` no Git Bash)."""
+        return caminho_msys(self.repo.joinpath(*partes))
+
+    @property
+    def path(self):
+        """O PATH falso: os stubs, depois as ferramentas básicas, com o separador do sistema."""
+        return os.pathsep.join([str(self.bin), str(self.ferramentas)])
 
     def rodar(self, *args, falhas="", node=None, python_velho=False, uname=None):
-        env = {"PATH": "{}:{}".format(self.bin, self.ferramentas), "HOME": str(self.home),
-               "STUB_LOG": str(self.log), "STUB_DIR": str(self.bin), "STUB_FAIL": falhas,
+        env = {"PATH": self.path, "HOME": caminho_bash(self.home),
+               "STUB_LOG": caminho_bash(self.log), "STUB_DIR": caminho_bash(self.bin), "STUB_FAIL": falhas,
                "LC_ALL": "C"}
+        if plataforma.eh_windows():         # sem o SYSTEMROOT o Git Bash não abre processo filho do Windows
+            env.update({k: os.environ[k] for k in ("SYSTEMROOT", "TEMP", "TMP") if k in os.environ})
         if node:
             env["STUB_NODE"] = node
         if python_velho:
             env["STUB_PYOLD"] = "1"
         if uname:
             env["STUB_UNAME_S"], env["STUB_UNAME_M"] = uname
-        return subprocess.run([BASH, str(self.repo / "scripts" / "setup.sh")] + list(args),
+        return subprocess.run([BASH, caminho_bash(self.repo / "scripts" / "setup.sh")] + list(args),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              universal_newlines=True, env=env, timeout=60)
+                              encoding="utf-8", errors="replace", env=env,
+                              timeout=240 if plataforma.eh_windows() else 60)
 
     def chamadas(self, prefixo):
-        return [l for l in self.log.read_text().splitlines() if l.startswith(prefixo)]
+        return [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith(prefixo)]
 
     def n(self, prefixo):
         return len(self.chamadas(prefixo))
@@ -194,9 +249,9 @@ def test_primeira_execucao_cria_venv_instala_e_prepara_tudo(mundo):
     assert mundo.n("hyperframes browser ensure") == 1
     curl = mundo.chamadas("curl")
     assert len(curl) == 1 and "gsap@3.14.2/dist/gsap.min.js" in curl[0]
-    assert (mundo.repo / "templates" / "_vendor" / "gsap.min.js").read_text().strip() != ""
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "init_local.py")) == 1
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "som_cortes.py")) == 1
+    assert (mundo.repo / "templates" / "_vendor" / "gsap.min.js").read_text(encoding="utf-8").strip() != ""
+    assert mundo.n("venv-python " + mundo.cm("scripts", "init_local.py")) == 1
+    assert mundo.n("venv-python " + mundo.cm("scripts", "som_cortes.py")) == 1
     assert (mundo.repo / ".env").is_file()
     assert "[setup] resumo" in r.stdout and "tudo pronto" in r.stdout
 
@@ -220,13 +275,13 @@ def test_o_que_o_setup_gera_fica_invisivel_para_o_git(mundo):
     """O .gitignore da raiz não cobre .venv nem templates/_vendor: o setup esconde os dois."""
     mundo.rodar()
     for pasta in (mundo.repo / ".venv", mundo.repo / "templates" / "_vendor"):
-        assert (pasta / ".gitignore").read_text().strip() == "*", pasta
+        assert (pasta / ".gitignore").read_text(encoding="utf-8").strip() == "*", pasta
 
 
 def test_env_do_aluno_nunca_e_sobrescrito(mundo):
-    (mundo.repo / ".env").write_text("HEYGEN_API_KEY=minha\n")
+    (mundo.repo / ".env").write_text("HEYGEN_API_KEY=minha\n", encoding="utf-8")
     mundo.rodar()
-    assert (mundo.repo / ".env").read_text() == "HEYGEN_API_KEY=minha\n"
+    assert (mundo.repo / ".env").read_text(encoding="utf-8") == "HEYGEN_API_KEY=minha\n"
 
 
 # --- idempotência ----------------------------------------------------------------------------------
@@ -245,7 +300,7 @@ def test_segunda_execucao_nao_reinstala_nada(mundo):
 def test_requirements_alterado_reinstala_so_o_pip(mundo):
     mundo.rodar()
     (mundo.repo / "requirements.txt").write_text("numpy\nopencv-python-headless\npillow\nscipy\n"
-                                                 "tqdm\n")
+                                                 "tqdm\n", encoding="utf-8")
     mundo.rodar()
     assert mundo.n_req() == 2
     assert mundo.n("npm ") == 1 and mundo.n("python3 -m venv") == 1
@@ -253,7 +308,7 @@ def test_requirements_alterado_reinstala_so_o_pip(mundo):
 
 def test_versao_do_hyperframes_mudou_no_package_json_reinstala(mundo):
     mundo.rodar()
-    (mundo.repo / "package.json").write_text('{"dependencies": {"hyperframes": "0.7.57"}}')
+    (mundo.repo / "package.json").write_text('{"dependencies": {"hyperframes": "0.7.57"}}', encoding="utf-8")
     mundo.rodar()
     assert mundo.n("npm ") == 2
 
@@ -275,8 +330,8 @@ def test_npm_falhando_ainda_roda_pip_gsap_sons_e_init_local(mundo):
     assert r.returncode == 1
     assert mundo.n_req() == 1
     assert mundo.n("curl") == 1
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "init_local.py")) == 1
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "som_cortes.py")) == 1
+    assert mundo.n("venv-python " + mundo.cm("scripts", "init_local.py")) == 1
+    assert mundo.n("venv-python " + mundo.cm("scripts", "som_cortes.py")) == 1
     assert mundo.n("hyperframes browser ensure") == 0, "sem o binário não há o que garantir"
     fim = resumo(r.stdout)
     assert "npm" in fim and "conserto:" in fim
@@ -304,8 +359,8 @@ def test_venv_falhando_ainda_roda_npm_gsap_sons_e_init_local_com_o_python_do_sis
     r = mundo.rodar(falhas="venv")
     assert r.returncode == 1
     assert mundo.n("npm ") == 1 and mundo.n("curl") == 1
-    assert mundo.n("python3 " + str(mundo.repo / "scripts" / "init_local.py")) == 1
-    assert mundo.n("python3 " + str(mundo.repo / "scripts" / "som_cortes.py")) == 1
+    assert mundo.n("python3 " + mundo.cm("scripts", "init_local.py")) == 1
+    assert mundo.n("python3 " + mundo.cm("scripts", "som_cortes.py")) == 1
     assert mundo.n("python3 -m pip") == 0
     assert ".venv" in resumo(r.stdout)
 
@@ -385,7 +440,7 @@ def test_segunda_execucao_nao_reinstala_o_transcritor(mundo):
 def test_o_resumo_roda_o_doctor_e_so_diz_pronto_com_zero_fail(mundo):
     r = mundo.rodar()
     assert r.returncode == 0 and "tudo pronto" in r.stdout
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "vam.py") + " doctor") == 1
+    assert mundo.n("venv-python " + mundo.cm("scripts", "vam.py") + " doctor") == 1
 
 
 def test_doctor_com_fail_barra_o_pronto_e_sai_1(mundo):
@@ -399,7 +454,7 @@ def test_doctor_com_fail_barra_o_pronto_e_sai_1(mundo):
 def test_doctor_nao_roda_quando_o_setup_ja_tem_falha_para_consertar(mundo):
     r = mundo.rodar(falhas="npm")
     assert r.returncode == 1
-    assert mundo.n("venv-python " + str(mundo.repo / "scripts" / "vam.py") + " doctor") == 0
+    assert mundo.n("venv-python " + mundo.cm("scripts", "vam.py") + " doctor") == 0
 
 
 # --- --checar ---------------------------------------------------------------------------------------
@@ -421,14 +476,14 @@ def test_checar_depois_do_setup_sai_0(mundo):
     n_antes = mundo.n("")
     r = mundo.rodar("--checar")
     assert r.returncode == 0, r.stdout
-    novas = mundo.log.read_text().splitlines()[n_antes:]
+    novas = mundo.log.read_text(encoding="utf-8").splitlines()[n_antes:]
     assert not [l for l in novas if l.startswith(("npm", "curl", "python3 -m venv",
                                                    "venv-python -m pip"))]
 
 
 def test_checar_acusa_requirements_alterado(mundo):
     mundo.rodar()
-    (mundo.repo / "requirements.txt").write_text("numpy\n")
+    (mundo.repo / "requirements.txt").write_text("numpy\n", encoding="utf-8")
     r = mundo.rodar("--checar")
     assert r.returncode == 1 and "requirements" in resumo(r.stdout)
 
@@ -445,14 +500,14 @@ def test_cinema_plus_e_reservado_e_nao_instala_nada_alem_do_normal(mundo):
 def test_argumento_desconhecido_sai_2_e_nao_faz_nada(mundo):
     r = mundo.rodar("--bobagem")
     assert r.returncode == 2 and "--checar" in r.stdout
-    assert mundo.log.read_text() == ""
+    assert mundo.log.read_text(encoding="utf-8") == ""
 
 
 # --- o arquivo em si --------------------------------------------------------------------------------------
 
 def test_setup_sh_tem_sintaxe_valida():
-    r = subprocess.run([BASH, "-n", str(SETUP_REAL)], stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, universal_newlines=True)
+    r = subprocess.run([BASH, "-n", caminho_bash(SETUP_REAL)], stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, encoding="utf-8", errors="replace")
     assert r.returncode == 0, r.stdout
 
 
@@ -510,19 +565,81 @@ def test_requirements_dos_gates_aponta_para_o_da_raiz():
 def test_venv_nasce_do_python_mais_novo_da_maquina(mundo):
     """No macOS o `python3` do PATH é o 3.9 das Command Line Tools, e o parakeet-mlx pede 3.10+.
     Havendo python3.12 no PATH, o .venv nasce dele, não do python3."""
-    novo = mundo.bin / "python3.12"
-    novo.write_text(PY_SISTEMA.replace('echo "python3 $*"', 'echo "python3.12 $*"'))
-    novo.chmod(0o755)
+    escrever_script(mundo.bin / "python3.12", PY_SISTEMA.replace('echo "python3 $*"', 'echo "python3.12 $*"'))
     mundo.rodar()
-    assert mundo.chamadas("python3.12 -m venv"), mundo.log.read_text()
+    assert mundo.chamadas("python3.12 -m venv"), mundo.log.read_text(encoding="utf-8")
     assert not mundo.chamadas("python3 -m venv")
 
 
 def test_o_path_do_setup_so_tem_os_stubs_e_ferramentas_basicas_sem_python_nem_node_do_sistema(mundo):
     """Regressão do CI do Linux: o /usr/bin do runner traz python3.12, node e curl de verdade, e o setup os preferia
     aos stubs (o `python3 -m venv` do stub nunca rodava). O PATH do teste não pode enxergá-los."""
-    path = "{}:{}".format(mundo.bin, mundo.ferramentas)
+    path = mundo.path
     for nome in ("python3.14", "python3.13", "python3.12", "python3.11", "python3.10", "python"):
         assert shutil.which(nome, path=path) is None, nome
+    if plataforma.eh_windows():
+        # O shutil.which do Windows só enxerga arquivos com extensão do PATHEXT; os stubs são scripts de bash sem
+        # extensão. Quem prova que eles ganham das ferramentas do sistema é o `command -v` do próprio bash.
+        r = subprocess.run([BASH, "-c", "command -v python3 node npm curl"], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", env={
+                               "PATH": path, "SYSTEMROOT": os.environ.get("SYSTEMROOT", "")}, timeout=60)
+        achados = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+        assert len(achados) == 4 and all(a.startswith(caminho_msys(mundo.bin)) for a in achados), r.stdout
+        return
     for nome in ("python3", "node", "npm", "curl"):
         assert Path(shutil.which(nome, path=path)).parent == mundo.bin, nome
+
+
+# --- o ajudante do Windows, exercitado no Mac e no Linux --------------------------------------------------------
+
+def test_escrever_script_grava_lf_sem_cr_e_com_permissao_de_execucao(tmp_path):
+    alvo = escrever_script(tmp_path / "stub", "#!/bin/bash\necho oi\n")
+    assert alvo.read_bytes() == b"#!/bin/bash\necho oi\n" and b"\r" not in alvo.read_bytes()
+    assert os.access(str(alvo), os.X_OK)
+
+
+def test_ferramentas_no_windows_viram_scripts_que_chamam_o_usr_bin_so_do_que_existe(tmp_path):
+    usr_bin = tmp_path / "Git" / "usr" / "bin"
+    usr_bin.mkdir(parents=True)
+    for nome in ("dirname", "sed"):
+        (usr_bin / (nome + ".exe")).write_bytes(b"MZ")
+    destino = tmp_path / "ferramentas"
+    destino.mkdir()
+    feitos = montar_ferramentas(destino, ("dirname", "sed", "head"), windows=True, usr_bin=usr_bin)
+    assert feitos == ["dirname", "sed"], "head não existe no usr/bin do Git: não entra"
+    assert (destino / "dirname").read_bytes() == b'#!/bin/bash\nexec "/usr/bin/dirname" "$@"\n'
+    assert not (destino / "dirname").is_symlink() and not (destino / "head").exists()
+
+
+def test_ferramenta_em_script_de_verdade_chama_o_programa_pelo_caminho_absoluto(tmp_path):
+    """O script que o Windows usa em lugar do symlink funciona (aqui o /usr/bin/dirname do Mac e do Linux)."""
+    if not Path("/usr/bin/dirname").exists():
+        pytest.skip("este sistema não tem /usr/bin/dirname")
+    usr_bin = tmp_path / "usr" / "bin"
+    usr_bin.mkdir(parents=True)
+    (usr_bin / "dirname.exe").write_bytes(b"MZ")
+    destino = tmp_path / "ferramentas"
+    destino.mkdir()
+    montar_ferramentas(destino, ("dirname",), windows=True, usr_bin=usr_bin)
+    r = subprocess.run([BASH, caminho_bash(destino / "dirname"), "/a/b/c.txt"], stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", timeout=60)
+    assert r.returncode == 0 and r.stdout.strip() == "/a/b", r.stdout
+
+
+def test_ferramentas_fora_do_windows_continuam_symlinks_do_sistema(tmp_path):
+    destino = tmp_path / "ferramentas"
+    destino.mkdir()
+    feitos = montar_ferramentas(destino, ("cat", "ferramenta-que-nao-existe-vam"), windows=False)
+    assert feitos == ["cat"] and (destino / "cat").is_symlink()
+
+
+def test_acha_a_pasta_usr_bin_a_partir_do_bash_do_git(tmp_path):
+    usr_bin = tmp_path / "Git" / "usr" / "bin"
+    usr_bin.mkdir(parents=True)
+    (usr_bin / "dirname.exe").write_bytes(b"MZ")
+    launcher = tmp_path / "Git" / "bin" / "bash.exe"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_bytes(b"MZ")
+    assert pasta_usr_bin_do_git_bash(launcher) == usr_bin
+    assert pasta_usr_bin_do_git_bash(usr_bin / "bash.exe") == usr_bin
+    assert pasta_usr_bin_do_git_bash(tmp_path / "outro" / "bash.exe") is None

@@ -31,6 +31,9 @@ for _p in (str(RAIZ / "scripts"), str(RAIZ)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import plataforma
+from tests.fixtures.git_bash import BASH, caminho_bash
+
 SCRIPT = RAIZ / "scripts" / "dev" / "testar_limpo.sh"
 
 # Montados por pedaços para este arquivo não ser o primeiro a violar a própria regra.
@@ -126,13 +129,14 @@ class TesteTestarLimpo(unittest.TestCase):
         for k in [k for k in env if k.startswith("VAM_")]:
             del env[k]
         env.update(extra_env or {})
-        return subprocess.run(["bash", str(SCRIPT), "--dry-run", *args], capture_output=True,
-                              text=True, env=env, cwd=str(tempfile.gettempdir()))
+        return subprocess.run([BASH, caminho_bash(SCRIPT), "--dry-run", *args], capture_output=True,
+                              encoding="utf-8", errors="replace", env=env, cwd=str(tempfile.gettempdir()))
 
     def test_existe_executavel_e_sintaxe_valida(self):
         self.assertTrue(SCRIPT.is_file(), f"falta {SCRIPT}")
         self.assertTrue(os.access(SCRIPT, os.X_OK), "falta chmod +x")
-        r = subprocess.run(["bash", "-n", str(SCRIPT)], capture_output=True, text=True)
+        r = subprocess.run([BASH, "-n", caminho_bash(SCRIPT)], capture_output=True, encoding="utf-8",
+                           errors="replace")
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_padrao_exclui_lento_midia_real_e_rede(self):
@@ -170,8 +174,11 @@ class TesteTestarLimpo(unittest.TestCase):
         m = re.search(r"^HOME=(\S+)$", r.stdout, re.M)
         self.assertIsNotNone(m, r.stdout)
         self.assertNotEqual(m.group(1), chamador)
-        self.assertTrue(m.group(1).startswith(os.path.realpath(tempfile.gettempdir()))
-                        or m.group(1).startswith(tempfile.gettempdir()), m.group(1))
+        # No Windows o script imprime `C:/Dados/Temp/vam-home.abc` (cygpath -m) e o Python diz `C:\\Dados\\Temp`:
+        # compara os dois já normalizados (barra, caixa e links simbólicos).
+        casa = os.path.normcase(os.path.realpath(m.group(1)))
+        temp = os.path.normcase(os.path.realpath(tempfile.gettempdir()))
+        self.assertTrue(casa.startswith(temp) or m.group(1).startswith(tempfile.gettempdir()), m.group(1))
 
     def test_user_site_real_sobrevive_ao_home_falso_do_chamador(self):
         """Quem já exporta um HOME falso não pode perder o pytest do user site."""
@@ -259,13 +266,13 @@ class TesteFixturesSinteticas(unittest.TestCase):
     def test_testsrc_tem_video_e_audio(self):
         p = self.SIN.testsrc_com_audio(self.A / "ts.mp4", dur=3.0)
         r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
-                            "-of", "csv=p=0", str(p)], capture_output=True, text=True)
+                            "-of", "csv=p=0", str(p)], capture_output=True, encoding="utf-8", errors="replace")
         self.assertEqual(sorted(r.stdout.split()), ["audio", "video"])
 
     def test_video_rotacionado_declara_rotacao_menos_90(self):
         p = self.SIN.video_rotacao_menos90(self.A / "rot.mp4")
         r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_streams",
-                            "-of", "json", str(p)], capture_output=True, text=True)
+                            "-of", "json", str(p)], capture_output=True, encoding="utf-8", errors="replace")
         stream = json.loads(r.stdout)["streams"][0]
         rot = [d.get("rotation") for d in stream.get("side_data_list", [])]
         self.assertIn(-90, rot, "o ffprobe tem que enxergar a rotação (o fixture é a prova)")
@@ -293,8 +300,9 @@ def test_home_falso_aponta_para_pasta_vazia_e_isolada(home_falso):
     assert Path.home() == home_falso
     assert os.environ["HOME"] == str(home_falso)
     assert home_falso.is_dir() and list(home_falso.iterdir()) == []
-    import pwd
-    assert str(home_falso) != pwd.getpwuid(os.getuid()).pw_dir
+    if not plataforma.eh_windows():         # o módulo pwd (cadastro de usuários do Unix) não existe no Windows
+        import pwd
+        assert str(home_falso) != pwd.getpwuid(os.getuid()).pw_dir
 
 
 def test_home_falso_vale_na_hora_da_chamada_do_caminhos(home_falso):

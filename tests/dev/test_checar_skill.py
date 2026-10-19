@@ -2,9 +2,13 @@
 
 Os casos ruins são montados em pedaços para este arquivo não ser o primeiro a violar a regra.
 """
+import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "dev"))
+import checar_skill
 
 RAIZ = Path(__file__).resolve().parents[2]
 SCRIPT = RAIZ / "scripts" / "dev" / "checar_skill.py"
@@ -14,7 +18,8 @@ CLI_OK = "def registrar(sub):\n    pass\n"
 
 
 def _rodar(raiz):
-    return subprocess.run([sys.executable, str(SCRIPT), "--raiz", str(raiz)], capture_output=True, text=True)
+    return subprocess.run([sys.executable, str(SCRIPT), "--raiz", str(raiz)], capture_output=True,
+                          encoding="utf-8", errors="replace", env=dict(os.environ, PYTHONUTF8="1"))
 
 
 def _skill(tmp_path, arquivos, comandos=("novo", "montar")):
@@ -84,5 +89,30 @@ def test_isencao_declarada_do_resolvedor_de_gates(tmp_path):
 
 
 def test_o_repo_inteiro_esta_limpo():
-    r = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, encoding="utf-8", errors="replace",
+                       env=dict(os.environ, PYTHONUTF8="1"))
     assert r.returncode == 0, r.stdout[-2000:]
+
+
+# --- Windows: o caminho impresso e o dos links é sempre POSIX (`references/a.md`), nunca `references\\a.md` ----------
+
+def test_caminho_relativo_do_windows_vira_posix():
+    """No Windows `Path.relative_to` devolve `references\\gates.md`; o link `[[references/gates]]` e a saída pedem `/`."""
+    raiz = PureWindowsPath("C:/Dados/skill")
+    assert checar_skill.relativo_posix(raiz / "references" / "gates.md", raiz) == "references/gates.md"
+    assert checar_skill.relativo_posix(raiz / "SKILL.md", raiz) == "SKILL.md"
+
+
+def test_sem_git_a_lista_de_arquivos_vem_em_posix(tmp_path):
+    (tmp_path / "references").mkdir()
+    (tmp_path / "references" / "gates.md").write_text("x\n", encoding="utf-8")
+    (tmp_path / "SKILL.md").write_text("y\n", encoding="utf-8")
+    assert checar_skill.versionados(tmp_path) == ["SKILL.md", "references/gates.md"]
+
+
+def test_link_resolve_com_a_lista_do_windows_ja_em_posix():
+    nomes_md = {"gates"}
+    arquivos = {"SKILL.md", "references/gates.md"}
+    assert checar_skill.alvo_existe("references/gates", arquivos, nomes_md)
+    assert checar_skill.alvo_existe("gates|os gates", arquivos, nomes_md)
+    assert not checar_skill.alvo_existe("references\\gates", arquivos, nomes_md), "barra invertida quebra no Mac"

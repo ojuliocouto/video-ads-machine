@@ -34,8 +34,14 @@ COMANDO = re.compile(r"\bvam ([a-z][a-z0-9_-]*)")
 CERCA = re.compile(r"^\s*(```|~~~)")
 
 
+def relativo_posix(caminho, raiz):
+    """O caminho de `caminho` a partir de `raiz`, SEMPRE com `/` (no Windows o `str` daria `references\\gates.md`, que
+    nunca bate com o link `[[references/gates]]` nem com o que o `git ls-files` imprime)."""
+    return caminho.relative_to(raiz).as_posix()
+
+
 def versionados(raiz):
-    """Caminhos relativos dos arquivos do git; sem git, a pasta toda menos .git, _local, .venv e node_modules."""
+    """Caminhos relativos (com `/`) dos arquivos do git; sem git, a pasta toda menos .git, _local, .venv e node_modules."""
     raiz = Path(raiz)
     try:
         r = subprocess.run(["git", "-C", str(raiz), "ls-files", "-z"], capture_output=True, timeout=60)
@@ -47,7 +53,7 @@ def versionados(raiz):
     for p in raiz.rglob("*"):
         partes = set(p.relative_to(raiz).parts)
         if p.is_file() and not partes & {".git", "_local", ".venv", "node_modules", "__pycache__"}:
-            saida.append(str(p.relative_to(raiz)))
+            saida.append(relativo_posix(p, raiz))
     return sorted(saida)
 
 
