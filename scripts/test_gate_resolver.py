@@ -26,6 +26,7 @@ def _env_limpo(home):
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("VAM_")}
     env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)       # no Windows o Path.home() do Python lê o USERPROFILE, não o HOME
     env["PYTHONUSERBASE"] = site.getuserbase()
     return env
 

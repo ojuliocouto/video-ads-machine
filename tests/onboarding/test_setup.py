@@ -21,6 +21,10 @@ RAIZ_REAL = Path(__file__).resolve().parent.parent.parent
 SETUP_REAL = RAIZ_REAL / "scripts" / "setup.sh"
 BASH = "/bin/bash" if Path("/bin/bash").exists() else shutil.which("bash")
 
+# O que o setup.sh e os stubs chamam, fora os stubs. Sem python, node, npm nem curl: esses são sempre os falsos.
+FERRAMENTAS_DO_SISTEMA = ("dirname", "sed", "head", "tr", "cat", "cut", "wc", "grep", "cksum", "mkdir", "cp", "mv", "rm",
+                          "ls", "touch", "chmod", "basename", "sort", "env", "expr", "mktemp", "date", "sleep")
+
 PY_SISTEMA = r'''#!/bin/bash
 echo "python3 $*" >> "$STUB_LOG"
 falha() { case ",$STUB_FAIL," in *,"$1",*) return 0;; esac; return 1; }
@@ -113,6 +117,14 @@ class Mundo(object):
         self.home.mkdir(parents=True)
         self.bin.mkdir()
         self.log.write_text("")
+        # O PATH do setup tem só os stubs e estas ferramentas do sistema. Nada de /usr/bin inteiro: num runner Linux ele
+        # traz python3.12, node e curl de verdade, que o setup preferiria aos stubs.
+        self.ferramentas = base / "ferramentas"
+        self.ferramentas.mkdir()
+        for nome in FERRAMENTAS_DO_SISTEMA:
+            origem = shutil.which(nome)
+            if origem:
+                (self.ferramentas / nome).symlink_to(origem)
         for nome, conteudo in (("python3", PY_SISTEMA), ("venv-python", PY_VENV), ("npm", NPM),
                                ("hyperframes", HYPERFRAMES), ("node", NODE), ("curl", CURL), ("uname", UNAME)):
             alvo = self.bin / nome
@@ -132,7 +144,7 @@ class Mundo(object):
             '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>')
 
     def rodar(self, *args, falhas="", node=None, python_velho=False, uname=None):
-        env = {"PATH": "{}:/usr/bin:/bin".format(self.bin), "HOME": str(self.home),
+        env = {"PATH": "{}:{}".format(self.bin, self.ferramentas), "HOME": str(self.home),
                "STUB_LOG": str(self.log), "STUB_DIR": str(self.bin), "STUB_FAIL": falhas,
                "LC_ALL": "C"}
         if node:
@@ -504,3 +516,13 @@ def test_venv_nasce_do_python_mais_novo_da_maquina(mundo):
     mundo.rodar()
     assert mundo.chamadas("python3.12 -m venv"), mundo.log.read_text()
     assert not mundo.chamadas("python3 -m venv")
+
+
+def test_o_path_do_setup_so_tem_os_stubs_e_ferramentas_basicas_sem_python_nem_node_do_sistema(mundo):
+    """Regressão do CI do Linux: o /usr/bin do runner traz python3.12, node e curl de verdade, e o setup os preferia
+    aos stubs (o `python3 -m venv` do stub nunca rodava). O PATH do teste não pode enxergá-los."""
+    path = "{}:{}".format(mundo.bin, mundo.ferramentas)
+    for nome in ("python3.14", "python3.13", "python3.12", "python3.11", "python3.10", "python"):
+        assert shutil.which(nome, path=path) is None, nome
+    for nome in ("python3", "node", "npm", "curl"):
+        assert Path(shutil.which(nome, path=path)).parent == mundo.bin, nome

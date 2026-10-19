@@ -13,6 +13,7 @@ Nenhum áudio real, nenhum modelo: o parakeet é um script falso que copia uma s
 """
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -261,7 +262,7 @@ def test_auditoria_no_mac_roda_o_parakeet_txt_numa_pasta_temporaria(tmp_path):
     assert palavras == ["olá", "mundo", "agora"]
     args = (tmp_path / "bin" / "chamadas.txt").read_text(encoding="utf-8").split()
     assert args[:4] == [str(mp3), "--output-format", "txt", "--output-dir"]
-    assert not args[4].startswith("/tmp")          # nada cravado em /tmp: tempfile
+    assert Path(args[4]).parent == Path(tempfile.gettempdir())     # a pasta do sistema (tempfile), nada cravado
     assert not os.path.exists(args[4])             # e a pasta temporária some depois
 
 

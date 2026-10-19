@@ -51,8 +51,15 @@ def V():
 
 
 def rodar_cli(*args, env=None, cwd=None):
+    if env is not None:
+        # Ambiente enxuto de propósito, mas o Python do Windows precisa de SystemRoot para subir e, sem PYTHONUTF8, imprime
+        # os acentos em cp1252 (0xe3) e a leitura em UTF-8 do teste quebra.
+        env = dict(env, PYTHONUTF8="1")
+        for nome in ("SystemRoot", "SYSTEMROOT"):
+            if nome in os.environ:
+                env.setdefault(nome, os.environ[nome])
     return subprocess.run([sys.executable, str(VALIDAR), *map(str, args)],
-                          capture_output=True, text=True, env=env, cwd=cwd)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, cwd=cwd)
 
 
 def exemplos():
@@ -404,7 +411,7 @@ class TestCLI(unittest.TestCase):
     @unittest.skipUnless(os.path.exists("/usr/bin/python3"), "sem /usr/bin/python3 nesta máquina")
     def test_roda_no_python_do_sistema(self):
         r = subprocess.run(["/usr/bin/python3", str(VALIDAR), str(EXEMPLOS)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_validador_so_usa_biblioteca_padrao(self):
