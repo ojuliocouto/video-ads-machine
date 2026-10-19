@@ -59,6 +59,7 @@ import json
 import os
 import subprocess
 
+from audio import transcrever as _T
 from timeline import alinhar as AL
 
 from . import cadeia as CA
@@ -147,7 +148,7 @@ def executavel_parakeet(amb=None):
 def duracao_do_audio(avatar):
     return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                                  "-of", "default=nw=1:nk=1", avatar],
-                                capture_output=True, text=True).stdout.strip())
+                                capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip())
 
 
 def tokens_do_parakeet(dados):
@@ -190,12 +191,34 @@ def alinhar_palavras(dados, narr_words, audio_dur):
     return AL.casar(tokens_do_parakeet(dados), narr_words, audio_dur)
 
 
-def alinhar(avatar, narr_words, tmp, executavel=None, run=None, duracao=None):
-    """Extrai o áudio do avatar, roda o parakeet e alinha. Ordem dos subprocessos: ffmpeg, parakeet,
-    ffprobe (a paridade confere essa ordem)."""
-    executavel = executavel or executavel_parakeet()
+def _modulo_do_backend(amb, backend):
+    """O backend que alinha: o pedido (nome ou objeto) ou o primeiro que existe na máquina (parakeet, depois
+    faster-whisper, depois Groq). Sem nenhum, UMA mensagem com o conserto."""
+    if backend is not None and not isinstance(backend, str):
+        return backend
+    try:
+        return _T.escolher_backend(amb, preferido=backend)
+    except _T.SemTranscritor as e:
+        raise CA.ErroFootage(f"ERRO: {e}")
+
+
+def alinhar(avatar, narr_words, tmp, executavel=None, run=None, duracao=None, amb=None, backend=None):
+    """Alinha a narração ao áudio do avatar. Devolve `[(inicio, fim, palavra)]`.
+
+    O backend de transcrição vem do seletor de áudio (`audio.transcrever`): no Apple Silicon com o parakeet
+    instalado nada muda (ffmpeg extrai o wav, o parakeet-mlx grava o JSON, o ffprobe mede: ordem dos subprocessos
+    conferida pela paridade). Sem parakeet (Windows, Linux, Mac Intel) o faster-whisper ou a Groq dão as palavras
+    com tempo, no mesmo perfil de alinhamento da timeline, e o `casar` é o mesmo. `executavel` dado à mão força o
+    caminho do parakeet (testes e quem já sabe onde ele está).
+    """
     run = run or CA.run
     duracao = duracao or duracao_do_audio
+    if executavel is None:
+        amb = amb if amb is not None else _T.Ambiente.real()
+        modulo = _modulo_do_backend(amb, backend)
+        if getattr(modulo, "NOME", None) != "parakeet":
+            return _alinhar_pelo_seletor(avatar, narr_words, tmp, modulo, amb, duracao)
+        executavel = executavel_parakeet(amb)
     wav = os.path.join(tmp, "av.wav")
     run(["ffmpeg", "-y", "-i", avatar, "-vn", "-ac", "1", "-ar", "16000", wav])
     run([executavel, wav, "--output-format", "json", "--output-dir", tmp])
@@ -206,6 +229,16 @@ def alinhar(avatar, narr_words, tmp, executavel=None, run=None, duracao=None):
     with open(saida, encoding="utf-8") as f:
         dados = json.load(f)
     return alinhar_palavras(dados, narr_words, audio_dur)
+
+
+def _alinhar_pelo_seletor(avatar, narr_words, tmp, modulo, amb, duracao):
+    """O mesmo `casar`, com as palavras do backend escolhido (faster-whisper ou Groq) no lugar dos tokens do parakeet."""
+    try:
+        palavras = _T.transcrever(avatar, cache_dir=os.path.join(tmp, "cache_asr"), backend=modulo, amb=amb,
+                                  perfil="alinhamento")
+    except (_T.SemTranscritor, FileNotFoundError) as e:
+        raise CA.ErroFootage(f"ERRO: {e}")
+    return AL.casar(AL.palavras_do_asr(palavras), narr_words, duracao(avatar))
 
 
 # ------------------------------------------------------------------ spans
