@@ -18,6 +18,7 @@ Render: `node_modules/.bin/hyperframes` do repo (o setup instala). Saída 0 gero
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -27,6 +28,7 @@ from pathlib import Path
 if __name__ == "__main__":      # rodado direto: scripts/cinema/mostruario_lettering.py
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import plataforma  # noqa: E402
 from cinema import lettering_estilos as LE  # noqa: E402
 from overlay import html_injecao as H  # noqa: E402
 from overlay import letterings as LT  # noqa: E402
@@ -162,18 +164,24 @@ def preparar_pasta(pasta, modo="mostruario"):
 
 
 def hyperframes():
-    c = RAIZ / "node_modules" / ".bin" / "hyperframes"
-    if c.exists():
-        return str(c)
-    raise MostruarioFalhou("hyperframes ausente em node_modules/.bin: rode `bash setup.sh`")
+    """O argv que roda o HyperFrames do repo (`plataforma.hf_cmd`): uma lista, que os chamadores somam ao subcomando."""
+    try:
+        return plataforma.hf_cmd(RAIZ)
+    except plataforma.ErroHyperFrames as erro:
+        raise MostruarioFalhou("hyperframes ausente: %s (rode `bash setup.sh`)" % erro)
+
+
+def _argv(hf):
+    """`hf` como lista: aceita o argv do `hyperframes()` e, por compatibilidade, o caminho de um binário em texto."""
+    return [str(hf)] if isinstance(hf, (str, bytes, os.PathLike)) else [str(c) for c in hf]
 
 
 def _snapshot(hf, pasta, instantes, destino):
     if Path(destino).exists():
         shutil.rmtree(destino)
-    r = subprocess.run([hf, "snapshot", str(pasta), "--at", ",".join("%.3f" % t for t in instantes), "--no-end",
+    r = subprocess.run(_argv(hf) + ["snapshot", str(pasta), "--at", ",".join("%.3f" % t for t in instantes), "--no-end",
                         "--describe", "false", "--no-browser-gpu", "-o", str(destino)],
-                       capture_output=True, text=True, timeout=900)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
     if r.returncode != 0:
         raise MostruarioFalhou("snapshot falhou: %s" % (r.stderr or r.stdout).strip()[-400:])
     pngs = sorted(Path(destino).glob("frame-*.png"), key=lambda p: int(re.search(r"frame-(\d+)", p.name).group(1)))
@@ -183,8 +191,8 @@ def _snapshot(hf, pasta, instantes, destino):
 
 
 def renderizar_video(hf, pasta, saida):
-    r = subprocess.run([hf, "render", str(pasta), "-o", str(saida), "--fps", "30", "--workers", "2", "--quiet"],
-                       capture_output=True, text=True, timeout=1800)
+    r = subprocess.run(_argv(hf) + ["render", str(pasta), "-o", str(saida), "--fps", "30", "--workers", "2", "--quiet"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
     if r.returncode != 0 or not Path(saida).is_file():
         raise MostruarioFalhou("render falhou: %s" % (r.stderr or r.stdout).strip()[-400:])
     return Path(saida)
