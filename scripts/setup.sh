@@ -32,6 +32,15 @@
 #
 # Compatível com macOS/bash 3.2: sem arrays associativos, sem mapfile, sem comando de timeout.
 # NÃO usa a opção de abortar no primeiro erro: cada passo trata o próprio erro.
+#
+# Windows: roda no Git Bash, com o Python e o Node do Windows (sem WSL, sem Homebrew). Lá o .venv guarda o Python em
+# .venv/Scripts/python.exe, o `python3` pode ser o atalho da Microsoft Store (que não é Python), as dicas de instalação
+# usam winget e o transcritor é sempre o faster-whisper. O Mac e o Linux ficam como sempre foram.
+#
+# Carregado com `source` (os testes fazem isso), o arquivo só define as funções e volta, sem rodar passo nenhum.
+
+# O Python do Windows imprime acento em UTF-8 em vez da página de código do console (cp1252).
+export PYTHONUTF8=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || { echo "[setup] ERRO: não consegui entrar em $REPO_ROOT"; exit 1; }
@@ -56,24 +65,81 @@ done
 
 # --- caminhos e estado -------------------------------------------------------------------------
 VENV="$REPO_ROOT/.venv"
-VENV_PY="$VENV/bin/python"
+VENV_PY=""
 SELO="$VENV/.vam-requirements"
 SELO_TRANSCRITOR="$VENV/.vam-transcritor"
 HF_BIN="$REPO_ROOT/node_modules/.bin/hyperframes"
 GSAP_DEST="$REPO_ROOT/templates/_vendor/gsap.min.js"
 ESTADO_DIR="${VAM_ESTADO:-$REPO_ROOT/_local}"
 SOM_DIR="${VAM_DADOS:-${VAM_V1_HOME:-$ESTADO_DIR/dados}}/assets/som"
+
+# Sistema: o Git Bash do Windows responde MINGW64_NT (ou MSYS_NT, CYGWIN_NT) ao `uname -s`.
+eh_windows() {
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    esac
+    return 1
+}
+
+# Dicas de instalação por sistema. No Windows o gerenciador é o winget; brew e apt nunca aparecem lá.
+# Depois do winget o terminal precisa ser fechado e aberto de novo, para o PATH novo valer.
+dica_python() {
+    if eh_windows; then echo "Windows: winget install -e --id Python.Python.3.12, e depois feche e abra o terminal; o atalho da Microsoft Store não conta"
+    else echo "macOS: brew install python@3.12"; fi
+}
+dica_node() {
+    if eh_windows; then echo "Windows: winget install -e --id OpenJS.NodeJS.LTS, e depois feche e abra o terminal"
+    else echo "macOS: brew install node@22; outros: https://nodejs.org"; fi
+}
+dica_ffmpeg() {
+    if eh_windows; then echo "Windows: winget install -e --id Gyan.FFmpeg, e depois feche e abra o terminal"
+    else echo "macOS: brew install ffmpeg"; fi
+}
+dica_venv() {
+    if eh_windows; then echo "python -m venv .venv"
+    else echo "python3 -m venv .venv (no Debian/Ubuntu: sudo apt install python3-venv)"; fi
+}
+# Como o aluno chama o Python nos comandos de conserto: `python` no Windows, `python3` nos outros.
+dica_py() { if eh_windows; then echo "python"; else echo "python3"; fi; }
+dica_venv_py() { if eh_windows; then echo ".venv/Scripts/python"; else echo ".venv/bin/python"; fi; }
+
+# O Python da Microsoft Store (WindowsApps\python3.exe) é um atalho que não executa Python: ele abre a Store.
+# Vale um comando que SAI 0 em `-c "import sys"` e que não mora em WindowsApps.
+python_de_verdade() {
+    case "$1" in *[Ww]indows[Aa]pps*) return 1 ;; esac
+    "$@" -c 'import sys' >/dev/null 2>&1
+}
+
 # O .venv nasce do Python mais novo da máquina (>= 3.10 quando existe): o parakeet-mlx pede 3.10+,
 # e no macOS o `python3` do PATH costuma ser o 3.9 das Command Line Tools.
+# No Windows: `python3` (se não for o atalho da Store), depois `py -3` (o launcher oficial), depois `python`.
 escolher_python() {
-    local cand
+    local cand achado
+    if eh_windows; then
+        for cand in python3 python; do
+            achado="$(command -v "$cand" 2>/dev/null)"
+            [ -n "$achado" ] && python_de_verdade "$achado" && { echo "$achado"; return; }
+            [ "$cand" = python3 ] && _py_launcher && return
+        done
+        return
+    fi
     for cand in python3.14 python3.13 python3.12 python3.11 python3.10; do
         if command -v "$cand" >/dev/null 2>&1; then command -v "$cand"; return; fi
     done
     command -v python3 2>/dev/null
 }
+
+# `py -3` devolve o caminho do Python real (sys.executable); sai 0 e imprime o caminho só se ele existe e funciona.
+_py_launcher() {
+    local launcher caminho
+    launcher="$(command -v py 2>/dev/null)"
+    [ -n "$launcher" ] || return 1
+    caminho="$("$launcher" -3 -c 'import sys; print(sys.executable)' 2>/dev/null | tr -d '\r')"
+    [ -n "$caminho" ] && [ -e "$caminho" ] && python_de_verdade "$caminho" && { echo "$caminho"; return 0; }
+    return 1
+}
 PY_SISTEMA="$(escolher_python)"
-PIN="$(sed -n 's/.*"hyperframes"[[:space:]]*:[[:space:]]*"[~^]*\([0-9][^"]*\)".*/\1/p' package.json 2>/dev/null | head -1)"
+PIN="$(tr -d '\r' < package.json 2>/dev/null | sed -n 's/.*"hyperframes"[[:space:]]*:[[:space:]]*"[~^]*\([0-9][^"]*\)".*/\1/p' | head -1)"
 NODE_OK=0
 HF_OK=0
 FALHAS=()
@@ -97,7 +163,14 @@ aviso() {
     echo "[setup]   conserto: $2"
 }
 
-venv_ok() { [ -x "$VENV_PY" ]; }
+# O Python do .venv: .venv/Scripts/python.exe no Windows, .venv/bin/python nos outros. Atualiza VENV_PY.
+resolver_venv_py() {
+    VENV_PY=""
+    if [ -f "$VENV/Scripts/python.exe" ]; then VENV_PY="$VENV/Scripts/python.exe"
+    elif [ -x "$VENV/bin/python" ]; then VENV_PY="$VENV/bin/python"
+    fi
+}
+venv_ok() { resolver_venv_py; [ -n "$VENV_PY" ]; }
 
 # Pasta gerada pelo setup que o git não pode enxergar. Um .gitignore com `*` dentro dela se
 # ignora a si mesmo, então não sobra nada para um `git add` pegar (o .gitignore da raiz não
@@ -118,20 +191,20 @@ passo_venv() {
         return 1
     fi
     if [ -z "$PY_SISTEMA" ]; then
-        problema "python3 não encontrado no PATH" "instale o Python 3.9 ou superior (macOS: brew install python@3.12) e rode bash scripts/setup.sh"
+        problema "python3 não encontrado no PATH" "instale o Python 3.9 ou superior ($(dica_python)) e rode bash scripts/setup.sh"
         return 1
     fi
     if ! "$PY_SISTEMA" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
-        problema "o python3 do sistema é anterior ao 3.9 (o motor pede 3.9 ou superior)" "instale o Python 3.9 ou superior (macOS: brew install python@3.12) e rode bash scripts/setup.sh"
+        problema "o python3 do sistema é anterior ao 3.9 (o motor pede 3.9 ou superior)" "instale o Python 3.9 ou superior ($(dica_python)) e rode bash scripts/setup.sh"
         return 1
     fi
     nota "criando o ambiente virtual .venv (o Python do sistema recusa pip install, PEP 668)..."
     if ! "$PY_SISTEMA" -m venv "$VENV"; then
-        problema "não consegui criar o .venv" "python3 -m venv .venv (no Debian/Ubuntu: sudo apt install python3-venv)"
+        problema "não consegui criar o .venv" "$(dica_venv)"
         return 1
     fi
     if ! venv_ok; then
-        problema "o .venv foi criado sem o Python dentro (.venv/bin/python)" "apague a pasta .venv e rode bash scripts/setup.sh"
+        problema "o .venv foi criado sem o Python dentro ($(dica_venv_py))" "apague a pasta .venv e rode bash scripts/setup.sh"
         return 1
     fi
     esconder_do_git "$VENV"
@@ -167,7 +240,7 @@ passo_requirements() {
         selo_atual > "$SELO"
         nota "dependências Python OK."
     else
-        problema "o pip falhou ao instalar o requirements.txt" ".venv/bin/python -m pip install -r requirements.txt"
+        problema "o pip falhou ao instalar o requirements.txt" "$(dica_venv_py) -m pip install -r requirements.txt"
         return 1
     fi
 }
@@ -218,25 +291,25 @@ passo_transcritor() {
             return 0
         fi
     fi
-    problema "nenhum transcritor instalou no .venv (o vam audio precisa de um)" ".venv/bin/python -m pip install $alvo (ou ponha GROQ_API_KEY no .env para usar a Groq)"
+    problema "nenhum transcritor instalou no .venv (o vam audio precisa de um)" "$(dica_venv_py) -m pip install $alvo (ou ponha GROQ_API_KEY no .env para usar a Groq)"
     return 1
 }
 
 # --- 3. Node 22 ou superior ------------------------------------------------------------------------
 passo_node() {
     if ! command -v node >/dev/null 2>&1; then
-        problema "Node não encontrado (o HyperFrames pede o 22 ou superior)" "instale o Node 22 (macOS: brew install node@22; outros: https://nodejs.org) e rode bash scripts/setup.sh"
+        problema "Node não encontrado (o HyperFrames pede o 22 ou superior)" "instale o Node 22 ($(dica_node)) e rode bash scripts/setup.sh"
         return 1
     fi
     local major
     major="$(node --version 2>/dev/null | tr -d 'v' | cut -d. -f1)"
     case "$major" in
         ''|*[!0-9]*)
-            problema "não consegui ler a versão do Node" "reinstale o Node 22 (macOS: brew install node@22) e rode bash scripts/setup.sh"
+            problema "não consegui ler a versão do Node" "reinstale o Node 22 ($(dica_node)) e rode bash scripts/setup.sh"
             return 1 ;;
     esac
     if [ "$major" -lt 22 ]; then
-        problema "Node $major: o HyperFrames pede o 22 ou superior" "atualize para o Node 22 (macOS: brew install node@22; outros: https://nodejs.org) e rode bash scripts/setup.sh"
+        problema "Node $major: o HyperFrames pede o 22 ou superior" "atualize para o Node 22 ($(dica_node)) e rode bash scripts/setup.sh"
         return 1
     fi
     NODE_OK=1
@@ -244,8 +317,14 @@ passo_node() {
 }
 
 # --- 4. HyperFrames pinado -----------------------------------------------------------------------
+# No Windows o node_modules/.bin/hyperframes é um script de shell sem extensão: o teste de "executável" não vale e
+# quem o chama de um processo do Windows leva o erro 193. Lá a prova da instalação é o package.json do pacote.
 hf_instalado_ok() {
-    [ -x "$HF_BIN" ] || return 1
+    if eh_windows; then
+        [ -f node_modules/hyperframes/package.json ] || return 1
+    else
+        [ -x "$HF_BIN" ] || return 1
+    fi
     local inst
     inst="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' node_modules/hyperframes/package.json 2>/dev/null | head -1)"
     [ -n "$PIN" ] && [ "$inst" = "$PIN" ]
@@ -288,6 +367,23 @@ passo_hyperframes() {
     fi
 }
 
+# Roda o HyperFrames do repo. No Windows: `node <cli.js do pacote>`, o mesmo caminho que o motor usa (plataforma.hf_cmd);
+# nos outros, o executável de node_modules/.bin. Sem o Python para perguntar ao hf_cmd, cai no .bin.
+hf_rodar() {
+    local py cli
+    if eh_windows; then
+        py="$(python_de_trabalho)"
+        if [ -n "$py" ]; then
+            cli="$("$py" -c 'import sys; sys.path.insert(0, sys.argv[1]); import plataforma; print(plataforma.hf_cmd(sys.argv[2])[1])' "$REPO_ROOT/scripts" "$REPO_ROOT" 2>/dev/null | tr -d '\r')"
+        fi
+        if [ -n "$cli" ]; then
+            node "$cli" "$@"
+            return $?
+        fi
+    fi
+    "$HF_BIN" "$@"
+}
+
 # --- 5. Chromium do render ---------------------------------------------------------------------------
 # `browser ensure` encontra o Chrome em cache ou baixa; já é idempotente por conta própria.
 passo_browser() {
@@ -299,10 +395,10 @@ passo_browser() {
         return 0
     fi
     nota "garantindo o Chromium do render (hyperframes browser ensure)..."
-    if "$HF_BIN" browser ensure; then
+    if hf_rodar browser ensure; then
         nota "Chromium do render OK."
     else
-        problema "hyperframes browser ensure falhou (o render pode falhar sem o Chromium)" "node_modules/.bin/hyperframes browser ensure"
+        problema "hyperframes browser ensure falhou (o render pode falhar sem o Chromium)" "npx hyperframes browser ensure"
         return 1
     fi
 }
@@ -376,7 +472,7 @@ passo_local() {
     if "$py" "$REPO_ROOT/scripts/init_local.py"; then
         nota "_local OK."
     else
-        problema "init_local.py falhou (a pasta _local/ não foi preparada)" "python3 scripts/init_local.py"
+        problema "init_local.py falhou (a pasta _local/ não foi preparada)" "$(dica_py) scripts/init_local.py"
         return 1
     fi
 }
@@ -396,7 +492,7 @@ passo_sons() {
     if "$py" "$REPO_ROOT/scripts/som_cortes.py"; then
         nota "efeitos sonoros OK."
     else
-        problema "som_cortes.py falhou (os efeitos sonoros não foram gerados; ele precisa do ffmpeg)" "instale o ffmpeg (macOS: brew install ffmpeg) e rode python3 scripts/som_cortes.py"
+        problema "som_cortes.py falhou (os efeitos sonoros não foram gerados; ele precisa do ffmpeg)" "instale o ffmpeg ($(dica_ffmpeg)) e rode $(dica_py) scripts/som_cortes.py"
         return 1
     fi
 }
@@ -409,6 +505,36 @@ passo_cinema_plus() {
         nota "--cinema-plus: reservado. Hoje não instala nada; a camada opcional de matting entra aqui numa versão futura."
     fi
 }
+
+# --- 10. doctor ---------------------------------------------------------------------------------------------------
+# Só diz "pronto" quem passou pelo doctor. Com falha pendente ele é pulado: reprovaria pelo mesmo motivo.
+passo_doctor() {
+    if [ ${#FALHAS[@]} -gt 0 ]; then
+        nota "doctor adiado: conserte as falhas acima e rode bash scripts/setup.sh de novo."
+        return 0
+    fi
+    local py saida rc
+    py="$(python_de_trabalho)"
+    if [ -z "$py" ] || [ ! -f "$REPO_ROOT/scripts/vam.py" ]; then
+        problema "não consegui rodar o doctor (sem Python ou sem scripts/vam.py)" "$(dica_py) scripts/vam.py doctor"
+        return 1
+    fi
+    nota "rodando o doctor ($(dica_py) scripts/vam.py doctor)..."
+    saida="$("$py" "$REPO_ROOT/scripts/vam.py" doctor 2>&1)"
+    rc=$?
+    echo "$saida" | sed 's/^/[setup]   /'
+    if [ "$rc" -ne 0 ]; then
+        local primeira
+        primeira="$(echo "$saida" | grep '^\[FAIL\]' | head -1)"
+        problema "o doctor reprovou o ambiente: ${primeira:-ver a saída acima}" "aplique o conserto de cada [FAIL] acima e rode bash scripts/setup.sh de novo"
+        return 1
+    fi
+}
+
+# Carregado por `source` (testes): as funções estão definidas; não roda passo nenhum.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    return 0 2>/dev/null
+fi
 
 # --- roda os passos, sem deixar um derrubar o outro -------------------------------------------------------------------
 if [ "$CHECAR" = 1 ]; then
@@ -428,31 +554,6 @@ passo_env
 passo_local
 passo_sons
 passo_cinema_plus
-
-# --- 10. doctor ---------------------------------------------------------------------------------------------------
-# Só diz "pronto" quem passou pelo doctor. Com falha pendente ele é pulado: reprovaria pelo mesmo motivo.
-passo_doctor() {
-    if [ ${#FALHAS[@]} -gt 0 ]; then
-        nota "doctor adiado: conserte as falhas acima e rode bash scripts/setup.sh de novo."
-        return 0
-    fi
-    local py saida rc
-    py="$(python_de_trabalho)"
-    if [ -z "$py" ] || [ ! -f "$REPO_ROOT/scripts/vam.py" ]; then
-        problema "não consegui rodar o doctor (sem Python ou sem scripts/vam.py)" "python3 scripts/vam.py doctor"
-        return 1
-    fi
-    nota "rodando o doctor (python3 scripts/vam.py doctor)..."
-    saida="$("$py" "$REPO_ROOT/scripts/vam.py" doctor 2>&1)"
-    rc=$?
-    echo "$saida" | sed 's/^/[setup]   /'
-    if [ "$rc" -ne 0 ]; then
-        local primeira
-        primeira="$(echo "$saida" | grep '^\[FAIL\]' | head -1)"
-        problema "o doctor reprovou o ambiente: ${primeira:-ver a saída acima}" "aplique o conserto de cada [FAIL] acima e rode bash scripts/setup.sh de novo"
-        return 1
-    fi
-}
 
 passo_doctor
 
