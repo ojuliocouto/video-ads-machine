@@ -9,10 +9,11 @@ mostra traceback: o que estoura por dentro vira FAIL com a mensagem do erro.
 
   python_deps       Python 3.9+ e numpy, opencv, pillow, scipy (no .venv do repo, se existe)
   ffmpeg_libass     ffmpeg e ffprobe; um render de verdade pelo filtro `subtitles` prova o libass
-  node_hyperframes  Node 22+ e o binário do HyperFrames em node_modules/.bin, na versão pinada.
-                    Binário ausente BARRA: é ele que o motor chama para renderizar.
+  node_hyperframes  Node 22+ e o HyperFrames do repo (rodado por `node <cli.js>`, via plataforma.hf_cmd), na versão
+                    pinada. HyperFrames ausente BARRA: é ele que o motor chama para renderizar.
   transcritor       parakeet, faster-whisper ou Groq, pela mesma escolha do audio.transcrever
-  fontes            as fontes que os templates pedem existem em fonts/
+  fontes            as fontes que os templates pedem existem em fonts/ e são woff2 de verdade (no Windows sem
+                    core.symlinks o git grava o link como um arquivo de texto)
   rede              o GSAP local existe, ou a CDN responde (o render carrega o GSAP)
   heygen            HEYGEN_API_KEY e o saldo em US$ (/v3/users/me). Sem chave é WARN: o modo
                     gravado e o one-shot não usam avatar.
@@ -36,6 +37,12 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+_SCRIPTS = Path(__file__).resolve().parent.parent       # rodando `python scripts/onboarding/doctor.py` direto, scripts/ não está no path
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+import plataforma  # noqa: E402
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 STATUS = (OK, WARN, FAIL)
@@ -104,8 +111,8 @@ def carregar_dotenv(caminho):
 
 def _executar_real(cmd, timeout=60):
     try:
-        p = subprocess.run([str(c) for c in cmd], stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, universal_newlines=True, timeout=timeout)
+        p = subprocess.run([str(c) for c in cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, encoding="utf-8", errors="replace", timeout=timeout)
         return p.returncode, p.stdout or ""
     except subprocess.TimeoutExpired:
         return 124, "tempo esgotado (%ss)" % timeout
@@ -174,7 +181,7 @@ class AmbienteDoctor(object):
     @property
     def venv_python(self):
         """O Python do `.venv` do repo se existe e executa; senão None."""
-        candidato = self.raiz / ".venv" / "bin" / "python"
+        candidato = plataforma.venv_python(self.raiz)       # .venv/bin/python ou .venv/Scripts/python.exe
         if candidato.is_file() and os.access(str(candidato), os.X_OK):
             return candidato
         return None
@@ -194,7 +201,7 @@ class AmbienteDoctor(object):
         env.update(os.environ)
         bins = []
         for b in (Path(sys.executable).parent, Path(sysconfig.get_path("scripts") or "."),
-                  raiz / ".venv" / "bin"):
+                  plataforma.venv_python(raiz).parent):
             if b not in bins:
                 bins.append(b)
         return cls(raiz=raiz, sistema=platform.system(), arquitetura=platform.machine(), env=env,

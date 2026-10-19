@@ -6,11 +6,15 @@ vale o Python que está rodando o doctor.
 """
 import re
 
+import plataforma
+
 from ..doctor import FAIL, OK, Resultado
 
 NOME = "python_deps"
 PYTHON_MINIMO = (3, 9)
 SETUP = "bash scripts/setup.sh"
+INSTALAR_PYTHON_MAC_LINUX = "macOS: brew install python@3.12"
+INSTALAR_PYTHON_WINDOWS = "Windows: winget install -e --id Python.Python.3.12"
 
 # módulo importável -> pacote do pip
 MODULOS = (("numpy", "numpy"), ("cv2", "opencv-python-headless"), ("PIL", "pillow"),
@@ -30,6 +34,11 @@ SONDA = (
     "except ImportError:\n"
     "    print('')\n"
 ) % (tuple(m for m, _ in MODULOS),)
+
+
+def _venv_relativo():
+    """O Python do .venv como se escreve no terminal: `.venv/bin/python` ou `.venv/Scripts/python.exe`."""
+    return plataforma.venv_python("").as_posix().lstrip("/")
 
 
 def checar(amb):
@@ -52,8 +61,9 @@ def checar(amb):
     ver = "%d.%d" % versao
     if versao < PYTHON_MINIMO:
         return Resultado(NOME, FAIL, "Python %s (%s): o motor pede 3.9 ou superior" % (ver, onde),
-                         "instale o Python 3.9 ou superior (macOS: brew install python@3.12) e "
-                         "rode " + SETUP)
+                         "instale o Python 3.9 ou superior (%s) e rode %s"
+                         % (INSTALAR_PYTHON_WINDOWS if plataforma.eh_windows() else INSTALAR_PYTHON_MAC_LINUX,
+                            SETUP))
     ausentes = [m for m in faltando.split(",") if m]
     if ausentes:
         pacotes = dict(MODULOS)
@@ -63,6 +73,6 @@ def checar(amb):
         return Resultado(NOME, FAIL, "opencv %s (%s) sem cv2.CascadeClassifier: a medição do rosto falha"
                          % (cv2_ruim, onde),
                          'instale o opencv que o motor usa: %s -m pip install "opencv-python-headless>=4.13,<5"'
-                         % ("`.venv/bin/python`" if venv else "python3"))
+                         % ("`%s`" % _venv_relativo() if venv else "python3"))
     return Resultado(NOME, OK, "Python %s (%s) com %s" % (ver, onde,
                                                          ", ".join(p for _, p in MODULOS)))
