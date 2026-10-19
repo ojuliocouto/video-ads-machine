@@ -58,3 +58,78 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Windows nativo (Git Bash, Python e Node do Windows, sem WSL e sem Homebrew). É o que prova o port: cada passo é um
+  # critério de pronto separado, e o primeiro que falhar mostra o erro real do Windows em vez de esconder os outros.
+  # Enquanto o port não termina, este job fica vermelho de propósito (o setup.sh ainda procura .venv/bin).
+  windows:
+    name: windows nativo (Python 3.12, Node 22)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      # Como o aluno clona no Windows: CRLF na pasta de trabalho e symlink virando arquivo de texto.
+      # Tem que vir ANTES do checkout, senão o clone já saiu com a configuração do runner.
+      - name: git como o Windows do aluno (autocrlf true, sem symlink)
+        continue-on-error: false
+        run: git config --global core.autocrlf true && git config --global core.symlinks false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: ffmpeg
+        continue-on-error: false
+        run: choco install ffmpeg -y --no-progress
+      # O Chromium do render mora em ~/.cache/hyperframes/chrome e é o que mais demora no setup. A chave segue o
+      # package-lock (a versão do HyperFrames define a versão do Chromium).
+      - name: cache do Chromium do HyperFrames
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hyperframes/chrome
+          key: hyperframes-chrome-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            hyperframes-chrome-${{ runner.os }}-
+      - name: setup (bash scripts/setup.sh)
+        continue-on-error: false
+        run: bash scripts/setup.sh
+      - name: doctor (aviso passa, FAIL reprova)
+        continue-on-error: false
+        run: python scripts/vam.py doctor
+      - name: testes rápidos
+        continue-on-error: false
+        run: bash scripts/dev/testar_limpo.sh
+      - name: fumaça do render (Node, HyperFrames, Chromium e fontes)
+        continue-on-error: false
+        run: python scripts/vam.py fumaca --saida fumaca.mp4
+      - name: diagnóstico da falha
+        if: failure()
+        run: |
+          set +e
+          echo "--- versões ---"
+          python --version; which python
+          node --version; which node
+          ffmpeg -version | head -n 1; which ffmpeg
+          ffprobe -version | head -n 1
+          echo "--- git ---"
+          git --version
+          git config --global --list | grep -E "autocrlf|symlinks"
+          echo "--- ambiente ---"
+          echo "HOME=$HOME USERPROFILE=$USERPROFILE PYTHONUTF8=$PYTHONUTF8"
+          echo "--- .venv ---"
+          ls -la .venv
+          ls -la .venv/Scripts .venv/bin
+          echo "--- node_modules ---"
+          ls node_modules/.bin | head -n 20
+          ls node_modules/hyperframes
+          echo "--- cache do Chromium ---"
+          ls -la ~/.cache/hyperframes ~/.cache/hyperframes/chrome
+          echo "--- fumaça ---"
+          ls -la fumaca.mp4
+          exit 0
