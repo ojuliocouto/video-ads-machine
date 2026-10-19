@@ -13,6 +13,7 @@ from ..transcrever import monotonizar
 
 NOME = "faster_whisper"
 MODELO, COMPUTE = "small", "int8"
+IDIOMA_PADRAO = "pt"
 
 
 def disponivel(amb):
@@ -43,6 +44,9 @@ def _palavras(segmentos):
 
 def transcrever(audio, *, amb, workdir, prompt="", idioma="pt", fabrica_modelo=None):
     modelo = (fabrica_modelo or _fabrica_real)()
+    # Idioma SEMPRE fixo: sem ele o modelo detecta sozinho e pode escorregar para o inglês (o dono viu isso no
+    # parakeet). Vazio, None ou "auto" viram pt; só um código explícito muda o idioma.
+    idioma = idioma if idioma and str(idioma).lower() != "auto" else IDIOMA_PADRAO
     segmentos, _info = modelo.transcribe(
         str(Path(audio)), language=idioma, initial_prompt=prompt or None,
         condition_on_previous_text=False, word_timestamps=True, vad_filter=False)

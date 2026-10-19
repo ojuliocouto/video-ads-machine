@@ -246,31 +246,43 @@ def backends_disponiveis(amb=None):
     return [n for n in ORDEM if _modulo(n).disponivel(amb)]
 
 
-def mensagem_sem_transcritor(amb):
+def mensagem_sem_transcritor(amb, excluir=()):
     if amb.apple_silicon:
         instalar = f"{sys.executable} -m pip install parakeet-mlx"
     else:
         instalar = f"{sys.executable} -m pip install faster-whisper"
+    if "groq" in excluir:
+        return (f"Nenhum transcritor local disponível. Instale um com `{instalar}`. "
+                "A Groq não serve aqui: o tempo por palavra dela não é confiável para cortar.")
     return (f"Nenhum transcritor disponível. Instale um com `{instalar}` "
             "(ou defina GROQ_API_KEY para usar a Groq).")
 
 
-def escolher_backend(amb=None, preferido=None):
-    """Módulo do backend: o `preferido` se existir nesta máquina, senão o primeiro da ORDEM."""
+def escolher_backend(amb=None, preferido=None, excluir=()):
+    """Módulo do backend: o `preferido` se existir nesta máquina, senão o primeiro da ORDEM.
+
+    `excluir` tira backends da escolha automática (o corte de take recusa a Groq: o tempo por palavra
+    dela não é confiável). Pedir pelo nome um backend excluído é erro.
+    """
     amb = amb or Ambiente.real()
     if preferido is not None:
         if preferido not in ORDEM:
             raise ValueError(f"backend desconhecido: {preferido!r} (use um de {', '.join(ORDEM)})")
+        if preferido in excluir:
+            raise SemTranscritor(f"O backend {preferido} não serve para este passo. "
+                                 + mensagem_sem_transcritor(amb, excluir))
         modulo = _modulo(preferido)
         if not modulo.disponivel(amb):
             raise SemTranscritor(f"O backend {preferido} não está disponível nesta máquina. "
                                  + mensagem_sem_transcritor(amb))
         return modulo
     for nome in ORDEM:
+        if nome in excluir:
+            continue
         modulo = _modulo(nome)
         if modulo.disponivel(amb):
             return modulo
-    raise SemTranscritor(mensagem_sem_transcritor(amb))
+    raise SemTranscritor(mensagem_sem_transcritor(amb, excluir))
 
 
 # --- API ------------------------------------------------------------------------------------

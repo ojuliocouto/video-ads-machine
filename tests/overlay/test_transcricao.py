@@ -6,8 +6,11 @@ em que o cache e o transcritor são consultados).
 """
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
+
+import plataforma
 
 from overlay import transcricao as T
 
@@ -163,25 +166,87 @@ def test_transcript_ja_no_out_dir_nao_consulta_cache_nem_transcritor(tmp_path, c
     assert T.transcrever(dst, out) == [{"text": "oi", "start": 0, "end": 1}]
 
 
-def test_cache_miss_roda_o_hyperframes_e_guarda(tmp_path, cache_em_tmp, monkeypatch):
+class _BackendFalso:
+    """Um backend do seletor de transcrição (`audio.transcrever`): devolve palavras prontas, sem rodar nada."""
+
+    def __init__(self, nome, palavras):
+        self.NOME, self.palavras, self.chamadas = nome, palavras, []
+
+    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt", **extra):
+        self.chamadas.append({"audio": str(audio), "idioma": idioma, **extra})
+        return [dict(p) for p in self.palavras]
+
+
+def test_cache_miss_passa_pelo_seletor_e_guarda(tmp_path, cache_em_tmp, monkeypatch):
     out = tmp_path / "out"
     out.mkdir()
     dst = out / "avatar.mp4"
     dst.write_bytes(b"conteudo do avatar")
-    chamadas = []
-
-    def falso_run(cmd, **kw):
-        chamadas.append((list(cmd), kw))
-        (kw["cwd"] / "transcript.json").write_text(json.dumps([{"text": "ola", "start": 0.1, "end": 0.4}]))
-
-    monkeypatch.setattr(T, "run", falso_run)
-    palavras = T.transcrever(dst, out)
-    assert palavras == [{"text": "ola", "start": 0.1, "end": 0.4}]
-    # o argv do original: transcribe do avatar.mp4 no diretorio de saida
-    assert chamadas[0][0] == [T.HF, "transcribe", "avatar.mp4", "--engine", "parakeet",
-                              "--json", "-d", "."]
-    assert chamadas[0][1] == {"cwd": out}
+    falso = _BackendFalso("faster_whisper", [{"text": "ola", "start": 0.1, "end": 0.4}])
+    monkeypatch.setattr(T, "run", lambda *a, **k: pytest.fail("nao deveria chamar o HyperFrames"))
+    palavras = T.transcrever(dst, out, backend=falso)
+    assert palavras == [{"id": "", "text": "ola", "start": 0.1, "end": 0.4}]
+    # o seletor recebeu o avatar e o idioma fixo em portugues (o dono viu o modelo escorregar para o ingles)
+    assert falso.chamadas == [{"audio": str(dst), "idioma": "pt"}]
+    # o transcript.json tem a forma de sempre: lista de {text, start, end}
+    assert json.loads((out / "transcript.json").read_text(encoding="utf-8")) == palavras
     assert len(list(cache_em_tmp.glob("*.json"))) == 1
+
+
+def test_sem_transcritor_para_com_a_mensagem_do_conserto(tmp_path, cache_em_tmp):
+    from audio import transcrever as asr
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "avatar.mp4").write_bytes(b"x")
+    vazio = asr.Ambiente(sistema="Linux", arquitetura="x86_64", env={}, which=lambda n: None,
+                         importavel=lambda m: False)
+    with pytest.raises(SystemExit) as e:
+        T.transcrever(out / "avatar.mp4", out, amb=vazio)
+    assert str(e.value).startswith("ERRO: ") and "faster-whisper" in str(e.value)
+
+
+# Saída do parakeet-mlx (formato real: sentenças com tokens; token com espaço na frente abre palavra).
+_SAIDA_PARAKEET = {"text": "Olá mundo agora.", "sentences": [
+    {"text": "Olá mundo agora.", "start": 0.0, "end": 1.5, "tokens": [
+        {"text": " Ol", "start": 0.0, "end": 0.2}, {"text": "á", "start": 0.2, "end": 0.4},
+        {"text": " mun", "start": 0.5, "end": 0.7}, {"text": "do", "start": 0.7, "end": 0.9},
+        {"text": " agora.", "start": 1.0, "end": 1.5}]}]}
+# A forma que o `hyperframes transcribe` gravava (medida com o parakeet real): `id` vazio, text, start, end.
+_PALAVRAS_ESPERADAS = [{"id": "", "text": "Olá", "start": 0.0, "end": 0.4},
+                       {"id": "", "text": "mundo", "start": 0.5, "end": 0.9},
+                       {"id": "", "text": "agora.", "start": 1.0, "end": 1.5}]
+
+
+@pytest.mark.skipif(plataforma.eh_windows(), reason="o parakeet falso é um script sh (o parakeet só roda no Mac)")
+def test_backend_forcado_em_parakeet_da_a_mesma_estrutura_do_caminho_antigo(tmp_path, cache_em_tmp):
+    """No Mac com parakeet o transcript.json segue sendo a lista `[{id, text, start, end}]` que o transcribe do
+    HyperFrames gravava: o resto do overlay (alinhar_palavras) não percebe a troca."""
+    from audio import transcrever as asr
+    exe = tmp_path / "bin" / "parakeet-mlx"
+    exe.parent.mkdir()
+    exe.write_text('#!/bin/sh\nb=$(basename "$1"); b="${b%%.*}"\ncp "%s" "$5/$b.json"\n'
+                   % (tmp_path / "saida.json"), encoding="utf-8")
+    exe.chmod(0o755)
+    (tmp_path / "saida.json").write_text(json.dumps(_SAIDA_PARAKEET), encoding="utf-8")
+    mac = asr.Ambiente(sistema="Darwin", arquitetura="arm64", env={},
+                       which=lambda n: str(exe) if n == "parakeet-mlx" else None, importavel=lambda m: False)
+    out = tmp_path / "out"
+    out.mkdir()
+    dst = out / "avatar.mp4"
+    dst.write_bytes(b"avatar")
+    palavras = T.transcrever(dst, out, backend="parakeet", amb=mac)
+    assert palavras == _PALAVRAS_ESPERADAS
+    assert json.loads((out / "transcript.json").read_text(encoding="utf-8")) == _PALAVRAS_ESPERADAS
+    assert all(list(p) == ["id", "text", "start", "end"] for p in palavras)
+    # e o casamento com o roteiro (o consumidor do transcript) funciona sobre essa estrutura
+    words = T.alinhar_palavras([{"narr": "Olá mundo agora"}], palavras)
+    assert [(w["text"], w["start"], w["end"]) for w in words] == [("Olá", 0.0, 0.4), ("mundo", 0.5, 0.9),
+                                                                   ("agora", 1.0, 1.5)]
+
+
+def test_overlay_nao_chama_mais_o_hyperframes_para_transcrever():
+    fonte = Path(T.__file__).read_text(encoding="utf-8")
+    assert '"transcribe"' not in fonte and "--engine" not in fonte
 
 
 def test_cache_hit_em_outro_out_dir_nao_chama_o_parakeet(tmp_path, cache_em_tmp, monkeypatch):
@@ -190,21 +255,17 @@ def test_cache_hit_em_outro_out_dir_nao_chama_o_parakeet(tmp_path, cache_em_tmp,
     for nome in ("a", "b"):
         (tmp_path / nome).mkdir()
         (tmp_path / nome / "avatar.mp4").write_bytes(conteudo)
-    rodou = []
-
-    def falso_run(cmd, **kw):
-        rodou.append(cmd)
-        (kw["cwd"] / "transcript.json").write_text(json.dumps([{"text": "um", "start": 0, "end": 1}]))
-
-    monkeypatch.setattr(T, "run", falso_run)
-    T.transcrever(tmp_path / "a" / "avatar.mp4", tmp_path / "a")
+    falso = _BackendFalso("faster_whisper", [{"text": "um", "start": 0, "end": 1}])
+    rodou = falso.chamadas
+    monkeypatch.setattr(T, "run", lambda *a, **k: pytest.fail("nao deveria chamar o HyperFrames"))
+    T.transcrever(tmp_path / "a" / "avatar.mp4", tmp_path / "a", backend=falso)
     import os
     os.utime(tmp_path / "b" / "avatar.mp4",
              ns=(os.stat(tmp_path / "a" / "avatar.mp4").st_atime_ns,
                  os.stat(tmp_path / "a" / "avatar.mp4").st_mtime_ns))
-    palavras = T.transcrever(tmp_path / "b" / "avatar.mp4", tmp_path / "b")
+    palavras = T.transcrever(tmp_path / "b" / "avatar.mp4", tmp_path / "b", backend=falso)
     assert len(rodou) == 1
-    assert palavras == [{"text": "um", "start": 0, "end": 1}]
+    assert palavras == [{"id": "", "text": "um", "start": 0, "end": 1}]
     assert (tmp_path / "b" / "transcript.json").exists()
 
 
@@ -219,15 +280,11 @@ def test_l5_copia_do_avatar_com_outro_mtime_acerta_o_cache(tmp_path, cache_em_tm
         (tmp_path / nome).mkdir()
         (tmp_path / nome / "avatar.mp4").write_bytes(conteudo)
     os.utime(tmp_path / "b" / "avatar.mp4", (time.time() + 500, time.time() + 500))
-    rodou = []
-
-    def falso_run(cmd, **kw):
-        rodou.append(cmd)
-        (kw["cwd"] / "transcript.json").write_text(json.dumps([{"text": "um", "start": 0, "end": 1}]))
-
-    monkeypatch.setattr(T, "run", falso_run)
-    T.transcrever(tmp_path / "a" / "avatar.mp4", tmp_path / "a")
-    T.transcrever(tmp_path / "b" / "avatar.mp4", tmp_path / "b")
+    falso = _BackendFalso("faster_whisper", [{"text": "um", "start": 0, "end": 1}])
+    rodou = falso.chamadas
+    monkeypatch.setattr(T, "run", lambda *a, **k: pytest.fail("nao deveria chamar o HyperFrames"))
+    T.transcrever(tmp_path / "a" / "avatar.mp4", tmp_path / "a", backend=falso)
+    T.transcrever(tmp_path / "b" / "avatar.mp4", tmp_path / "b", backend=falso)
     assert len(rodou) == 1
     import hashlib
     assert (cache_em_tmp / (hashlib.sha256(conteudo).hexdigest() + ".json")).is_file()
