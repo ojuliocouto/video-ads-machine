@@ -19,6 +19,7 @@ from onboarding.checks import (ffmpeg_libass, fontes, heygen, node_hyperframes, 
                                rede, transcritor)
 
 RAIZ_REAL = Path(__file__).resolve().parent.parent.parent
+SISTEMA_REAL_E_WINDOWS = plataforma.eh_windows()      # lido no import, antes de a fixture autouse trocar o sistema
 CHAVE = "hg_chave_secreta_de_teste_123456"
 FONTE_VALIDA = b"wOF2" + b"\x00" * 2048        # magia woff2 e mais de 1 KB: o que uma fonte de verdade tem
 
@@ -319,7 +320,8 @@ def test_opencv_com_cascade_continua_ok(repo):
 
 def test_a_sonda_do_doctor_confere_o_cascade_de_verdade():
     cv2 = pytest.importorskip("cv2")
-    r = subprocess.run([sys.executable, "-c", python_deps.SONDA], capture_output=True, text=True, timeout=60)
+    r = subprocess.run([sys.executable, "-c", python_deps.SONDA], capture_output=True, encoding="utf-8",
+                       errors="replace", timeout=60)
     linhas = r.stdout.splitlines()
     assert r.returncode == 0 and "CascadeClassifier" in python_deps.SONDA
     if hasattr(cv2, "CascadeClassifier"):
@@ -680,7 +682,8 @@ def test_ffmpeg_real_renderiza_o_ass_numa_pasta_com_dois_pontos_e_virgula(tmp_pa
     """O escape de uma camada falhava em `:` (o `C:` do Windows) e em `,`; o de duas camadas passa no ffmpeg de verdade."""
     import shutil
     import tempfile
-    pasta = tmp_path / "a:b,c;d"
+    # No Windows o `:` não pode estar no nome de uma pasta (o `C:` do caminho já exercita o caso); `,` e `;` podem.
+    pasta = tmp_path / ("a,b;c d" if SISTEMA_REAL_E_WINDOWS else "a:b,c;d")
     pasta.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(pasta))
     amb = D.AmbienteDoctor(raiz=tmp_path, which=shutil.which, executar=D._executar_real)

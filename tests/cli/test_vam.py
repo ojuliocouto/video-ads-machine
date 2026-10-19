@@ -23,6 +23,7 @@ import pytest
 import plataforma
 import vam
 from projeto import pastas, status
+from tests.fixtures.git_bash import BASH, caminho_bash, caminho_msys
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = RAIZ / "scripts"
@@ -63,7 +64,7 @@ def test_cada_modulo_de_cli_tem_registrar_e_executar_e_nao_faz_nada_no_import():
 
 def test_importar_o_vam_nao_executa_nada():
     r = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); import vam" % str(SCRIPTS)],
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, encoding="utf-8", errors="replace", timeout=60)
     assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
 
 
@@ -207,8 +208,13 @@ def test_a_ajuda_lista_o_comando_fumaca(capsys):
 
 
 def test_rodar_o_vam_py_direto_mostra_a_ajuda(tmp_path):
-    r = subprocess.run([sys.executable, str(SCRIPTS / "vam.py"), "--help"], capture_output=True, text=True,
-                       timeout=120, env={"PATH": "/usr/bin:/bin", "VAM_SEM_VENV": "1", "HOME": str(tmp_path)})
+    env = {"PATH": "/usr/bin:/bin", "VAM_SEM_VENV": "1", "HOME": str(tmp_path)}
+    if plataforma.eh_windows():
+        # Sem o SYSTEMROOT o Python do Windows nem sobe direito; o resto do ambiente do dono continua fora.
+        env.update({k: os.environ[k] for k in ("SYSTEMROOT", "TEMP", "TMP") if k in os.environ})
+    # A ajuda sai em UTF-8 (acento); decodificar em cp1252 no Windows derrubava o leitor e devolvia stdout None.
+    r = subprocess.run([sys.executable, str(SCRIPTS / "vam.py"), "--help"], capture_output=True, encoding="utf-8",
+                       errors="replace", timeout=120, env=env)
     assert r.returncode == 0, r.stderr
     assert "vam" in r.stdout and "Traceback" not in r.stderr
 
@@ -355,13 +361,13 @@ def test_aprovar_sem_plano_sai_com_um_e_grava_o_motivo_no_status(estado_vazio, t
 
 def test_build_composite_chamado_direto_sai_com_dois():
     r = subprocess.run([sys.executable, str(SCRIPTS / "build_composite.py"), "ad99v2", "look_a", "9x16"],
-                       capture_output=True, text=True, timeout=120, cwd=str(SCRIPTS))
+                       capture_output=True, encoding="utf-8", errors="replace", timeout=120, cwd=str(SCRIPTS))
     assert r.returncode == 2
     assert "vam montar" in r.stderr and "Traceback" not in r.stderr
 
 
 def test_produzir_ad_sem_slug_sai_com_dois():
-    r = subprocess.run([sys.executable, str(SCRIPTS / "produzir_ad.py")], capture_output=True, text=True,
+    r = subprocess.run([sys.executable, str(SCRIPTS / "produzir_ad.py")], capture_output=True, encoding="utf-8", errors="replace",
                        timeout=120, cwd=str(SCRIPTS))
     assert r.returncode == 2 and "Traceback" not in r.stderr
 
@@ -524,11 +530,11 @@ def test_higienizar_voz_em_wav_sem_silencio_grande_sai_mp3_valido(tmp_path):
     saida = tmp_path / "limpo.mp3"
     import os
     r = subprocess.run([sys.executable, str(SCRIPTS / "higienizar_audio.py"), str(wav), str(saida)],
-                       capture_output=True, text=True, timeout=120,
+                       capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                        env=dict(os.environ, HIGIENIZAR_SEM_CONFERENCIA="1"))
     assert r.returncode == 0, r.stderr[-400:]
     o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(saida)],
-                       capture_output=True, text=True).stdout.strip()
+                       capture_output=True, encoding="utf-8", errors="replace").stdout.strip()
     assert o == "mp3"
 
 
@@ -538,27 +544,35 @@ def test_como_aluno_roda_com_home_falso_path_do_sistema_e_so_as_chaves_do_aluno(
     import os
     env = dict(os.environ, VAM_HOME_ALUNO=str(tmp_path), CLAUDE_CONFIG_DIR="/nao/vaza", HEYGEN_API_KEY="chave-teste",
                OUTRA="nao-vaza")
-    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True, text=True,
-                       env=env, timeout=60)
+    r = subprocess.run([BASH, caminho_bash(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=60)
     assert r.returncode == 0, r.stderr
-    linhas = dict(l.split("=", 1) for l in r.stdout.splitlines() if "=" in l)
-    assert linhas["HOME"] == str(tmp_path)
-    assert linhas["PATH"] == "/opt/homebrew/bin:/usr/bin:/bin:/usr/local/bin" and ".local" not in linhas["PATH"]
+    linhas = dict(l.rstrip("\r").split("=", 1) for l in r.stdout.splitlines() if "=" in l)
     assert linhas["HEYGEN_API_KEY"] == "chave-teste"
-    assert "CLAUDE_CONFIG_DIR" not in linhas and "OUTRA" not in linhas
+    assert "CLAUDE_CONFIG_DIR" not in linhas
+    assert ".local/bin" not in linhas["PATH"]
+    if plataforma.eh_windows():
+        # No Git Bash o `env -i` quebraria o Python e o Node: o ambiente fica, só sai o que é do dono. O HOME falso
+        # vai no formato C:/pasta (cygpath -m), que o Python do Windows lê pelo USERPROFILE.
+        assert linhas["USERPROFILE"] == tmp_path.as_posix()
+        assert linhas["HOME"] in (tmp_path.as_posix(), caminho_msys(tmp_path))      # o Git Bash pode reescrever o HOME
+    else:
+        assert linhas["HOME"] == str(tmp_path)
+        assert linhas["PATH"] == "/opt/homebrew/bin:/usr/bin:/bin:/usr/local/bin" and ".local" not in linhas["PATH"]
+        assert "OUTRA" not in linhas
 
 
 def test_como_aluno_sem_home_falso_recusa():
     import os
     env = {k: v for k, v in os.environ.items() if k != "VAM_HOME_ALUNO"}
-    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True, text=True,
-                       env=env, timeout=60)
+    r = subprocess.run([BASH, caminho_bash(SCRIPTS / "dev" / "como_aluno.sh"), "env"], capture_output=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=60)
     assert r.returncode == 2 and "VAM_HOME_ALUNO" in r.stdout
 
 
 def test_e2e_local_e_bash_valido_e_roda_o_fluxo_inteiro_pelo_vam():
     arq = SCRIPTS / "dev" / "e2e_local.sh"
-    assert subprocess.run(["bash", "-n", str(arq)], capture_output=True).returncode == 0
+    assert subprocess.run([BASH, "-n", caminho_bash(arq)], capture_output=True).returncode == 0
     texto = arq.read_text(encoding="utf-8")
     ordem = [texto.index("passo %s %s" % (n, c)) for n, c in (("novo", "novo"), ("roteiro", "roteiro"),
                                                                ("audio", "audio"), ("avatar", "avatar"),
@@ -572,8 +586,8 @@ def test_e2e_local_e_bash_valido_e_roda_o_fluxo_inteiro_pelo_vam():
 def test_e2e_sem_midia_sai_com_dois(tmp_path):
     import os
     env = dict(os.environ, VAM_E2E_MIDIA=str(tmp_path / "nao-existe"))
-    r = subprocess.run(["bash", str(SCRIPTS / "dev" / "e2e_local.sh")], capture_output=True, text=True, env=env,
-                       timeout=60)
+    r = subprocess.run([BASH, caminho_bash(SCRIPTS / "dev" / "e2e_local.sh")], capture_output=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=60)
     assert r.returncode == 2 and "VAM_E2E_MIDIA" in r.stdout
 
 
