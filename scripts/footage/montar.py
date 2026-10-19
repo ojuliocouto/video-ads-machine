@@ -39,6 +39,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import caminhos
+import plataforma
 from timeline import construir as TC
 
 from . import blocos as BL
@@ -69,6 +70,16 @@ class Config(object):
     split: GeometriaSplit = GeometriaSplit()    # VAM_SPLIT_TOP_H, VAM_SPLIT_GRAD e VAM_SPLIT_BIAS deste ambiente (L6)
 
 
+def _expandir(caminho):
+    """`~` vira a pasta do usuário. No Windows o `expanduser` cola `/restante` na pasta com `\\` e devolve os dois
+    estilos no mesmo caminho (`C:\\Users\\ana/av.mp4`); aqui ele sai com um estilo só, como as outras `str(Path)`
+    que a footage compara e grava. Nos outros sistemas o resultado é o de sempre."""
+    expandido = os.path.expanduser(caminho)
+    if plataforma.eh_windows() and expandido != caminho:
+        return os.path.normpath(expandido)
+    return expandido
+
+
 def ler_config(env=None, dados=None):
     """Variáveis de ambiente -> `Config`. Erro alto (ErroFootage) para o que falta ou o que foi removido."""
     env = os.environ if env is None else env
@@ -89,7 +100,7 @@ def ler_config(env=None, dados=None):
     nome = os.path.splitext(saida)[0]
     outd = os.path.join(base, "output")
     return Config(
-        avatar=os.path.expanduser(env["VAM_AVATAR"]),
+        avatar=_expandir(env["VAM_AVATAR"]),
         roteiro=env["VAM_ROTEIRO"],
         inserts_json=env.get("VAM_INSERTS_JSON") or None,
         saida=os.path.join(outd, saida),
@@ -101,7 +112,7 @@ def ler_config(env=None, dados=None):
         tr=tr,
         cache=env.get("VAM_CACHE_SEG", "1") != "0",
         paralelo=int(env.get("VAM_PARALELO", "4")),
-        timeline=os.path.expanduser(env["VAM_TIMELINE"]) if env.get("VAM_TIMELINE") else None,
+        timeline=_expandir(env["VAM_TIMELINE"]) if env.get("VAM_TIMELINE") else None,
         split=GeometriaSplit.do_ambiente(env))
 
 

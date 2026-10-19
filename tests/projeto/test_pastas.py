@@ -14,7 +14,7 @@ from projeto import pastas
 
 
 def arvore(raiz):
-    return sorted(str(p.relative_to(raiz)) for p in Path(raiz).rglob("*"))
+    return sorted(p.relative_to(raiz).as_posix() for p in Path(raiz).rglob("*"))
 
 
 class CaminhosDoProjeto(unittest.TestCase):

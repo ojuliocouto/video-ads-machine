@@ -164,12 +164,12 @@ class TestExemploCompleto(Base):
                          [re.sub(r"^[\s,…\.]+", "", b["fala"]) for b in lei.blocos])
 
     def test_inserts_exatos_um_por_bloco_de_insert_na_ordem(self):
-        i = str(self.ins)
+        i = Path(self.ins)        # o caminho no formato nativo do sistema (`\\` no Windows), como o motor grava
         self.assertEqual(self.motor.inserts, {
-            "#1#": {"file": f"{i}/painel.mp4", "start": 0, "speed": 1.0},
-            "#2#": {"file": f"{i}/planilha.mp4", "start": 2.5, "speed": 1.2, "split": True,
+            "#1#": {"file": str(i / "painel.mp4"), "start": 0, "speed": 1.0},
+            "#2#": {"file": str(i / "planilha.mp4"), "start": 2.5, "speed": 1.2, "split": True,
                     "crop": "1280:720:0:0", "exposicao": 0.1, "texto_proprio": True},
-            "#3#": {"file": f"{i}/automacao.mp4", "start": 0, "speed": 1.5, "zoom": 1.2, "dur_max": 4.0},
+            "#3#": {"file": str(i / "automacao.mp4"), "start": 0, "speed": 1.5, "zoom": 1.2, "dur_max": 4.0},
         })
         self.assertEqual(list(self.motor.inserts), ["#1#", "#2#", "#3#"])
 

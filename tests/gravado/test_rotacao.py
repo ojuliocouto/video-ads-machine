@@ -95,7 +95,7 @@ def test_o_comando_marca_a_saida_bt709_em_tv(tmp_path):
     for flag, valor in (("-colorspace", "bt709"), ("-color_primaries", "bt709"), ("-color_trc", "bt709"),
                         ("-color_range", "tv"), ("-pix_fmt", "yuv420p")):
         assert cmd[cmd.index(flag) + 1] == valor, flag
-    assert cmd[-1] == "/x/saida.mp4"
+    assert cmd[-1] == str(Path("/x/saida.mp4"))      # no Windows o comando leva o caminho nativo (com barra invertida)
 
 
 # --- o loudness da peça montada (o AAC passa do teto) --------------------------------------------

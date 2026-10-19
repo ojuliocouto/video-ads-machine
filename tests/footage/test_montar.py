@@ -7,6 +7,7 @@ as variáveis de ambiente.
 """
 import hashlib
 import json
+import ntpath
 import os
 import re
 import site
@@ -109,9 +110,11 @@ def test_wrapper_tem_ate_40_linhas():
 def test_wrapper_sem_variaveis_sai_com_erro_dizendo_o_que_falta(tmp_path):
     env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path), "VAM_DADOS": str(tmp_path / "d"),
            "VAM_ESTADO": str(tmp_path / "e"), "PYTHONDONTWRITEBYTECODE": "1",
-           "PYTHONUSERBASE": site.getuserbase()}
+           "PYTHONUSERBASE": site.getuserbase(), "PYTHONUTF8": "1"}
+    if os.name == "nt":          # o Python do Windows precisa destas para subir num ambiente enxuto
+        env.update({k: os.environ[k] for k in ("SYSTEMROOT", "TEMP", "TMP") if k in os.environ})
     r = subprocess.run([sys.executable, str(SCRIPTS / "produzir_roteiro.py")], env=env, cwd=str(tmp_path),
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 1
     assert "VAM_AVATAR" in r.stderr and "VAM_ROTEIRO" in r.stderr
     assert "Traceback" not in r.stderr
@@ -148,8 +151,26 @@ def test_config_defaults_de_cache_e_paralelismo(tmp_path):
 
 def test_avatar_com_til_e_expandido(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))      # o `expanduser` do Windows lê o USERPROFILE, não o HOME
     cfg = MO.ler_config(_env(tmp_path, VAM_AVATAR="~/av.mp4"), dados=str(tmp_path))
     assert cfg.avatar == str(tmp_path / "av.mp4")
+
+
+def test_til_no_windows_sai_com_um_estilo_de_separador_so(tmp_path, monkeypatch):
+    """O `expanduser` do Windows devolve `C:\\Users\\ana/av.mp4`: a footage normaliza para um estilo só."""
+    monkeypatch.setattr(MO.plataforma, "_sistema", lambda: "win32")
+    monkeypatch.setattr(MO.os.path, "expanduser", lambda p: "C:\\Users\\ana" + p[1:])
+    monkeypatch.setattr(MO.os.path, "normpath", ntpath.normpath)
+    cfg = MO.ler_config(_env(tmp_path, VAM_AVATAR="~/av.mp4", VAM_TIMELINE="~/pasta/t.json"), dados=str(tmp_path))
+    assert cfg.avatar == "C:\\Users\\ana\\av.mp4"
+    assert cfg.timeline == "C:\\Users\\ana\\pasta\\t.json"
+
+
+def test_til_fora_do_windows_fica_como_o_expanduser_devolve(tmp_path, monkeypatch):
+    monkeypatch.setattr(MO.plataforma, "_sistema", lambda: "darwin")
+    monkeypatch.setattr(MO.os.path, "expanduser", lambda p: "/home/ana" + p[1:])
+    cfg = MO.ler_config(_env(tmp_path, VAM_AVATAR="~/a//av.mp4"), dados=str(tmp_path))
+    assert cfg.avatar == "/home/ana/a//av.mp4"
 
 
 def test_saida_absoluta_vence_a_pasta_de_output_como_no_original(tmp_path):
