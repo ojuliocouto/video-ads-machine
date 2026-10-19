@@ -1,0 +1,41 @@
+# Fim de linha e binários, iguais em macOS, Linux e Windows.
+#
+# Sem este arquivo, o Git for Windows (core.autocrlf=true, o padrão do instalador) grava CRLF nos
+# scripts ao clonar. Um `setup.sh` com CRLF quebra no bash com `$'\r': command not found`, e um
+# arquivo de hash ou de dados com CRLF muda o resultado dos testes. O que é texto e o bash, o Python
+# ou o Node leem fica sempre com LF na pasta de trabalho; o que é binário o Git nunca converte.
+
+* text=auto
+
+# texto lido por bash, Python, Node, navegador e pelos testes: sempre LF
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.ini text eol=lf
+*.sha256 text eol=lf
+*.example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# binários: o Git não converte fim de linha nem tenta diferenciar
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.mp4 binary
+*.mov binary
+*.m4a binary
+*.mp3 binary
+*.wav binary
