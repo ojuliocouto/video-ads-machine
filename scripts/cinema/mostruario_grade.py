@@ -27,11 +27,15 @@ PAINEL_ALTURA = 640         # altura do quadro de cada painel, em pixels
 FAIXA_ALTURA = 56           # faixa escura com o nome do preset, embaixo de cada painel
 FUNDO_FAIXA = (18, 18, 20)
 TEXTO = (255, 255, 255)
-_FONTES = ("/System/Library/Fonts/Helvetica.ttc",
+_FONTES_REPO = (Path(__file__).resolve().parent.parent.parent / "fonts" / "anton-400.ttf",)
+_FONTES = (*(str(f) for f in _FONTES_REPO),
+           "/System/Library/Fonts/Helvetica.ttc",
            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
            "/Library/Fonts/Arial.ttf",
            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-           "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf")
+           "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+           r"C:\Windows\Fonts\arialbd.ttf",
+           r"C:\Windows\Fonts\arial.ttf")
 
 
 class MostruarioFalhou(Exception):

@@ -8,10 +8,9 @@ A entrega do produto é a PASTA `entrega/` (não há envio automático para o al
 seção 9 do plano). `abrir` mostra a pasta no gerenciador de arquivos, quando há um.
 """
 import hashlib
-import subprocess
-import sys
 from pathlib import Path
 
+import plataforma
 from projeto import status
 
 
@@ -54,9 +53,5 @@ def montar(pj, gate, agora=None):
 
 
 def abrir(pasta):
-    """Mostra a pasta no gerenciador de arquivos (macOS `open`, Linux `xdg-open`). Falha é silenciosa: é conveniência."""
-    cmd = ["open", str(pasta)] if sys.platform == "darwin" else ["xdg-open", str(pasta)]
-    try:
-        subprocess.run(cmd, capture_output=True, timeout=15)
-    except (OSError, subprocess.SubprocessError):
-        pass
+    """Mostra a pasta no gerenciador de arquivos (Windows, macOS ou Linux). Falha é silenciosa: é conveniência."""
+    plataforma.abrir_pasta(pasta)
