@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 
+import plataforma
 import push_in
 from footage import cadeia as CA
 from footage import enquadramento as ENQ
@@ -914,6 +915,9 @@ def fixar_medidas(mp, med):
 def _normaliza(cmd, dirs):
     saida = []
     for a in cmd:
+        # A moldura entra por `movie=` já escapada (`plataforma.escapar_filtro`: `/` no lugar de `\\` e `C\\:` no
+        # Windows); os demais caminhos vão crus, como `str(Path)`. No Mac e no Linux as duas formas são iguais.
+        a = a.replace(plataforma.escapar_filtro(dirs["molduras"]), "<MOLDURAS>")
         a = a.replace(str(dirs["molduras"]), "<MOLDURAS>")
         a = a.replace(str(dirs["gerados"] / FI.SOMBRA_PIP), "<SOMBRA_PIP>")
         a = a.replace(str(dirs["gerados"] / FI.BRILHO_LOGO), "<BRILHO>")
@@ -1001,7 +1005,7 @@ def test_horizontal_em_split_usa_a_moldura_no_aspecto_do_asset(gravador, dirs, m
     fixar_medidas(monkeypatch, caso["medidas"])
     _chama(caso, dirs)
     fc = gravador[0][gravador[0].index("-filter_complex") + 1]
-    assert f"movie={dirs['molduras']}/moldura_1_7778.png" in fc
+    assert f"movie={plataforma.escapar_filtro(dirs['molduras'] / 'moldura_1_7778.png')}," in fc
     assert (dirs["molduras"] / "moldura_1_7778.png").is_file()
 
 

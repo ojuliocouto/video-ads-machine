@@ -18,6 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import plataforma
 import pytest
 
 from audio import transcrever as T
@@ -236,10 +237,23 @@ def _rodar_stub(tmp_path, args):
     stub.chmod(0o755)
     saida = tmp_path / "saida"
     saida.mkdir(exist_ok=True)
-    r = subprocess.run([str(stub), *[a.replace("@SAIDA@", str(saida)) for a in args]], capture_output=True, text=True)
+    # No Windows um arquivo sem extensão não é executável (WinError 193): o interpretador roda o stub. No Mac e no
+    # Linux o stub roda pelo shebang, como o parakeet-mlx de verdade.
+    executar = [sys.executable, str(stub)] if plataforma.eh_windows() else [str(stub)]
+    r = subprocess.run([*executar, *[a.replace("@SAIDA@", str(saida)) for a in args]], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 0, r.stderr
     entrada = Path(args[0]).stem
     return gravado, json.loads((saida / f"{entrada}.json").read_text(encoding="utf-8"))
+
+
+def test_stub_da_paridade_compila_com_pasta_de_caminho_do_windows():
+    """`C:\\Users\\...` escrito cru entre aspas dá SyntaxError (`\\U`): o stub guarda o caminho com `repr`."""
+    from tests.paridade import capturar as C
+
+    texto = C.stub_parakeet(r"C:\Users\ana\asr\x")
+    compile(texto, "stub", "exec")
+    assert r"C:\\Users\\ana" in texto
 
 
 def test_stub_da_paridade_devolve_a_fala_gravada_do_jeito_da_footage(tmp_path):

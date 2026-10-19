@@ -109,7 +109,7 @@ import json, os, sys
 args = sys.argv[1:]
 entrada = args[0]
 saida = args[args.index("--output-dir") + 1] if "--output-dir" in args else "."
-with open(os.path.join("__ASR__", "av.json"), encoding="utf-8") as f:
+with open(os.path.join(__ASR__, "av.json"), encoding="utf-8") as f:
     dados = json.load(f)
 if not entrada.endswith(".wav") or "--chunk-duration" in args:
     def mexe(o):
@@ -132,7 +132,8 @@ print("stub parakeet: " + nome)
 
 def stub_parakeet(asr):
     """O texto do stub do parakeet-mlx, lendo a fala gravada da pasta `asr` (fixture/asr)."""
-    return _STUB_PARAKEET.replace("__ASR__", str(asr)).replace("__DESLOCA__", repr(DESLOCAMENTO_FORA_DO_JEITO))
+    # repr: no Windows o caminho com barra invertida, dentro de aspas, seria lido como escape (`\U` é erro de sintaxe)
+    return _STUB_PARAKEET.replace("__ASR__", repr(str(asr))).replace("__DESLOCA__", repr(DESLOCAMENTO_FORA_DO_JEITO))
 
 _STUB_HYPERFRAMES = """#!/bin/sh
 # Stub do hyperframes (paridade): so entende `transcribe`; devolve a transcricao real gravada.

@@ -148,7 +148,12 @@ class EscritaAtomica(Base):
         self.assertIn("anúncio", txt)
         self.assertTrue(txt.endswith("\n"))
         self.assertEqual(json.loads(txt), {"acento": "anúncio", "n": 1})
-        self.assertEqual(oct(alvo.stat().st_mode & 0o777), oct(0o644))
+        if sys.platform.startswith("win"):
+            # o Windows não tem os bits rwx do POSIX: o `st_mode` só diz se o arquivo é somente leitura (0o444) ou não (0o666)
+            self.assertEqual(oct(alvo.stat().st_mode & 0o777), oct(0o666))
+            self.assertTrue(os.access(alvo, os.W_OK))
+        else:
+            self.assertEqual(oct(alvo.stat().st_mode & 0o777), oct(0o644))
 
     def test_ler_json_recusa_chave_repetida_e_nan(self):
         f = Path(self.tmp.name) / "x.json"

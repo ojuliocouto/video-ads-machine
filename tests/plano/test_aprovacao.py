@@ -48,7 +48,7 @@ def aprovado(pronto):
 
 
 def arquivos_do_projeto(pj):
-    return sorted(str(p.relative_to(pj.raiz)) for p in pj.raiz.rglob("*") if p.is_file())
+    return sorted(p.relative_to(pj.raiz).as_posix() for p in pj.raiz.rglob("*") if p.is_file())
 
 
 # --- o que a aprovação grava -------------------------------------------------------------------------------

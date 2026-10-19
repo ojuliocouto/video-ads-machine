@@ -179,7 +179,7 @@ def test_com_caixa_a_sobreposicao_vem_depois_da_grade_numa_segunda_entrada():
 
 def test_o_comando_tem_uma_entrada_de_video_e_marca_a_saida_bt709(tmp_path):
     cmd = montar.comando_render(_plano_pronto(), Path("/x/bruto.mp4"), None, Path("/x/saida.mp4"))
-    assert cmd.count("-i") == 1 and cmd[cmd.index("-i") + 1] == "/x/bruto.mp4"
+    assert cmd.count("-i") == 1 and cmd[cmd.index("-i") + 1] == str(Path("/x/bruto.mp4"))
     assert cmd[cmd.index("-colorspace") + 1] == "bt709" and cmd[cmd.index("-color_range") + 1] == "tv"
     com_caixa = montar.comando_render(_plano_pronto(), Path("/x/bruto.mp4"), Path("/x/c.png"), Path("/x/s.mp4"))
     assert com_caixa.count("-i") == 2 and "-loop" in com_caixa
