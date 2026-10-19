@@ -17,7 +17,7 @@ O take é copiado para `voz/bruto.<ext>` do projeto (a origem nunca é tocada, e
 | Passo | O que acontece | Medida |
 |---|---|---|
 | 0 Entender | assistir o bruto e ver o plano (`--so-plano` para aqui) | |
-| 1 Transcrever | tempo de palavra real (parakeet ou faster-whisper); a Groq infla o token e é recusada | |
+| 1 Transcrever | tempo de palavra real (parakeet no Apple Silicon, faster-whisper nos outros sistemas); a Groq infla o token e é recusada | |
 | 2 Cortar | o vão entre as palavras diz ONDE, a energia da onda diz QUANTO (`ar_morto.py`) | piso de energia e respiro do `cortar_ar_morto.py` |
 | 3 Enquadrar | janela 9:16 centrada no rosto medido, medidas pares | rosto mediano de várias amostras |
 | 4 Luz | luminância medida vira brilho e contraste; HDR do celular vira SDR por LUT | alvo de luminância 111; brilho com teto |
