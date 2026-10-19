@@ -43,6 +43,7 @@ from pathlib import Path
 
 import numpy as np
 
+import plataforma
 from gravado.veredito import InsumoInvalido
 
 # --- a luz ------------------------------------------------------------------------------------------
@@ -93,7 +94,8 @@ def _quadro_cinza(video, t, largura, altura, filtro_antes=""):
     try:
         r = subprocess.run(cmd, capture_output=True)
     except FileNotFoundError:
-        raise InsumoInvalido("ffmpeg não encontrado: instale com `brew install ffmpeg`")
+        raise InsumoInvalido("ffmpeg não encontrado: instale o ffmpeg (Mac: `brew install ffmpeg`; "
+                             "Windows: `winget install ffmpeg`)")
     if r.returncode != 0 or len(r.stdout) != largura * altura:
         raise InsumoInvalido("não consegui amostrar o quadro de %.2fs de %s: %s"
                              % (t, video, r.stderr.decode("utf-8", "replace").strip()[-200:]))
@@ -127,9 +129,10 @@ def transferencia_do_video(caminho):
     try:
         r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                             "stream=color_transfer", "-of", "default=nw=1:nk=1", str(caminho)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     except FileNotFoundError:
-        raise InsumoInvalido("ffprobe não encontrado: instale o ffmpeg com `brew install ffmpeg`")
+        raise InsumoInvalido("ffprobe não encontrado: instale o ffmpeg (Mac: `brew install ffmpeg`; "
+                             "Windows: `winget install ffmpeg`)")
     if r.returncode != 0:
         raise InsumoInvalido("não consegui ler %s: %s" % (caminho, r.stderr.strip()[-200:]))
     valor = r.stdout.strip()
@@ -203,13 +206,6 @@ def gerar_lut(destino, tamanho=LUT_TAMANHO, transferencia=HLG):
     return destino
 
 
-def _escapar(caminho):
-    texto = str(caminho)
-    for c in ("\\", ":", ",", "'", "[", "]", ";", "="):
-        texto = texto.replace(c, "\\" + c)
-    return texto
-
-
 def cadeia_hdr_para_sdr(lut):
     """O trecho do filtro do ffmpeg que leva um vídeo HDR (HLG ou PQ, bt2020) para SDR bt709, até a etiqueta.
 
@@ -218,7 +214,7 @@ def cadeia_hdr_para_sdr(lut):
     return ",".join([
         "scale=in_color_matrix=bt2020:in_range=tv:out_range=pc",
         "format=gbrp16le",
-        "lut3d=file=%s:interp=tetrahedral" % _escapar(lut),
+        "lut3d=file=%s:interp=tetrahedral" % plataforma.escapar_filtro(lut),
         "scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int",
         "format=yuv420p",
         "setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv"])

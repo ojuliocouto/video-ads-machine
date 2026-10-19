@@ -45,11 +45,10 @@ if __package__ in (None, ""):
 
 import analise_inserts as AI                     # noqa: E402
 import build_composite as BC                     # noqa: E402
+import plataforma                                # noqa: E402
 from caminhos import V1                          # noqa: E402  (com VAM_DADOS do projeto: render/motor)
 # A decisão de tinta, placa e faixa é a do overlay, uma função só (W7.X): a prancha não tem regra própria de fundo claro.
 from overlay.fundo_claro import decisao_do_quadro   # noqa: E402,F401
-
-HF = str(BC.hyperframes())
 
 W, H = 1080, 1920
 # safe zones do Reels/Stories, medidas em fracao da altura
@@ -57,15 +56,28 @@ SAFE_TOPO, SAFE_BASE = 0.14, 0.20
 
 
 def sh(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
     if r.returncode != 0:
         raise RuntimeError(f"falhou: {' '.join(str(c) for c in cmd[:4])}\n{r.stderr[-1500:]}")
     return r.stdout
 
 
+# Fontes do rótulo. A do REPO vem primeiro (a mesma em qualquer máquina, licença OFL em `fonts/OFL.txt`); a do sistema é
+# reserva, com o Arial do Windows, o do Mac e o Helvetica do Mac. Sem nenhuma, o Pillow usa a fonte padrão dele.
+FONTES_DO_REPO = tuple(str(BC.RAIZ / "fonts" / nome) for nome in ("inter-800.ttf", "montserrat-800.ttf"))
+FONTES_DO_SISTEMA = (r"C:\Windows\Fonts\arialbd.ttf",
+                     r"C:\Windows\Fonts\arial.ttf",
+                     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                     "/System/Library/Fonts/Helvetica.ttc")
+
+
+def candidatas_de_fonte():
+    """As fontes em ordem de preferência: as do repo, depois as do sistema."""
+    return list(FONTES_DO_REPO) + list(FONTES_DO_SISTEMA)
+
+
 def fonte(tam):
-    for p in ("/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-              "/System/Library/Fonts/Helvetica.ttc"):
+    for p in candidatas_de_fonte():
         if os.path.exists(p):
             try:
                 return ImageFont.truetype(p, tam)
@@ -155,7 +167,7 @@ def preparar_overlay(motor):
     if motor.gerar_overlay() is None:
         raise BC.ErroDoMotor("overlay", (motor.saida_overlay or (None, ""))[1].strip()[-600:])
     only = motor.projeto_do_overlay()
-    pr = json.loads((motor.overlay_dir / "prancha.json").read_text())
+    pr = json.loads((motor.overlay_dir / "prancha.json").read_text(encoding="utf-8"))
     return pr, only
 
 
@@ -185,10 +197,10 @@ def _variante_fundo(only, cor, nome):
         shutil.rmtree(dst)
     shutil.copytree(only, dst, symlinks=True,
                     ignore=shutil.ignore_patterns("snaps", "renders"))
-    h = (dst / "index.html").read_text()
+    h = (dst / "index.html").read_text(encoding="utf-8")
     h = h.replace("</head>",
                   f"<style>html,body{{background:{cor} !important;}}</style></head>", 1)
-    (dst / "index.html").write_text(h)
+    (dst / "index.html").write_text(h, encoding="utf-8")
     return dst
 
 
@@ -204,10 +216,10 @@ def _variante_fundo(only, cor, nome):
         shutil.rmtree(dst)
     shutil.copytree(only, dst, symlinks=True,
                     ignore=shutil.ignore_patterns("snaps", "renders"))
-    h = (dst / "index.html").read_text()
+    h = (dst / "index.html").read_text(encoding="utf-8")
     h = h.replace("</head>",
                   f"<style>html,body{{background:{cor} !important;}}</style></head>", 1)
-    (dst / "index.html").write_text(h)
+    (dst / "index.html").write_text(h, encoding="utf-8")
     return dst
 
 
@@ -241,13 +253,30 @@ def snapshots(only, tempos, reaproveitar=False):
     for cor, nome in (("#000000", "preto"), ("#ffffff", "branco")):
         proj = _variante_fundo(only, cor, nome)
         saida = dst / nome
-        sh([HF, "snapshot", ".", "--at", at, "--no-end", "-o", str(saida),
-            "--describe", "false"], cwd=str(proj))
+        sh(plataforma.hf_cmd(BC.RAIZ) + ["snapshot", ".", "--at", at, "--no-end", "-o", str(saida),
+                                         "--describe", "false"], cwd=str(proj))
         pares.append(sorted(saida.glob("frame-*.png"), key=_idx))
         shutil.rmtree(proj, ignore_errors=True)
     if len(pares[0]) != len(pares[1]):
         print(f"   [AVISO] passes desiguais: {len(pares[0])} x {len(pares[1])}", flush=True)
     return list(zip(pares[0], pares[1]))
+
+
+LIMIAR_DE_CENA = 0.4
+
+
+def filtro_de_cena(arquivo, limiar=LIMIAR_DE_CENA):
+    """O filtro `movie=ARQUIVO,select=gt(scene,limiar)` do ffprobe, com o caminho escapado nas duas camadas do ffmpeg."""
+    return "movie=" + plataforma.escapar_filtro(arquivo) + r",select=gt(scene\,%s)" % limiar
+
+
+def cortes_de_cena(arquivo, timeout=180):
+    """Roda o ffprobe nos quadros de corte de cena de `arquivo`. Devolve o CompletedProcess: cada linha do stdout começa
+    com o tempo do corte na fonte (`pts_time`; o `pkt_pts_time` antigo saiu do ffmpeg 8 e a linha vinha com a nota da cena)."""
+    return subprocess.run(
+        ["ffprobe", "-v", "error", "-show_frames", "-of", "csv=p=0", "-f", "lavfi", filtro_de_cena(arquivo),
+         "-show_entries", "frame=pts_time"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
 
 def dur_video(p):
@@ -371,7 +400,7 @@ def _plano_de_ritmo_do_ad(ad, pr):
     try:
         # (migracao 26/08/2026) codigo agora vizinho; import direto resolve
         import ritmo as _R
-        ins = json.loads((V1 / "inputs" / f"{ad}_inserts.json").read_text())
+        ins = json.loads((V1 / "inputs" / f"{ad}_inserts.json").read_text(encoding="utf-8"))
         vals = list(ins.values())
         n, blocos = 0, []
         for b in pr["blocos"]:
@@ -399,7 +428,7 @@ def emendas_pipoca(pr):
     """
     import json as _json
     ins_p = V1 / "inputs" / f"{pr['ad']}_inserts.json"
-    cfgs = _json.loads(ins_p.read_text())
+    cfgs = _json.loads(ins_p.read_text(encoding="utf-8"))
     por_i = {f"broll{i + 1:02d}.mp4": c for i, c in enumerate(cfgs.values())}
     out = {}
     for ins in pr["inserts"]:
@@ -407,13 +436,10 @@ def emendas_pipoca(pr):
         if not cfg or "pipoca" not in os.path.basename(cfg["file"]):
             continue
         try:
-            txt = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_frames", "-of", "csv=p=0",
-                 "-f", "lavfi", f"movie={cfg['file']}," + r"select=gt(scene\,0.4)",
-                 "-show_entries", "frame=pkt_pts_time"],
-                capture_output=True, text=True, timeout=180).stdout
+            r = cortes_de_cena(cfg["file"])
         except Exception:
             continue
+        txt = r.stdout
         sp = float(cfg.get("speed", 1.0) or 1.0)
         st = float(cfg.get("start", 0) or 0)
         tempos = []
@@ -598,7 +624,7 @@ def _montar(pj, rap):
         folha(ims, d, cols=4 if sec == "HOOK" else 6)
         feitas.append(d)
     feitas.append(regua(pr, out / "regua.png", ler_plano(pj)))
-    (out / "prancha.json").write_text(json.dumps(pr, ensure_ascii=False, indent=2))
+    (out / "prancha.json").write_text(json.dumps(pr, ensure_ascii=False, indent=2), encoding="utf-8")
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"\nPRANCHA de {ad} pronta em {out}")
     for f in feitas:

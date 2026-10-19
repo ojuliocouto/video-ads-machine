@@ -29,6 +29,7 @@ if __package__ in (None, ""):            # rodado como script: tira scripts/grav
     sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != _AQUI]
     sys.path.insert(0, str(_AQUI.parent))
 
+import plataforma  # noqa: E402
 from gravado import legendar, veredito  # noqa: E402
 from gravado import projeto as gp  # noqa: E402
 from gravado.veredito import InsumoInvalido  # noqa: E402
@@ -36,19 +37,10 @@ from projeto import status as _status  # noqa: E402
 
 FAMILIA = legendar.FONTE
 QUEIMA_SUFIXO = ".queima.json"
-_ESPECIAIS_DO_FILTRO = ("\\", ":", ",", "'", "[", "]", ";", "=")
 
 
 class SemFonte(InsumoInvalido, RuntimeError):
     """A fonte da legenda não está na pasta de fontes."""
-
-
-def escapar_filtro(caminho):
-    """Escapa um caminho para dentro de um filtro do ffmpeg (a barra primeiro, para não dobrar)."""
-    texto = str(caminho)
-    for c in _ESPECIAIS_DO_FILTRO:
-        texto = texto.replace(c, "\\" + c)
-    return texto
 
 
 def achar_fonte(fontsdir):
@@ -63,7 +55,8 @@ def achar_fonte(fontsdir):
 
 
 def comando(src, ass, dest, fontsdir):
-    vf = "ass=%s:fontsdir=%s" % (escapar_filtro(ass), escapar_filtro(fontsdir))
+    # escapar_filtro cobre as DUAS camadas do ffmpeg (opção e grafo); uma camada só quebra em : = ' e barra invertida
+    vf = "ass=%s:fontsdir=%s" % (plataforma.escapar_filtro(ass), plataforma.escapar_filtro(fontsdir))
     return ["ffmpeg", "-v", "error", "-nostdin", "-y", "-i", str(src), "-vf", vf, "-c:v", "libx264",
             "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy",
             "-movflags", "+faststart", str(dest)]
@@ -76,7 +69,8 @@ def queimar(src, ass, dest, fontsdir):
     veredito.exigir_arquivo(ass, "a legenda .ass")
     pasta = achar_fonte(fontsdir)
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(comando(src, ass, dest, pasta), capture_output=True, text=True)
+    r = subprocess.run(comando(src, ass, dest, pasta), capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise InsumoInvalido("o ffmpeg não conseguiu queimar a legenda: %s" % r.stderr.strip()[-300:])
     return Path(dest)
