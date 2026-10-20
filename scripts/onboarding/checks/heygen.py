@@ -12,7 +12,8 @@ from ..doctor import FAIL, OK, WARN, ErroRede, Resultado
 
 NOME = "heygen"
 URL = "https://api.heygen.com/v3/users/me"
-# Um anúncio de cerca de 42 s custa de US$ 3,2 a US$ 4,4 (medido). Abaixo disso, sem recarga
+# O avatar custa cerca de US$ 7 por minuto de voz (medido em 20/10/2026, ver `avatar/custo.py`): um anúncio
+# de 30 s custa cerca de US$ 3,50 e um de 60 s custa cerca de US$ 7. Abaixo deste saldo, sem recarga
 # automática, o job pode parar no meio.
 SALDO_MINIMO = 5.0
 ONDE_CONSEGUIR = "app.heygen.com, Settings, API"
@@ -69,8 +70,8 @@ def checar(amb):
             extra += " (repõe %s)" % dolar(valor)
         return Resultado(NOME, OK, "chave válida; saldo %s; %s" % (dolar(saldo), extra))
     if saldo < SALDO_MINIMO:
-        return Resultado(NOME, WARN, "saldo %s, sem recarga automática: um anúncio custa de "
-                         "US$ 3,2 a US$ 4,4" % dolar(saldo),
+        return Resultado(NOME, WARN, "saldo %s, sem recarga automática: um anúncio de 30 s custa cerca de "
+                         "US$ 3,50 e um de 60 s custa cerca de US$ 7" % dolar(saldo),
                          "recarregue em app.heygen.com (Settings, Billing) ou ligue a recarga "
                          "automática")
     return Resultado(NOME, OK, "chave válida; saldo %s" % dolar(saldo))

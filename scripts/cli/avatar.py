@@ -1,6 +1,6 @@
 """`vam avatar <slug>`: o avatar do HeyGen gerado DA VOZ LIMPA do projeto, e conferido.
 
-    vam avatar <slug> [--teto-usd 5]                gera no HeyGen (Avatar V, API v3) com o look do projeto
+    vam avatar <slug> [--teto-usd 9]                gera no HeyGen (Avatar V, API v3) com o look do projeto
     vam avatar <slug> --existente avatar.mp4        usa um avatar JÁ gerado desta voz limpa (custo zero)
     vam avatar <slug> --retomar                     a rede caiu no meio? retoma o job JÁ PAGO (sem pagar de novo)
     vam avatar <slug> --avatar-id ID --plano medio  cadastra o look do projeto em _local/looks.json (uma vez)
@@ -10,6 +10,8 @@ Ao receber o avatar (download, --retomar ou --existente) e antes de conferir, a 
 curto que a voz (até 1 s): congela o último quadro, completa o áudio com a voz original e deixa o avatar cobrir a voz com
 folga de 0,5 s, numa linha de registro. Mais de 1 s de falta continua erro: a conferência diz a diferença.
 
+ANTES de pedir o job, a skill estima o custo pela duração da voz limpa (cerca de US$ 7 por minuto, `CUSTO_USD_POR_MINUTO`
+em avatar/custo.py) e recusa se passar do teto (padrão US$ 9,00 por job), dizendo a duração máxima que cabe: nada é gasto.
 A geração lê o saldo da carteira antes e depois (GET /v3/users/me) e grava o custo em avatar/custo.json; passar do
 teto bloqueia a prova. O job pago é gravado em avatar/job.json logo depois do submit: se a rede cair, `vam avatar`
 (com ou sem --retomar) retoma o poll em vez de submeter outro. A conferência (avatar/conferencia.json e avatar/boca.png) reprova tamanho que não é 1080x1920,
@@ -22,7 +24,7 @@ import sys
 from cli import _comum as C
 
 NOME = "avatar"
-TETO_USD = 5.0
+TETO_USD = 9.0       # cobre uma voz de 70 s (US$ 8,28 pelo preço de avatar/custo.py); --teto-usd troca
 PLANOS = ("fechado", "medio", "aberto")
 
 
@@ -95,9 +97,27 @@ def _erro_do_heygen(pj, e):
     return C.PedidoInvalido("o HeyGen recusou: %s" % e)
 
 
+def _recusar_antes_de_gastar(pj, teto):
+    """Estima o custo pela duração da voz e recusa ANTES do upload e do submit se passar do teto. Voz que o ffprobe
+    não lê não tem estimativa: avisa e segue (o teto continua valendo depois do job)."""
+    from avatar import custo
+    duracao = custo.duracao_da_voz(pj.voz_limpo)
+    if duracao is None:
+        print("aviso: não consegui medir a voz limpa: sem estimativa de custo antes do job (o teto de US$ %s vale "
+              "depois)" % custo.dolar(teto))
+        return
+    try:
+        estimativa = custo.exigir_que_caiba(duracao, teto)
+    except custo.CustoAcimaDoTeto as e:
+        raise C.PedidoInvalido(str(e))
+    print("estimativa do job: US$ %s para uma voz de %s s (teto de US$ %s)"
+          % (custo.dolar(estimativa), custo.segundos(duracao), custo.dolar(teto)))
+
+
 def _gerar(pj, projeto, look, teto, voz_sha):
     from avatar import custo, heygen_cliente, job
     from projeto import status
+    _recusar_antes_de_gastar(pj, teto)
     cliente = _cliente()
     pj.avatar_dir.mkdir(parents=True, exist_ok=True)
 

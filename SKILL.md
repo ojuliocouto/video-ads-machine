@@ -59,7 +59,7 @@ A ordem das fases é fixa. Nunca gere avatar antes de o áudio passar.
 | 0 Entrada | `vam novo <slug> --look <look> --sem-trilha "<motivo>"` (ou `--trilha <arquivo>`) | nome, look, trilha | `projeto.json`, `status.json` | contrato do projeto |
 | 0 Entrada | `vam roteiro <slug> --texto "<roteiro colado>"` (ou `--de roteiro.md`; ou `--de-audio voz.m4a`, que transcreve a gravação em um rascunho para revisar) | roteiro | `roteiro.md` | convenção `contratos/roteiro-convencao.md` |
 | 0.5 Áudio | `vam audio <slug> --bruto voz.m4a` | voz bruta | `voz/limpo.mp3`, `voz/auditoria.json` | respiro, ritmo, fala preservada, fala x roteiro |
-| 1 Avatar | `vam avatar <slug> --avatar-id <id> --plano medio` (1ª vez), depois `vam avatar <slug> --aprovar-look` | voz limpa, look | `avatar/avatar.mp4`, `boca.png`, `custo.json` | conferência: 1080x1920, fração útil 0,93 ou mais, duração da voz mais ou menos 1,0 s |
+| 1 Avatar | `vam avatar <slug> --avatar-id <id> --plano medio` (1ª vez), depois `vam avatar <slug> --aprovar-look` | voz limpa, look | `avatar/avatar.mp4`, `boca.png`, `custo.json` | conferência: 1080x1920, fração útil 0,93 ou mais, duração da voz mais ou menos 1,0 s; avatar até 1 s mais curto que a voz ganha cauda sozinho |
 | 2 Plano | `vam plano <slug>` | roteiro, voz, inserts | `plano/plano.json`, `plano_edicao.md` | 6 seções e checklist |
 | 2.5 Prancha | `vam plano <slug> --prancha`, subagente `diretor-arte-video-ads`, `vam plano <slug> --sugestoes direcao.json` | plano | `plano/prancha/*.png`, `direcao.json` | prancha lida pelo diretor |
 | 2 Aprovação | `vam aprovar <slug> --ok "<ok do aluno>"` | ok no chat | `plano/aprovacao.json` | sha256 dos 4 arquivos |
@@ -98,7 +98,7 @@ No caminho gravado a segunda cerimônia é o ok do diretor à legenda (`vam grav
 | Ritmo de corte | 16 a 32 cortes por minuto | `MIN_CORTES_MIN`, `MAX_CORTES_MIN` em `scripts/medir_ritmo.py` |
 | Pausa máxima na tela | 0,60 s | `PAUSA_MAX_TELA` em `scripts/higienizar_audio.py` |
 | Nota mínima da auditoria | 8 | `NOTA_MINIMA` em `scripts/fase_gate.py` |
-| Teto de gasto do avatar | US$ 5,00 por job | `TETO_USD` em `scripts/cli/avatar.py` |
+| Teto de gasto do avatar | US$ 9,00 por job (cobre uma voz de cerca de 70 s); a skill estima o custo pela voz, a cerca de US$ 7 por minuto, e recusa antes de pagar | `TETO_USD` em `scripts/cli/avatar.py`, `CUSTO_USD_POR_MINUTO` em `scripts/avatar/custo.py` |
 | Engine do avatar | `avatar_v`, travado | `MANDATORY_ENGINE` em `scripts/avatar/heygen_cliente.py` |
 
 As 14 capacidades cinematográficas, com gate e limiar, estão em `references/cinematografico.md`.

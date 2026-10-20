@@ -33,7 +33,7 @@ winget install -e --id Gyan.FFmpeg
 ```
 
   Depois feche e abra o app do Claude, para o PATH novo valer. No guia inteiro, onde está `python3 scripts/vam.py`, escreva `python scripts/vam.py`: o `python3` do Windows pode ser o atalho da Microsoft Store, que não executa Python.
-- Uma conta na HeyGen com a chave de API (só para o avatar). É paga por uso, em dólar: um anúncio de cerca de 1 minuto custa de US$ 3,20 a US$ 4,40 de avatar, e o sistema para sozinho se um job passar de US$ 5,00.
+- Uma conta na HeyGen com a chave de API (só para o avatar). É paga por uso, em dólar, a cerca de US$ 7 por minuto de avatar: um anúncio de 30 s custa cerca de US$ 3,50 e um de 60 s custa cerca de US$ 7. Antes de pedir o job, o sistema estima o custo pela duração da voz e recusa, sem gastar nada, se passar do teto de US$ 9,00 (cobre uma voz de cerca de 70 s).
 - Um roteiro curto (de 30 a 60 segundos de fala).
 - Um gravador de voz (o celular serve), em lugar silencioso, com a sua voz de verdade. Não existe voz sintética aqui.
 - O `avatar_id` de um look vertical da HeyGen.
@@ -133,7 +133,11 @@ Na primeira vez com o look, informe o `avatar_id` e o enquadramento (`fechado`, 
 python3 scripts/vam.py avatar tres-horas --avatar-id <id-do-look> --plano medio
 ```
 
-Ele lê o saldo da HeyGen antes e depois e grava o custo real em `_local/projetos/tres-horas/avatar/custo.json`. Depois **abra `avatar/boca.png`** e olhe a boca do avatar. Se estiver boa:
+Ele estima o custo pela duração da voz antes de pedir o job (cerca de US$ 7 por minuto) e recusa se passar do teto de US$ 9,00. Depois do job, ele lê o saldo da HeyGen antes e depois e grava o custo real em `_local/projetos/tres-horas/avatar/custo.json`.
+
+O HeyGen costuma devolver o avatar uns centésimos de segundo mais curto que a voz. Se isso acontecer (até 1 s), o comando completa o fim do avatar sozinho: congela o último quadro e completa o áudio. Ele avisa numa linha que começa com `avatar completado`. Você não precisa fazer nada.
+
+Depois **abra `avatar/boca.png`** e olhe a boca do avatar. Se estiver boa:
 
 ```
 python3 scripts/vam.py avatar tres-horas --aprovar-look

@@ -89,9 +89,11 @@ Copie `.env.example` para `.env` (o setup já faz) e preencha só o que usa. O `
 
 O avatar é o único gasto relevante de um anúncio.
 
-- Régua medida: de 200 a 227 créditos por minuto de avatar; 60 créditos valem US$ 1.
-- Um avatar de cerca de 1 minuto (a voz limpa de um anúncio de 42 s a 1 min) custa de 190 a 216 créditos, ou de US$ 3,2 a 3,6 pela régua de créditos. A leitura da carteira em dólar deu cerca de US$ 4,6 por minuto, o que põe um avatar de 57 s em torno de US$ 4,4. Use US$ 3,2 a US$ 4,4 como faixa.
-- O motor lê o saldo antes e depois do job (`GET /v3/users/me`) e grava o gasto real em `avatar/custo.json`. O teto padrão é US$ 5,00 por job (`TETO_USD` em `scripts/cli/avatar.py`); passou do teto, para e reporta.
+- Preço medido: cerca de US$ 7 por minuto de voz. Fonte: o job real de 20/10/2026 custou US$ 3,25 para 27,6 s de voz (US$ 7,08 por minuto; saldo de US$ 16,65 para US$ 13,40).
+- Um anúncio de 30 s custa cerca de US$ 3,50. Um anúncio de 60 s custa cerca de US$ 7.
+- Antes de pedir o job, o motor estima o custo pela duração da voz limpa (`CUSTO_USD_POR_MINUTO` em `scripts/avatar/custo.py`) e recusa se a estimativa passar do teto. Nada é gasto, e a mensagem diz a duração máxima que cabe.
+- O teto padrão é US$ 9,00 por job (`TETO_USD` em `scripts/cli/avatar.py`), que cobre uma voz de cerca de 70 s. Para pagar um job maior, rode `vam avatar <slug> --teto-usd <valor>`.
+- Depois do job, o motor lê o saldo antes e depois (`GET /v3/users/me`) e grava o gasto real em `avatar/custo.json`. Se o gasto real passar do teto, a prova para e reporta.
 - Custo zero: `vam avatar <slug> --existente avatar.mp4` usa um avatar já gerado da mesma voz limpa. Os caminhos gravado e one-shot não gastam HeyGen.
 - Mistral: a chave da aula, cobrança por uso. Groq: plano gratuito. Faster-whisper opcional: sem custo. ElevenLabs: por uso, só no `isolar`.
 

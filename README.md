@@ -100,7 +100,7 @@ Brand names in English are often heard wrong (for example "Claude" is heard as "
 | ElevenLabs | voice isolation in the camera-takes path | `ELEVENLABS_API_KEY` |
 | Google (your own OAuth token) | optional: script from a Google Doc | `GOOGLE_OAUTH_ACCESS_TOKEN` |
 
-The camera paths work without HeyGen. HeyGen is pay-per-use, in dollars: roughly 200 to 227 credits per minute of avatar, 60 credits per US$ 1, so an avatar of about one minute costs between US$ 3.2 and US$ 4.4. The tool reads your balance before and after the job, writes the real cost to `avatar/custo.json`, and stops when a job passes the US$ 5.00 cap. The full onboarding is in `references/onboarding.md`.
+The camera paths work without HeyGen. HeyGen is pay-per-use, in dollars, at about US$ 7 per minute of avatar (measured on a real job: US$ 3.25 for 27.6 s of voice). A 30 s ad costs about US$ 3.50 and a 60 s ad costs about US$ 7. Before it asks for a job, the tool estimates the cost from the length of your voice and refuses, with nothing spent, if the estimate passes the US$ 9.00 cap (that covers a voice of about 70 s). It also reads your balance before and after the job and writes the real cost to `avatar/custo.json`. The full onboarding is in `references/onboarding.md`.
 
 ## Content of this repo
 
