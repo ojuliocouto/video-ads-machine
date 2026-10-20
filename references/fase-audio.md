@@ -29,7 +29,7 @@ Pausa longa e limpa é ritmo e é boa: o que se mede é energia dentro da pausa,
 
 ## Quando o transcritor erra
 
-A fala x roteiro usa o transcritor da máquina (parakeet no Apple Silicon, faster-whisper nos outros sistemas e Groq só como reserva na nuvem). Se o nome do produto sai errado ("Cloud" por "Claude"), declare a variante em `_local/glossario.json`. Não edite o roteiro para casar com o erro do ASR.
+A fala x roteiro usa a nuvem: a Mistral (`MISTRAL_API_KEY`, a chave da aula Curso → Skill) ou a Groq (`GROQ_API_KEY`, plano gratuito), a primeira cuja chave existe no `.env`; se você instalou o faster-whisper e nenhuma chave funciona, o faster-whisper local. Se o nome do produto sai errado ("Cloud" por "Claude"), declare a variante em `_local/glossario.json`: `{"versao": 1, "termos": [{"grafia": "Claude", "variantes": ["Cloud"]}]}`. Não edite o roteiro para casar com o erro do ASR.
 
 ## Regras
 

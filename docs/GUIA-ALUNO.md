@@ -51,7 +51,22 @@ O `setup.sh` cria o `.venv`, instala o HyperFrames (que renderiza o texto na tel
 
 O `doctor` mostra `OK`, `WARN` ou `FAIL` por item, com a linha do conserto. **`FAIL` para tudo.** Aplique o conserto e rode o doctor de novo até não sobrar nenhum `FAIL`. `WARN` pode ficar.
 
-O transcritor (o que escreve a sua fala para conferir o áudio) é local e depende da máquina. No Mac com Apple Silicon é o `parakeet-mlx`. No Mac Intel, no Linux e no Windows é o `faster-whisper`, com o idioma forçado em português. A Groq (nuvem, paga por uso) só entra como reserva, e o corte de take não aceita a Groq.
+O transcritor é o que escreve a sua fala para conferir o áudio. Ele roda na nuvem, igual no Mac, no Windows e no Linux, e nada pesado fica no seu computador. Você precisa de UMA chave no arquivo `.env` da raiz do repo. Vale a primeira que existir:
+
+1. `MISTRAL_API_KEY`: a mesma chave que você criou na aula de Curso → Skill.
+2. `GROQ_API_KEY`: o plano da Groq é gratuito. Crie a chave em console.groq.com (API Keys).
+
+Sem nenhuma das duas, o doctor mostra FAIL e diz como resolver. Se a primeira falhar (sem internet, limite), a segunda assume e uma linha avisa. Para escolher qual vai na frente, ponha `VAM_TRANSCRITOR=mistral` ou `VAM_TRANSCRITOR=groq` no `.env`.
+
+O faster-whisper local é opcional. Ele só roda se você instalar o pacote (`pip install faster-whisper`) e nenhuma chave funcionar. O primeiro uso baixa cerca de 1,5 GB.
+
+A nuvem marca o começo de algumas palavras um pouco tarde. O corte de take já compensa: guarda uma margem antes (0,30 s na Groq, 0,40 s na Mistral) e 0,15 s depois de cada palavra, e confere o resultado transcrevendo o corte de novo.
+
+Nome de marca em inglês costuma sair errado: "Claude" sai como "Cloud". Corrija assim: abra `_local/glossario.json` e declare a grafia certa com a variante errada.
+
+```json
+{"versao": 1, "termos": [{"grafia": "Claude", "variantes": ["Cloud", "Clode"], "tipo": "marca"}]}
+```
 
 Com o doctor limpo, faça a prova rápida do render:
 

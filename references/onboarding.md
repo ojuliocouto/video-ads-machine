@@ -37,7 +37,7 @@ Comandos por sistema:
 - Depois de instalar com o `winget`, feche e abra o app do Claude. Sem isso o PATH novo não vale e o `setup.sh` não acha o Python, o Node nem o ffmpeg.
 - Nos comandos desta skill, troque `python3` por `python` (`python scripts/vam.py doctor`). O `python3` do Windows pode ser o atalho da Microsoft Store, que não executa Python. O `setup.sh` ignora esse atalho e procura `python3`, `py -3` e `python`, nessa ordem.
 - O `.venv` guarda o Python em `.venv/Scripts/python.exe`. O `vam` já o usa sozinho.
-- O transcritor no Windows é o `faster-whisper`. O `parakeet-mlx` só existe no Apple Silicon, e o doctor avisa isso na linha `transcritor`.
+- O transcritor é a nuvem (Mistral ou Groq), igual no Windows, no Mac e no Linux. O doctor confere as chaves na linha `transcritor`.
 - Prove o render antes do primeiro anúncio: `python scripts/vam.py fumaca --saida fumaca.mp4`.
 
 O Python do Homebrew recusa `pip install` fora de ambiente virtual (PEP 668). O `setup.sh` cria um `.venv` próprio no repo; não instale nada no Python do sistema. No Windows, rode o `setup.sh` no Git Bash (o app desktop do Claude já faz isso), nunca no PowerShell.
@@ -47,21 +47,26 @@ O Python do Homebrew recusa `pip install` fora de ambiente virtual (PEP 668). O 
 | Serviço | Quando é necessário | Variável no `.env` | Como obter |
 |---|---|---|---|
 | HeyGen | só o caminho avatar | `HEYGEN_API_KEY` | conta em app.heygen.com, Settings, API. Paga por uso, em dólar; o doctor mostra o saldo |
-| Groq | reserva de transcrição na nuvem, quando a máquina não tem transcritor local (o corte de take recusa a Groq) | `GROQ_API_KEY` | console.groq.com. Paga por uso |
+| Mistral | transcrição, primeira escolha (uma das duas chaves é obrigatória; o doctor dá FAIL sem nenhuma) | `MISTRAL_API_KEY` | a mesma chave que você criou na aula de Curso → Skill (console.mistral.ai) |
+| Groq | transcrição, segunda escolha | `GROQ_API_KEY` | console.groq.com, API Keys. O plano é gratuito |
 | ElevenLabs | só o caminho gravado, no passo `isolar` (Voice Isolator) | `ELEVENLABS_API_KEY` | conta ElevenLabs. Paga por uso |
 | Google (token OAuth próprio) | opcional: roteiro vindo de Google Doc com comentários | `GOOGLE_OAUTH_ACCESS_TOKEN` | sua conta. Só então liga o `gate_fidelidade_doc` |
 
 Os caminhos gravado e one-shot funcionam sem HeyGen. O avatar sem chave fica desligado, com uma linha de conserto no doctor.
 
-Transcritor por sistema, em ordem de preferência:
+Transcritor (igual no Mac, no Windows e no Linux):
 
-| Sistema | Transcritor | Onde roda |
+| Transcritor | Onde roda | O que precisa |
 |---|---|---|
-| Mac Apple Silicon | `parakeet-mlx` | local |
-| Mac Intel, Linux e Windows | `faster-whisper`, com o idioma forçado em português | local |
-| qualquer um, sem transcritor local | Groq | nuvem, pago por uso, só como reserva |
+| Mistral Voxtral Mini Transcribe (primeiro) | nuvem | `MISTRAL_API_KEY` no `.env`: a mesma chave que você criou na aula de Curso → Skill |
+| Groq `whisper-large-v3-turbo` (segundo) | nuvem, plano gratuito | `GROQ_API_KEY` no `.env` |
+| `faster-whisper` `large-v3-turbo` (opcional) | local, CPU, offline | `pip install faster-whisper`; baixa cerca de 1,5 GB no primeiro uso |
 
-O `setup.sh` instala o local certo no `.venv`: `parakeet-mlx` no Apple Silicon, `faster-whisper` nos outros. Para instalar à mão, rode dentro do `.venv` (`.venv/bin/python -m pip install faster-whisper`; no Windows, `.venv/Scripts/python -m pip install faster-whisper`). O corte de take (one-shot e gravado) exige tempo de palavra real; a Groq infla o token e é recusada nesses casos.
+Vale a primeira chave que existir (a ordem é a constante `ORDEM_NUVEM`; `VAM_TRANSCRITOR=mistral` ou `groq` no `.env` põe uma na frente). Se essa nuvem falha ou devolve texto sem tempo por palavra, a seguinte assume e uma linha avisa. A Mistral tenta de novo uma vez, após 20 s, quando devolve erro de capacidade. Nos passos que cortam o take, a Groq vai na frente se existir `GROQ_API_KEY`, porque o tempo de palavra dela é mais preciso. O `setup.sh` não instala transcritor nem baixa modelo: nada pesado fica no PC do aluno. Para criar a chave da Groq, abra console.groq.com, entre em API Keys, crie uma chave e cole `GROQ_API_KEY=...` no `.env` da raiz do repo. O faster-whisper é uma reserva offline opcional. Ele só roda se o aluno instalou o pacote (dentro do `.venv`: `.venv/bin/python -m pip install faster-whisper`; no Windows, `.venv/Scripts/python -m pip install faster-whisper`) e nenhuma chave funcionou. Para trocar o modelo local, defina `VAM_WHISPER_MODELO` no `.env` (padrão `large-v3-turbo`).
+
+A nuvem marca o começo de algumas palavras tarde (Groq: 17% mais de 200 ms; Mistral: 39%, em grade de 0,1 s). O corte de take (one-shot e gravado) compensa: guarda uma margem antes de cada palavra (0,30 s para a Groq, 0,40 s para a Mistral) e 0,15 s depois, sem invadir a palavra vizinha, e re-transcreve o corte para conferir que nenhuma palavra sumiu nem encurtou. Os valores mudam com `VAM_CORTE_PRE_ROLL` e `VAM_CORTE_POS_ROLL` no `.env`.
+
+Nome de marca em inglês costuma sair errado: "Claude" sai como "Cloud". Declare a grafia certa em `_local/glossario.json` (`{"versao": 1, "termos": [{"grafia": "Claude", "variantes": ["Cloud"]}]}`). Atenção: a Mistral não recebe o vocabulário do glossário (a API não aceita prompt junto com tempo por palavra), então a correção de grafia do glossário é ainda mais importante com ela.
 
 ## 3. Instalação
 
@@ -88,7 +93,7 @@ O avatar é o único gasto relevante de um anúncio.
 - Um avatar de cerca de 1 minuto (a voz limpa de um anúncio de 42 s a 1 min) custa de 190 a 216 créditos, ou de US$ 3,2 a 3,6 pela régua de créditos. A leitura da carteira em dólar deu cerca de US$ 4,6 por minuto, o que põe um avatar de 57 s em torno de US$ 4,4. Use US$ 3,2 a US$ 4,4 como faixa.
 - O motor lê o saldo antes e depois do job (`GET /v3/users/me`) e grava o gasto real em `avatar/custo.json`. O teto padrão é US$ 5,00 por job (`TETO_USD` em `scripts/cli/avatar.py`); passou do teto, para e reporta.
 - Custo zero: `vam avatar <slug> --existente avatar.mp4` usa um avatar já gerado da mesma voz limpa. Os caminhos gravado e one-shot não gastam HeyGen.
-- Groq e transcrição local: sem custo relevante. ElevenLabs: por uso, só no `isolar`.
+- Mistral: a chave da aula, cobrança por uso. Groq: plano gratuito. Faster-whisper opcional: sem custo. ElevenLabs: por uso, só no `isolar`.
 
 Gerar avatar duas vezes por defeito de áudio dobra o gasto: por isso `vam audio` vem antes.
 
@@ -99,7 +104,7 @@ Gerar avatar duas vezes por defeito de áudio dobra o gasto: por isso `vam audio
 | `node_hyperframes` FAIL | `bash scripts/setup.sh` (instala o HyperFrames em `node_modules`). Sem o Node: Mac `brew install node@22`, Windows `winget install -e --id OpenJS.NodeJS.LTS` |
 | `ffmpeg_libass` FAIL | instale um ffmpeg com libass (Mac: `brew install ffmpeg`; Debian ou Ubuntu: `sudo apt install ffmpeg`; Windows: `winget install -e --id Gyan.FFmpeg`, depois feche e abra o app do Claude) |
 | `python_deps` FAIL | `bash scripts/setup.sh` (recria o `.venv`). Sem o Python: Mac `brew install python@3.12`, Windows `winget install -e --id Python.Python.3.12` |
-| `transcritor` FAIL | instale `faster-whisper` (ou `parakeet-mlx` no Apple Silicon), ou ponha `GROQ_API_KEY` |
+| `transcritor` FAIL | ponha no `.env` a `MISTRAL_API_KEY` (a chave da aula Curso → Skill) ou a `GROQ_API_KEY` (grátis em console.groq.com, API Keys) |
 | `fontes` FAIL | restaure `fonts/` (vêm no repo) |
 | `rede` WARN | `bash scripts/setup.sh` guarda o GSAP local |
 | `heygen` WARN | ponha `HEYGEN_API_KEY` no `.env` para usar avatar |

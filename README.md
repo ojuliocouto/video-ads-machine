@@ -70,28 +70,33 @@ winget install -e --id Gyan.FFmpeg
 
 Then close and reopen the Claude app, so the new PATH applies. Run the same `git clone` and `bash scripts/setup.sh` from the Claude app (it runs commands through Git Bash). On Windows, write `python scripts/vam.py ...` where this README says `python3 scripts/vam.py ...`: the `python3` of Windows may be the Microsoft Store shortcut, which does not run Python. `setup.sh` skips that shortcut on its own.
 
-### Transcriber per system
+### Transcriber (the same on Mac, Windows and Linux)
 
-| System | Transcriber | Where it runs |
+| Transcriber | Where it runs | Needs |
 |---|---|---|
-| Mac Apple Silicon | `parakeet-mlx` | local |
-| Mac Intel, Linux, Windows | `faster-whisper`, language forced to Portuguese | local |
-| any system without a local transcriber | Groq | cloud, pay per use, fallback only |
+| Mistral Voxtral Mini Transcribe (first) | cloud | `MISTRAL_API_KEY` in `.env` (the same key you created in the Curso → Skill lesson) |
+| Groq `whisper-large-v3-turbo` (second) | cloud, free plan | `GROQ_API_KEY` in `.env` (create it at console.groq.com) |
+| `faster-whisper` `large-v3-turbo` (optional) | local, CPU, offline | `pip install faster-whisper`; downloads about 1.5 GB on first use |
 
-Take cutting (one-shot and camera takes) refuses Groq, because its word timing is not reliable enough to cut on.
+The first cloud key that exists wins (`ORDEM_NUVEM` in `scripts/audio/transcrever.py`; `VAM_TRANSCRITOR=mistral|groq` puts one first). If that call fails or returns no word timestamps, the next one takes over and one line says so (Mistral retries once after 20 s on a capacity error). Steps that cut the take put Groq first when `GROQ_API_KEY` exists, because its word timing is more precise. Everything is transcribed in the cloud, so nothing heavy is installed on the student PC. `setup.sh` installs no transcriber and downloads no model. `faster-whisper` is an optional offline fallback: it runs only if you installed the package yourself and no cloud key works. With no key and no `faster-whisper`, the doctor reports FAIL with both fixes.
+
+The cloud marks the start of some words late (Groq: 17% more than 200 ms, measured on 20/10/2026; Mistral rounds times to 0.1 s). Take cutting compensates: each word keeps a pre-roll before it (0.30 s for Groq, 0.40 s for Mistral) and 0.15 s after it (`VAM_CORTE_PRE_ROLL`, `VAM_CORTE_POS_ROLL` in `.env` change them), never overlapping the neighbor word. Then the cut audio is transcribed again, and the gate fails if any word was lost or shortened.
+
+Brand names in English are often heard wrong (for example "Claude" is heard as "Cloud"). Add the right spelling to `_local/glossario.json`: `{"versao": 1, "termos": [{"grafia": "Claude", "variantes": ["Cloud"]}]}`.
 
 ### Quick render check
 
 `python3 scripts/vam.py fumaca --saida fumaca.mp4` renders a 2-second overlay in 10 to 20 seconds, with no project and no media. It exits 0 only if Node, HyperFrames, Chromium and the fonts work on this machine. Run it after the doctor, before the first ad.
 
-`setup.sh` is idempotent and no step aborts the next ones; whatever fails becomes one line with the fix command. `bash scripts/setup.sh --checar` only reports. The doctor checks ffmpeg with libass, Node and the repo's HyperFrames, the Python dependencies, a transcriber (`parakeet-mlx` on Apple Silicon, `faster-whisper` elsewhere, Groq as a cloud fallback), the fonts, the local GSAP copy and the HeyGen key with your balance. Any FAIL stops everything.
+`setup.sh` is idempotent and no step aborts the next ones; whatever fails becomes one line with the fix command. `bash scripts/setup.sh --checar` only reports. The doctor checks ffmpeg with libass, Node and the repo's HyperFrames, the Python dependencies, the transcriber (a Mistral or Groq key; FAIL if neither exists), the fonts, the local GSAP copy and the HeyGen key with your balance. Any FAIL stops everything.
 
 ## Accounts and keys
 
 | Service | Needed for | Variable (`.env`) |
 |---|---|---|
 | HeyGen | the avatar path only | `HEYGEN_API_KEY` |
-| Groq | cloud transcription fallback | `GROQ_API_KEY` |
+| Mistral | transcription, first choice (the key from the Curso → Skill lesson) | `MISTRAL_API_KEY` |
+| Groq | transcription, second choice (free plan); one of the two keys is required | `GROQ_API_KEY` |
 | ElevenLabs | voice isolation in the camera-takes path | `ELEVENLABS_API_KEY` |
 | Google (your own OAuth token) | optional: script from a Google Doc | `GOOGLE_OAUTH_ACCESS_TOKEN` |
 

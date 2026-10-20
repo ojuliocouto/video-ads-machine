@@ -10,7 +10,7 @@ pillow>=10.4,<13
 scipy>=1.13,<2
 
 # --- Extras opcionais (descomente e rode: .venv/bin/python -m pip install -r requirements.txt)
-# Transcrição local. O motor escolhe sozinho o primeiro que existir: parakeet (Apple Silicon),
-# faster-whisper (qualquer máquina) e, por último, a Groq (nuvem, GROQ_API_KEY no .env).
-# parakeet-mlx
+# Transcrição: a skill usa a nuvem (MISTRAL_API_KEY ou GROQ_API_KEY no .env) e NÃO instala nada de transcrição.
+# O faster-whisper abaixo é OPCIONAL: trabalho offline, ou reserva quando a nuvem falha. O modelo (large-v3-turbo, cerca
+# de 1,5 GB) baixa no primeiro uso. O setup.sh não instala.
 # faster-whisper

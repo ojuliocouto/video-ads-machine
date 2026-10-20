@@ -73,10 +73,10 @@ O avatar fala o áudio que recebeu. Defeito no áudio descoberto depois do avata
 
 ## 6. Take gravado: onde o corte erra
 
-- **Ancorar o corte no token do ASR tem limite.** Quando o transcritor infla um token (um "Mas" de 7,3 s), o vão vira fala e não é cortado, e o token pode abranger duas vozes: o corte começou no meio e o anúncio abriu com 8 s de outra pessoa falando. Em evento, a borda sai de energia e o token só entra para achar a borda da palavra, com um transcritor local de tempo de palavra real.
+- **Ancorar o corte no token do ASR tem limite.** Quando o transcritor infla um token (um "Mas" de 7,3 s), o vão vira fala e não é cortado, e o token pode abranger duas vozes: o corte começou no meio e o anúncio abriu com 8 s de outra pessoa falando. Em evento, a borda sai de energia e o token só entra para achar a borda da palavra, com o tempo de palavra do transcritor e margem de 0,30 s antes e 0,15 s depois de cada palavra.
 - **Retomada com pausa curta (0,3 s) passa por cima da comparação por frase.** O ASR deduplica. Por isso a leitura é por sub-bloco, com separador de 0,14 s, comparando por similaridade (a retomada com palavra trocada não é igual).
 - **Redundância é defeito de montagem.** Dois trechos limpos que, colados, dizem a mesma coisa (o corpo termina nomeando o produto e o CTA abre nomeando de novo, em 4 s). Mede-se por termos portadores em comum nos 6 s antes e depois da costura.
-- **Ouvir a peça inteira ou o sub-bloco isolado não acha meia palavra na emenda.** O tempo de palavra de um transcritor local acha: palavra que atravessa a emenda é palavra cortada.
+- **Ouvir a peça inteira ou o sub-bloco isolado não acha meia palavra na emenda.** O tempo de palavra do transcritor acha: palavra que atravessa a emenda é palavra cortada.
 - **Peça legendada precisa vir do corte atual.** Re-renderizar e esquecer de re-legendar entregou a versão velha com cara de nova. A comparação por duração não pega a troca; a impressão digital de quadros pega.
 - **Fala de quem dirige.** Quem fala fora de quadro chega de 6 a 12 dB mais baixo no microfone de lapela. Um bloco com pico 6 dB abaixo da mediana dos blocos longos é voz distante.
 - **O corte é feito por trecho usado, não pelo take inteiro.** Medir o take inteiro reprovou uma peça por fala que o plano descartou.
