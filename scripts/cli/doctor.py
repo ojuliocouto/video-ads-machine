@@ -12,10 +12,12 @@ NOME = "doctor"
 def registrar(subparsers):
     p = subparsers.add_parser(NOME, help="confere o ambiente (ffmpeg, Node, HyperFrames, transcritor, HeyGen)",
                               description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--antes-das-chaves", action="store_true",
+                   help="a falta da chave de transcrição vira aviso (o setup roda antes de o aluno colar as chaves)")
     p.set_defaults(func=executar)
     return p
 
 
 def executar(args):
     from onboarding import doctor
-    return doctor.main([])
+    return doctor.main(["--antes-das-chaves"] if getattr(args, "antes_das_chaves", False) else [])

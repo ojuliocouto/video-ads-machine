@@ -470,7 +470,8 @@ passo_doctor() {
         return 1
     fi
     nota "rodando o doctor ($(dica_py) scripts/vam.py doctor)..."
-    saida="$("$py" "$REPO_ROOT/scripts/vam.py" doctor 2>&1)"
+    # --antes-das-chaves: o aluno cola a chave da Mistral (ou da Groq) DEPOIS do setup; a falta dela é aviso aqui.
+    saida="$("$py" "$REPO_ROOT/scripts/vam.py" doctor --antes-das-chaves 2>&1)"
     rc=$?
     echo "$saida" | sed 's/^/[setup]   /'
     if [ "$rc" -ne 0 ]; then

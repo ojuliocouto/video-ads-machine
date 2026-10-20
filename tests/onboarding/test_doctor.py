@@ -902,3 +902,46 @@ def test_arquivo_parseia_como_python_3_9(arquivo):
 def test_sem_travessao_nos_arquivos(arquivo):
     texto = (RAIZ_REAL / arquivo).read_text(encoding="utf-8")
     assert "\u2014" not in texto and "\u2013" not in texto
+
+
+def _amb_sem_chave_de_transcricao(repo):
+    return amb_falso(repo, env={"HEYGEN_API_KEY": CHAVE}, modulos=(),
+                     executaveis=("ffmpeg", "ffprobe", "node"), http=http_falso((200, corpo())))
+
+
+def test_main_sem_chave_de_transcricao_reprova(repo, capsys):
+    rc = D.main([], amb=_amb_sem_chave_de_transcricao(repo))
+    saida = capsys.readouterr().out
+    assert rc == 1
+    assert "[FAIL] transcritor" in saida
+
+
+def test_main_antes_das_chaves_rebaixa_so_a_falta_de_chave_para_aviso(repo, capsys):
+    """O setup roda antes de o aluno colar as chaves: a falta da chave vira aviso ali, e o doctor final cobra."""
+    rc = D.main(["--antes-das-chaves"], amb=_amb_sem_chave_de_transcricao(repo))
+    saida = capsys.readouterr().out
+    assert rc == 0
+    assert "[WARN] transcritor" in saida and "[FAIL]" not in saida
+    assert "MISTRAL_API_KEY" in saida
+
+
+def test_main_antes_das_chaves_nao_esconde_outra_falha(repo, capsys):
+    (repo / "node_modules/hyperframes/package.json").unlink()
+    rc = D.main(["--antes-das-chaves"], amb=_amb_sem_chave_de_transcricao(repo))
+    saida = capsys.readouterr().out
+    assert rc == 1
+    assert "[FAIL] node_hyperframes" in saida and "[WARN] transcritor" in saida
+
+
+def test_vam_doctor_repassa_antes_das_chaves(monkeypatch):
+    import argparse
+    from cli import doctor as cli_doctor
+    vistos = []
+    monkeypatch.setattr(D, "main", lambda argv=None, amb=None: vistos.append(argv) or 0)
+    ap = argparse.ArgumentParser()
+    cli_doctor.registrar(ap.add_subparsers())
+    args = ap.parse_args(["doctor", "--antes-das-chaves"])
+    assert args.func(args) == 0
+    args = ap.parse_args(["doctor"])
+    assert args.func(args) == 0
+    assert vistos == [["--antes-das-chaves"], []]

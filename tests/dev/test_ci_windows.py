@@ -56,7 +56,7 @@ def test_o_cache_do_chromium_do_hyperframes():
 
 def test_um_passo_por_criterio_de_pronto_na_ordem_certa_e_nenhum_tolera_falha():
     passos = _passos(_bloco(_texto(), "windows"))
-    comandos = ["bash scripts/setup.sh", "python scripts/vam.py doctor", "bash scripts/dev/testar_limpo.sh",
+    comandos = ["bash scripts/setup.sh", "python scripts/vam.py doctor --antes-das-chaves", "bash scripts/dev/testar_limpo.sh",
                 "python scripts/vam.py fumaca --saida fumaca.mp4"]
     posicoes = []
     for cmd in comandos:

@@ -99,9 +99,10 @@ jobs:
       - name: setup (bash scripts/setup.sh)
         continue-on-error: false
         run: bash scripts/setup.sh
+      # O CI não tem chave de transcrição (nenhum segredo no repo): a falta dela é aviso, qualquer outro FAIL reprova.
       - name: doctor (aviso passa, FAIL reprova)
         continue-on-error: false
-        run: python scripts/vam.py doctor
+        run: python scripts/vam.py doctor --antes-das-chaves
       # O setup cria o .venv com as dependências do motor, sem o pytest (o aluno não roda a suíte). O testar_limpo.sh
       # escolhe o .venv do repo, então o pytest entra nele.
       - name: pytest no .venv

@@ -245,14 +245,32 @@ def formatar(resultados):
     return "\n".join(linhas)
 
 
+SEM_CHAVE_DE_TRANSCRICAO = "sem MISTRAL_API_KEY nem GROQ_API_KEY"
+
+
+def rebaixar_falta_de_chave(resultados):
+    """Antes das chaves (o setup roda antes de o aluno colar as chaves): a falta da chave de transcrição vira aviso.
+    Qualquer outra falha continua FAIL. O doctor sem a opção cobra a chave."""
+    saida = []
+    for r in resultados:
+        if r.nome == "transcritor" and r.status == FAIL and r.detalhe.startswith(SEM_CHAVE_DE_TRANSCRICAO):
+            r = Resultado(r.nome, WARN, r.detalhe + " (ainda; o doctor final cobra)", r.conserto)
+        saida.append(r)
+    return saida
+
+
 def main(argv=None, amb=None):
     import argparse
     ap = argparse.ArgumentParser(description="Confere o ambiente do aluno antes de um build.")
     ap.add_argument("--raiz", help="raiz do repo (padrão: a deste arquivo)")
+    ap.add_argument("--antes-das-chaves", action="store_true",
+                    help="a falta da chave de transcrição vira aviso (o setup roda antes de o aluno colar as chaves)")
     args = ap.parse_args(argv)
     amb = amb or AmbienteDoctor.real(raiz=args.raiz)
     print("vam doctor: o ambiente em %s\n" % amb.raiz)
     resultados = rodar_checks(amb)
+    if args.antes_das_chaves:
+        resultados = rebaixar_falta_de_chave(resultados)
     print(formatar(resultados))
     return codigo_de_saida(resultados)
 
