@@ -17,6 +17,9 @@ linear) quando o LRA do alvo cobre o LRA medido. Take de celular em sala tem LRA
 11,0: o filtro caía no modo dinâmico, mexia na dinâmica e o one-shot quebrou em -15,6 LUFS depois de 3
 passes. Agora o alvo de LRA é o maior entre `LRA_ALVO` e o LRA medido (até `LRA_TETO`, o máximo que o
 ffmpeg antigo aceita); acima do teto entra uma compressão leve (`COMPRESSAO_LEVE`) antes do loudnorm.
+A outra porta do modo dinâmico é o pico: o take de celular tem pico de +0,5 dBFS, e o ganho até -14 LUFS
+levaria o pico acima de -1,5 dBTP. O take cortado do ensaio caiu nela (-15,0 LUFS). Nesse caso um limitador
+(`alimiter`, sem auto nível) segura o pico antes, com `MARGEM_LIMITADOR_DB` de folga, e o ganho segue linear.
 
   medir(arq)                 -> Medicao(integrado_lufs, true_peak_dbtp, lra)
   lra_do_alvo(lra_medido)    -> o LRA do alvo que deixa o loudnorm no modo linear
@@ -36,6 +39,7 @@ LRA_TETO = 20.0          # o maior LRA que o loudnorm aceita em todo ffmpeg (o 8
 FOLGA_LRA = 0.5          # o alvo fica um pouco acima do medido: o medido arredonda em 0,1
 # Compressão leve, só para take com LRA acima do teto: 3:1 acima de -24 dBFS, ataque e soltura de fala.
 COMPRESSAO_LEVE = "acompressor=threshold=-24dB:ratio=3:attack=20:release=250"
+MARGEM_LIMITADOR_DB = 1.5   # o limitador mede pico de amostra; o true peak e o AAC passam disso (medido: 1 dB não bastou no take do ensaio)
 TOLERANCIA_LUFS = 1.2     # faixa do gate: -14 mais ou menos 1,2
 SR = 48000
 
@@ -121,29 +125,61 @@ def _primeiro_passe(entrada, base):
     return d
 
 
+TENTATIVAS_DO_LIMITADOR = 4
+
+
+def _cabe_linear(d, alvo, tp):
+    return float(d["input_tp"]) + (alvo - float(d["input_i"])) <= tp
+
+
+def _limitador(limite_db):
+    return "alimiter=limit=%.4f:level=false:attack=5:release=50," % max(0.0625, min(1.0, 10 ** (limite_db / 20.0)))
+
+
+def _limitar(entrada, antes, d, alvo, tp, lra):
+    """(cadeia, medida) com o limitador que deixa o ganho linear caber no teto de pico. Limitar baixa o loudness
+    medido, e o ganho que falta sobe junto: o limite se refaz com a medida nova, até `TENTATIVAS_DO_LIMITADOR`."""
+    i0 = float(d["input_i"])
+    queda = 0.0
+    cadeia, medida = antes, d
+    for _ in range(TENTATIVAS_DO_LIMITADOR):
+        if _cabe_linear(medida, alvo, tp):
+            break
+        limite = tp - (alvo - i0) - queda - MARGEM_LIMITADOR_DB
+        cadeia = antes + _limitador(limite)
+        medida = _primeiro_passe(entrada, f"{cadeia}loudnorm=I={alvo}:TP={tp}:LRA={lra}")
+        queda = i0 - float(medida["input_i"])
+    return cadeia, medida
+
+
 def normalizar(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
     """Normaliza o áudio de `entrada` para `alvo` LUFS e grava em `saida` (48 kHz).
 
     O LRA do alvo acompanha o take (`lra_do_alvo`), para o loudnorm ficar no modo linear (só ganho). Take com
-    LRA acima de `LRA_TETO` passa antes por `COMPRESSAO_LEVE`. Vídeo: o quadro vai copiado. Nunca escreve por
-    cima de `entrada`.
+    LRA acima de `LRA_TETO` passa antes por `COMPRESSAO_LEVE`; take com pico que o ganho levaria acima de `tp`
+    passa por um limitador. Vídeo: o quadro vai copiado. Nunca escreve por cima de `entrada`.
     """
+    return normalizar_detalhado(entrada, saida, alvo, tp, lra)[0]
+
+
+def normalizar_detalhado(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
+    """(saida, modo): `modo` é o que o loudnorm aplicou no segundo passe, "linear" ou "dynamic"."""
     entrada, saida = Path(entrada), Path(saida)
     if entrada.resolve() == saida.resolve():
         raise ErroDeLoudness("a saída tem que ser outro arquivo: normalizar não sobrescreve a entrada")
     antes = ""
     d = _primeiro_passe(entrada, f"loudnorm=I={alvo}:TP={tp}:LRA={lra}")
-    lra_alvo = lra_do_alvo(d.get("input_lra"), lra)
     if (_numero(d.get("input_lra")) or 0.0) > LRA_TETO:
         antes = COMPRESSAO_LEVE + ","
         d = _primeiro_passe(entrada, f"{antes}loudnorm=I={alvo}:TP={tp}:LRA={lra}")
-        lra_alvo = lra_do_alvo(d.get("input_lra"), lra)
-    base = f"{antes}loudnorm=I={alvo}:TP={tp}:LRA={lra_alvo}"
+    if not _cabe_linear(d, alvo, tp):
+        antes, d = _limitar(entrada, antes, d, alvo, tp, lra)
+    base = f"{antes}loudnorm=I={alvo}:TP={tp}:LRA={lra_do_alvo(d.get('input_lra'), lra)}"
     aplicar = (f"{base}:measured_I={d['input_i']}:measured_TP={d['input_tp']}:"
                f"measured_LRA={d['input_lra']}:measured_thresh={d['input_thresh']}:"
-               f"offset={d['target_offset']}:linear=true")
+               f"offset={d['target_offset']}:linear=true:print_format=json")
     saida.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["-y", "-v", "error", "-i", str(entrada), "-af", aplicar, "-ar", str(SR)]
+    cmd = ["-y", "-v", "info", "-i", str(entrada), "-af", aplicar, "-ar", str(SR)]
     if _tem_video(entrada):
         cmd += ["-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-movflags", "+faststart"]
     else:
@@ -152,4 +188,5 @@ def normalizar(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
     p2 = _ffmpeg(cmd)
     if p2.returncode != 0:
         raise ErroDeLoudness(f"o ffmpeg falhou ao normalizar {entrada}: {p2.stderr.strip()[-300:]}")
-    return saida
+    modo = re.search(r'"normalization_type"\s*:\s*"(\w+)"', p2.stderr)
+    return saida, (modo.group(1) if modo else None)

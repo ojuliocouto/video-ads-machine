@@ -121,3 +121,23 @@ def test_take_com_lra_acima_do_teto_passa_por_compressao_leve_e_cabe_na_regua(tm
     m = loudness.medir(loudness.normalizar(entrada, tmp_path / "saida.wav"))
     assert m.lra < antes.lra - 2.0                            # a compressão leve encolheu a dinâmica
     assert loudness.dentro_da_faixa(m)
+
+
+def test_take_com_pico_alto_passa_pelo_limitador_e_o_ganho_fica_linear(tmp_path):
+    """Celular: pico de +0,5 dBFS. O ganho até -14 LUFS levaria o pico acima de -1,5 dBTP e o loudnorm caía no modo
+    dinâmico (o take cortado do ensaio saiu em -15,0 LUFS). O limitador segura o pico antes e o ganho é linear."""
+    entrada = fx._ffmpeg(["-f", "lavfi", "-i",
+                          "aevalsrc='(random(0)*2-1)*0.08*(1+0.5*sin(2*PI*0.5*t))"
+                          "+if(lt(mod(t,1.3),0.004),0.95*sin(2*PI*2000*t),0)':s=48000:d=20",
+                          "-ac", "1", "-c:a", "pcm_s16le"], tmp_path / "picos.wav")
+    antes = loudness.medir(entrada)
+    assert antes.true_peak_dbtp + (-14.0 - antes.integrado_lufs) > -1.5      # o ganho puro estouraria o teto
+    saida, modo = loudness.normalizar_detalhado(entrada, tmp_path / "saida.wav")
+    m = loudness.medir(saida)
+    assert modo == "linear"
+    assert m.integrado_lufs == pytest.approx(-14.0, abs=0.5) and m.true_peak_dbtp <= -1.5 + 0.05
+
+
+def test_take_com_lra_acima_do_alvo_fica_no_modo_linear(tmp_path):
+    _, modo = loudness.normalizar_detalhado(_dinamico(tmp_path / "dinamico.wav"), tmp_path / "saida.wav")
+    assert modo == "linear"
