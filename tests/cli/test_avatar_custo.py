@@ -4,6 +4,7 @@ Teto padrão US$ 9,00 (cobre 70 s), `--teto-usd` continua mandando. O HeyGen é 
 antes de gastar quer dizer ZERO chamada (nem upload, nem submit, nem leitura de saldo).
 """
 import json
+import re
 
 import pytest
 
@@ -75,7 +76,9 @@ def test_voz_de_90_s_com_o_teto_padrao_e_recusada_antes_de_qualquer_chamada(amb,
     assert amb.avatar() == 2
     cap = capsys.readouterr()
     assert amb.falso.chamadas == [], "recusar antes de gastar: nem upload, nem submit, nem saldo"
-    assert "10,65" in cap.err and "9,00" in cap.err and "76 s" in cap.err and "Nada foi gasto" in cap.err
+    # A duração lida pelo ffprobe varia alguns milissegundos com a versão do ffmpeg: US$ 10,65 ou 10,66.
+    assert re.search(r"US\$ 10,6[5-7]", cap.err), cap.err
+    assert "9,00" in cap.err and "76 s" in cap.err and "Nada foi gasto" in cap.err
     assert not J.caminho(amb.pj).exists() and not amb.pj.avatar_mp4.exists()
 
 

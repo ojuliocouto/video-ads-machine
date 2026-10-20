@@ -103,7 +103,8 @@ def test_a_cauda_fica_no_historico_do_status(amb):
     hist = status.ler_json(amb.pj.status_json)["historico"]
     reg = [h for h in hist if h["etapa"] == "cauda_avatar"]
     assert len(reg) == 1 and reg[0]["estado"] == "ok"
-    assert reg[0]["detalhes"]["voz_s"] == pytest.approx(VOZ_S, abs=0.01)
+    # O AAC do ffmpeg acrescenta alguns quadros de enchimento conforme a versão (Linux do CI: +0,036 s).
+    assert reg[0]["detalhes"]["voz_s"] == pytest.approx(VOZ_S, abs=0.06)
     assert reg[0]["detalhes"]["cauda_s"] > 0.4
 
 
