@@ -9,7 +9,12 @@ no método de origem foram todos valor chutado, e todos se resolveram de primeir
     0  ENTENDER      assistir o bruto e transcrever ANTES de tocar em nada (a CLI mostra o plano e para: --so-plano)
     1  TRANSCREVER   tempo de palavra pela Groq; no corte cada palavra ganha margem (0,30 s antes, 0,15 s depois)
     2  CORTAR        o ar morto sai pelas duas fontes que se corrigem: o vão entre as palavras diz ONDE,
-                     a energia da onda diz QUANTO (`ar_morto.py`, cinco bugs reais, cada um um teste)
+                     a energia da onda diz QUANTO (`ar_morto.py`, cinco bugs reais, cada um um teste). O piso
+                     de silêncio é o ruído MEDIDO do take mais 6 dB (`ar_morto.piso_adaptativo`); antes da
+                     primeira palavra e depois da última corta pela transcrição (o preâmbulo de quem pega o
+                     celular não é silêncio em sala barulhenta)
+    2b LIMPAR        falsa partida, fala de quem dirige e outra voz ao fundo saem por sub-bloco lido sozinho
+                     (`oneshot.limpeza`); cada retirada vai para o plano com motivo e texto, para conferir
     3  ENQUADRAR     janela 9:16 centrada no rosto MEDIDO (`oneshot.enquadrar`)
     4  LUZ           luminância medida vira brightness e contraste (`oneshot.luz`); HDR do celular vira SDR
     5  LETTERING     caixa nativa (`caixa_lettering`, PT Serif do repo), opcional
@@ -40,7 +45,7 @@ from gravado import auditar, gate_ar_morto, gate_fala
 from gravado import montar as gravado_montar
 from gravado.nucleo import asr, energia
 from gravado.veredito import InsumoInvalido
-from oneshot import enquadrar, luz
+from oneshot import enquadrar, limpeza, luz
 from projeto import glossario as _glossario
 from projeto import modelo, status
 
@@ -77,8 +82,13 @@ def leitor_do_projeto(pj, backend=None, estado=None):
 
 # --- planejar ----------------------------------------------------------------------------------------
 
-def cortes_do_take(palavras, db_relativo, duracao, margens=None, backend=None):
+def cortes_do_take(palavras, db_relativo, duracao, margens=None, backend=None, retiradas=()):
     """[(início, fim)] a MANTER do take. As palavras ancoram, a energia mede o silêncio.
+
+    O piso de silêncio é o do take (`ar_morto.params_do_piso`: ruído medido mais 6 dB, nunca abaixo do fixo).
+    O que vem antes da primeira palavra e depois da última sai pela transcrição, com as margens de palavra:
+    em sala barulhenta o preâmbulo não é silêncio e a energia sozinha não o acha. `retiradas` ([{ini, fim}],
+    de `oneshot.limpeza`) saem também.
 
     A nuvem marca o início da palavra tarde: cada palavra ganha margem antes (0,30 s na Groq, 0,40 s na Mistral,
     conforme o `backend` que fez o tempo) e depois (0,15 s), sem invadir a vizinha (`ar_morto.margens_de_palavra`).
@@ -89,7 +99,34 @@ def cortes_do_take(palavras, db_relativo, duracao, margens=None, backend=None):
     if not blocos:
         raise InsumoInvalido("o transcritor não ouviu nenhuma palavra no take: sem saber onde há fala não dá para "
                              "tirar ar morto sem arriscar comer palavra")
-    return ar_morto.segmentos_manter(ar_morto.planejar_cortes(blocos, db_relativo, JAN, duracao), duracao)
+    cortes = ar_morto.planejar_cortes(blocos, db_relativo, JAN, duracao, params=ar_morto.params_do_piso(db_relativo))
+    cortes += cortes_das_pontas(blocos, duracao)
+    cortes += [(r["ini"], r["fim"]) for r in retiradas]
+    return ar_morto.segmentos_manter(cortes, duracao)
+
+
+def cortes_das_pontas(blocos, duracao):
+    """[(início, fim)] do preâmbulo e da cauda pela transcrição: antes da primeira palavra (já com a margem) menos
+    o respiro de entrada, e depois da última mais o respiro de saída."""
+    cortes = []
+    if not blocos:
+        return cortes
+    fim_intro = blocos[0][0] - ar_morto.PADRAO["pre_roll_intro"]
+    if fim_intro > 0.05:
+        cortes.append((0.0, round(fim_intro, 3)))
+    ini_cauda = blocos[-1][1] + ar_morto.PADRAO["pos_roll_fim"]
+    if duracao - ini_cauda > 0.05:
+        cortes.append((round(ini_cauda, 3), duracao))
+    return cortes
+
+
+def limpar_take(take, leitor, db_relativo, palavras):
+    """(retiradas, avisos) de `oneshot.limpeza`: lê cada sub-bloco do take sozinho e acha falsa partida, fala de
+    quem dirige e outra voz. Sem leitura por trecho no leitor, não confere e diz isso no plano."""
+    if not hasattr(leitor, "palavras_do_trecho"):
+        return [], ["o transcritor não lê trecho a trecho: retomada e fala de quem dirige NÃO foram conferidas"]
+    blocos = limpeza.ler_blocos(take, leitor, db_relativo, JAN, limpeza.limiar_de_fala(db_relativo))
+    return limpeza.retiradas(blocos, palavras)
 
 
 def _preset(projeto):
@@ -114,10 +151,16 @@ def planejar(pj, take, leitor, detector=None, medidor_luz=None):
     db, _ = energia.curva(take, jan=JAN)
     if not len(db):
         raise InsumoInvalido("o take %s é curto demais para medir" % take.name)
-    segs = cortes_do_take(palavras, (db - db.max()).tolist(), dur, backend=getattr(leitor, "ultimo_backend", None))
+    backend = getattr(leitor, "ultimo_backend", None)
+    rel = (db - db.max()).tolist()
+    retiradas, avisos = limpar_take(take, leitor, rel, palavras)
+    segs = cortes_do_take(palavras, rel, dur, backend=backend, retiradas=retiradas)
     if not segs:
         raise InsumoInvalido("o corte não deixou nenhum trecho do take: confira o áudio de %s" % take.name)
-    avisos = []
+    avisos = list(avisos)
+    if segs[0][0] >= 1.5:
+        avisos.append("preâmbulo de 0 a %.2f s cortado: o transcritor não ouviu palavra ali, confira na prévia"
+                      % segs[0][0])
     janela = enquadrar.janela_9x16(dims[0], dims[1], None)
     if janela["precisa_crop"]:
         rosto = enquadrar.medir_rosto(take, detector=detector)
@@ -142,7 +185,9 @@ def planejar(pj, take, leitor, detector=None, medidor_luz=None):
     return {"versao": 1, "take": str(take), "dur_bruto": round(dur, 3), "aceleracao": accel,
             "segmentos": [[round(a, 3), round(b, 3)] for a, b in segs], "dur_cortada": round(mantido, 3),
             "dur_final": round(mantido / accel, 3), "dimensoes": [dims[0], dims[1]], "janela": janela,
-            "luz": luz_, "grade": preset, "transferencia": transferencia, "avisos": avisos}
+            "luz": luz_, "grade": preset, "transferencia": transferencia, "avisos": avisos,
+            "piso_db": ar_morto.piso_adaptativo(rel), "retiradas": retiradas,
+            "palavras_bruto": [{"text": p["text"], "start": p["start"], "end": p["end"]} for p in palavras]}
 
 
 def salvar_plano(pj, plano):
@@ -234,7 +279,15 @@ def conferir(pj, plano, leitor, final):
     (1080x1920, 48 kHz, loudness). Quem decide é a medida do ARQUIVO entregue, nunca o plano."""
     take = Path(plano["take"]) if plano.get("take") else pj.voz_bruto()
     glossario = _glossario.carregar(pj.estado)
-    ok_f, motivo_f = gate_fala.verificar(leitor.texto_da_peca(take), leitor.texto_da_peca(final), glossario)
+    retiradas = plano.get("retiradas") or []
+    if retiradas and plano.get("palavras_bruto"):
+        # o bruto MENOS as retiradas declaradas no plano (retomada, quem dirige, outra voz): fora delas nada some
+        esperado = asr.texto_das_palavras(limpeza.palavras_fora(plano["palavras_bruto"], retiradas))
+    else:
+        esperado = leitor.texto_da_peca(take)
+    ok_f, motivo_f = gate_fala.verificar(esperado, leitor.texto_da_peca(final), glossario)
+    if retiradas:
+        motivo_f += "; %d trecho(s) retirado(s) de propósito, listados no plano" % len(retiradas)
     ok_a, motivo_a = gate_ar_morto.verificar(final, plano["aceleracao"])
     t = auditar.tecnico(final)
     motivo_t = t["motivo"] or "%s, %.1fs, %.1f LUFS, pico %.1f dBTP" % (t["resolucao"], t["duracao"], t["lufs"],

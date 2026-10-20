@@ -101,6 +101,10 @@ def _mostrar_plano(plano):
              plano["aceleracao"]))
     for a, b in plano["segmentos"]:
         print("   %7.2f > %7.2f   (%5.2fs)" % (a, b, b - a))
+    if plano.get("piso_db") is not None:
+        print("silêncio: abaixo de %.1f dB do pico (piso de ruído medido no take)" % plano["piso_db"])
+    for r in plano.get("retiradas") or []:
+        print("retirado: %7.2f > %7.2f   %s: %s" % (r["ini"], r["fim"], r["motivo"], r["texto"] or "sem palavra"))
     if j["precisa_crop"]:
         print("enquadre: janela %dx%d em x=%d y=%d (%s)" % (j["w"], j["h"], j["x"], j["y"],
               "centrada no rosto medido" if j["centrado_no_rosto"] else "SEM rosto medido: centro do quadro"))

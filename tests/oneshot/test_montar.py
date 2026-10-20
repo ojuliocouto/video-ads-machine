@@ -69,6 +69,9 @@ class _Leitor(object):
     def palavras(self, audio, exigir_borda=False):
         return [dict(p) for p in self.palavras_]
 
+    def palavras_do_trecho(self, audio, ini, fim):
+        return [dict(p) for p in self.palavras_ if ini - 0.1 <= (p["start"] + p["end"]) / 2.0 <= fim + 0.1]
+
     def texto_da_peca(self, arquivo):
         if self.texto_final is not None and "final" in Path(arquivo).name:
             return self.texto_final

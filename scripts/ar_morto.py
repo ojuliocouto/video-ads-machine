@@ -57,6 +57,33 @@ PADRAO = {
     "pos_roll_fim": 0.20,   # respiro deixado depois da ultima palavra
 }
 
+# Piso de ruído MEDIDO (ensaio de 20/10/2026): em sala barulhenta o ruído do take fica acima de -32 dB do pico e a
+# energia nunca cai abaixo do piso fixo, então nenhuma pausa era achada e o one-shot saía sem cortar nada. O piso do
+# take é o percentil QUANTIL_PISO da energia em janelas curtas; o limiar fica MARGEM_PISO_DB acima dele. Take limpo
+# (ruído abaixo de -38 dB) continua com o piso fixo de PADRAO, que é o teto: o limiar nunca fica mais baixo que ele.
+QUANTIL_PISO = 10.0
+MARGEM_PISO_DB = 6.0
+DISTANCIA_ESTALO_DB = 10.0      # o estalo tolerado fica tantos dB acima do piso (a relação do PADRAO: -32 e -22)
+
+
+def piso_adaptativo(db_rel, padrao=None, margem=MARGEM_PISO_DB, quantil=QUANTIL_PISO):
+    """O limiar de silêncio do take (dB relativos ao pico): o maior entre o piso fixo e o piso de ruído medido
+    (percentil `quantil` das janelas) mais `margem`."""
+    import numpy as np
+    padrao = PADRAO["piso_db"] if padrao is None else padrao
+    db = np.asarray(db_rel, dtype=float)
+    db = db[np.isfinite(db)]
+    if not db.size:
+        return padrao
+    return max(padrao, round(float(np.percentile(db, quantil)) + margem, 2))
+
+
+def params_do_piso(db_rel):
+    """Os parâmetros de `planejar_cortes` para o piso medido do take: piso e o teto do estalo tolerado."""
+    piso = piso_adaptativo(db_rel)
+    return {"piso_db": piso, "db_estalo": max(PADRAO["db_estalo"], piso + DISTANCIA_ESTALO_DB)}
+
+
 PONTUACAO = set(".,?!;:…\"'()-, –")
 
 
