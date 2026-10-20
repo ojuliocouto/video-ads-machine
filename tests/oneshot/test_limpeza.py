@@ -215,3 +215,27 @@ def test_plano_tira_a_falsa_partida_e_o_gate_confere_o_bruto_menos_ela(estado_va
     assert bom["fala_preservada"][0] is True and "retirado" in bom["fala_preservada"][1]
     ruim = dict((n, ok) for n, ok, _ in montar.conferir(pj, plano, _Leitor(palavras, "eu"), pj.final_9x16))
     assert ruim["fala_preservada"] is False                       # fora da retirada, palavra sumida reprova
+
+
+def test_pergunta_respondida_por_outra_voz_e_direcao_mesmo_lida_com_outras_palavras():
+    """A Mistral leu a pergunta do take real como "Depois quer que eu faça?" e a Groq como "Depois o que é que ele
+    faz?". O que não muda é a estrutura: pergunta, e logo depois a voz baixa de quem dirige respondendo."""
+    blocos = [_bloco(28.40, 28.84, "E olha só,"),
+              _bloco(31.36, 32.18, "Depois, sabe o que eu faço?"),
+              _bloco(32.88, 33.36, "serviços.", pico=-14.0),
+              _bloco(38.92, 43.00, "O que você precisa saber, na verdade, é a maneira certa de como criar isso daí.")]
+    assert [r["motivo"] for r in limpeza.classificar(blocos)] == ["direção", "voz baixa"]
+
+
+def test_pergunta_do_roteiro_seguida_da_fala_dele_ou_de_ruido_fica():
+    gancho = _bloco(9.34, 13.48, "Quanto custa por mês para ter um time de IA na sua operação?")
+    assert limpeza.classificar([gancho, _bloco(13.76, 14.30, "Tá.")]) == []
+    ruido = _bloco(13.9, 14.2, "Transcrição em português do Brasil.", pico=-15.0)
+    assert [r["motivo"] for r in limpeza.classificar([gancho, ruido, _bloco(14.8, 17.0, "Cara, com 100 reais")])] \
+        == ["voz baixa"]
+
+
+def test_corte_vazio_do_rabo_nao_vira_segmento_fantasma():
+    """No take real o respiro do rabo passava do fim do arquivo: (54,76, 54,69) virava um segmento de 0,07 s."""
+    assert ar_morto.segmentos_manter([(10.0, 54.69), (54.76, 54.69)], 54.76) == [(0.0, 10.0), (54.69, 54.76)]
+    assert ar_morto.segmentos_manter([(10.0, 54.69), (54.76, 54.69)], 54.69) == [(0.0, 10.0)]

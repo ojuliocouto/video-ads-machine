@@ -221,6 +221,8 @@ def segmentos_manter(cortes, dur_total, minimo=0.05):
     """Inverte a lista de cortes: o que sobra pra concatenar."""
     manter, cursor = [], 0.0
     for a, b in sorted(cortes):
+        if b <= a:                       # corte vazio (o respiro do rabo passou do fim do arquivo): não é corte
+            continue
         if a > cursor:
             manter.append((cursor, a))
         cursor = max(cursor, b)

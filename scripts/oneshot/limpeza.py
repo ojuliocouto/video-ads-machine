@@ -16,7 +16,9 @@ não ouviu junto) e classificar:
   VOZ BAIXA    sub-bloco com pico `QUEDA_OUTRA_VOZ_DB` abaixo do pico típico do apresentador: outra pessoa
                ao fundo (quem dirige) ou ruído. Sai, com aviso no plano.
   DIREÇÃO      o texto casa uma pergunta de quem grava ("depois o que é que eu falo?") ou os padrões do
-               `gravado.gate_offscript`. Sai, com aviso no plano.
+               `gravado.gate_offscript`, OU é uma pergunta respondida por voz baixa logo depois (a
+               pergunta para quem dirige e a resposta dela ao fundo: a Mistral e a Groq leem a mesma
+               pergunta com palavras diferentes, a estrutura não muda). Sai, com aviso no plano.
   RETOMADA     as últimas palavras antes de um sub-bloco começam igual a ele e se repetem nele (60% das
                palavras, na ordem). A primeira tentativa sai e fica a que foi até o fim.
 
@@ -46,6 +48,7 @@ QUEDA_OUTRA_VOZ_DB = 10.0   # pico do sub-bloco tantos dB abaixo do pico típico
 SIMIL_RETOMADA = 0.6        # fração das palavras da tentativa que se repetem, na ordem, no recomeço
 MIN_PALAVRAS_RETOMADA = 2
 JANELA_RETOMADA_S = 12.0    # a falsa partida fica até tantos segundos antes do recomeço
+RESPOSTA_ATE_S = 1.5        # a voz baixa que responde começa até tantos segundos depois da pergunta
 FOLGA_S = 0.12              # folga de cada lado do que sai, sem encostar na fala que fica
 ALUCINACOES = ("transcricao em portugues do brasil", "obrigado", "obrigada", "legendas pela comunidade")
 
@@ -53,6 +56,7 @@ ALUCINACOES = ("transcricao em portugues do brasil", "obrigado", "obrigada", "le
 PADROES_DIRECAO = [
     r"\bo que (e que )?(eu|ele|ela|voce|a gente) (falo|fala|faco|faz|digo|diz|quer falar|vou falar)\b",
     r"\bdepois o que\b",
+    r"\b(quer|queria|quiser) que eu (fale|faca|diga|fala|faz)\b",
     r"\bo que (e que )?(eu )?(falo|digo) agora\b",
     r"\bposso (falar|comecar|ir)\b",
     r"\bgravando ja\b",
@@ -173,6 +177,12 @@ def classificar(blocos, queda_outra_voz=QUEDA_OUTRA_VOZ_DB):
                         % (b["pico"], ref))
         elif eh_direcao(b["texto"]):
             marca[i] = ("direção", "fala de quem grava ou dirige, fora do roteiro")
+    for i, b in enumerate(blocos[:-1]):          # pergunta respondida por outra voz: é conversa com quem dirige
+        seguinte = blocos[i + 1]
+        if (marca[i] is None and b["texto"].rstrip().endswith("?") and marca[i + 1] is not None
+                and marca[i + 1][0] == "voz baixa" and seguinte["ini"] - b["fim"] <= RESPOSTA_ATE_S
+                and not _alucinacao(seguinte["texto"])):
+            marca[i] = ("direção", "pergunta respondida por outra voz logo depois (conversa com quem dirige)")
     saida = [{"ini": b["ini"], "fim": b["fim"], "motivo": m[0], "detalhe": m[1], "texto": b["texto"]}
              for b, m in zip(blocos, marca) if m is not None]
     for j, b in enumerate(blocos):
