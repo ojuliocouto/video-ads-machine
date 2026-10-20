@@ -6,6 +6,10 @@
     vam avatar <slug> --avatar-id ID --plano medio  cadastra o look do projeto em _local/looks.json (uma vez)
     vam avatar <slug> ... --aprovar-look            depois de OLHAR avatar/boca.png: aprova o look, amarrado à conferência
 
+Ao receber o avatar (download, --retomar ou --existente) e antes de conferir, a skill completa a cauda de um avatar mais
+curto que a voz (até 1 s): congela o último quadro, completa o áudio com a voz original e deixa o avatar cobrir a voz com
+folga de 0,5 s, numa linha de registro. Mais de 1 s de falta continua erro: a conferência diz a diferença.
+
 A geração lê o saldo da carteira antes e depois (GET /v3/users/me) e grava o custo em avatar/custo.json; passar do
 teto bloqueia a prova. O job pago é gravado em avatar/job.json logo depois do submit: se a rede cair, `vam avatar`
 (com ou sem --retomar) retoma o poll em vez de submeter outro. A conferência (avatar/conferencia.json e avatar/boca.png) reprova tamanho que não é 1080x1920,
@@ -128,6 +132,20 @@ def _retomar(pj, pendente):
     job.marcar(pj, job.CONCLUIDO)
 
 
+def _completar_cauda(pj):
+    """O HeyGen devolve o avatar um pouco mais curto que a voz e a footage pede o fim da última palavra. Quem completa é
+    a skill, uma vez, ao receber o avatar e ANTES da conferência: a aprovação do look nasce sobre o arquivo final."""
+    from avatar import cauda
+    from projeto import status
+    try:
+        r = cauda.completar_cauda(pj)
+    except cauda.CaudaFalhou as e:
+        raise C.PedidoInvalido(str(e))
+    if r:
+        print(cauda.linha(r))
+        status.registrar(pj, "cauda_avatar", "ok", detalhes=r)
+
+
 def _executar(args):
     from avatar import conferir, job
     from projeto import looks, status
@@ -156,6 +174,7 @@ def _executar(args):
         if job.pendente_de_outra_voz(pj, voz_sha):
             print("aviso: o job pendente em avatar/job.json é de outra voz (a voz limpa mudou): vai um job novo")
         _gerar(pj, projeto, look, args.teto_usd, voz_sha)
+    _completar_cauda(pj)
     aspecto = {"9x16": "9:16", "1x1": "1:1"}.get(projeto.get("formato", "9x16"), "9:16")
     try:
         c = conferir.conferir(pj, aspecto=aspecto)
