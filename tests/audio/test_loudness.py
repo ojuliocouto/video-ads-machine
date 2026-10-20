@@ -80,3 +80,44 @@ def test_constantes_do_gate_c12():
     assert loudness.TP_ALVO == -1.5
     assert loudness.TOLERANCIA_LUFS == 1.2
     assert loudness.SR == 48000
+
+
+# --- take com LRA acima do alvo (ensaio de 20/10/2026: IMG_3751, LRA 11,1 contra alvo 11,0) -------------
+# O loudnorm só aplica ganho puro (modo linear) quando o LRA do alvo cobre o LRA medido. Com o alvo fixo em
+# 11 e o take em 11,1, ele caía no modo dinâmico, que mexe na dinâmica e errou o alvo: o one-shot quebrou com
+# "-15.6 LUFS depois de 3 passes".
+
+def _dinamico(destino, alto=0.3, baixo=0.03, dur=24):
+    """Ruído que alterna 4 s alto e 4 s baixo: LRA bem acima de 11 LU."""
+    return fx._ffmpeg(["-f", "lavfi", "-i",
+                       f"aevalsrc='(random(0)*2-1)*if(lt(mod(t,8),4),{alto},{baixo})':s=48000:d={dur}",
+                       "-ac", "1", "-c:a", "pcm_s16le"], destino)
+
+
+def test_alvo_de_lra_acompanha_o_take_ate_o_teto():
+    assert loudness.lra_do_alvo(5.0) == loudness.LRA_ALVO
+    assert loudness.lra_do_alvo(11.0) == loudness.LRA_ALVO
+    assert loudness.lra_do_alvo(11.1) >= 11.1
+    assert loudness.lra_do_alvo(17.5) >= 17.5
+    assert loudness.lra_do_alvo(35.0) == loudness.LRA_TETO
+
+
+def test_take_com_lra_acima_do_alvo_recebe_so_ganho_e_mantem_a_dinamica(tmp_path):
+    entrada = _dinamico(tmp_path / "dinamico.wav")
+    antes = loudness.medir(entrada)
+    assert loudness.LRA_ALVO < antes.lra <= loudness.LRA_TETO
+    m = loudness.medir(loudness.normalizar(entrada, tmp_path / "saida.wav"))
+    assert m.lra == pytest.approx(antes.lra, abs=0.5)        # ganho puro: a dinâmica do take não muda
+    assert m.integrado_lufs == pytest.approx(-14.0, abs=0.5)
+    assert m.true_peak_dbtp <= -1.5 + 0.05
+
+
+def test_take_com_lra_acima_do_teto_passa_por_compressao_leve_e_cabe_na_regua(tmp_path):
+    # ruído que decai 2,5 dB por segundo durante 36 s: LRA perto de 26 LU, acima do que o loudnorm aceita
+    entrada = fx._ffmpeg(["-f", "lavfi", "-i", "aevalsrc='(random(0)*2-1)*0.3*exp(-t/6)':s=48000:d=36",
+                          "-ac", "1", "-c:a", "pcm_s16le"], tmp_path / "muito_dinamico.wav")
+    antes = loudness.medir(entrada)
+    assert antes.lra > loudness.LRA_TETO
+    m = loudness.medir(loudness.normalizar(entrada, tmp_path / "saida.wav"))
+    assert m.lra < antes.lra - 2.0                            # a compressão leve encolheu a dinâmica
+    assert loudness.dentro_da_faixa(m)

@@ -12,7 +12,14 @@ vídeo normalizado, soava quase mudo.
 Ordem no pipeline (decisão de 27/08, medida): normalizar a VOZ primeiro e mixar efeitos e
 música depois. Na ordem inversa o loudnorm "come" a calibragem dos efeitos.
 
+Por que o LRA do alvo acompanha o take (ensaio de 20/10/2026): o loudnorm só aplica ganho puro (modo
+linear) quando o LRA do alvo cobre o LRA medido. Take de celular em sala tem LRA 11,1 e o alvo fixo era
+11,0: o filtro caía no modo dinâmico, mexia na dinâmica e o one-shot quebrou em -15,6 LUFS depois de 3
+passes. Agora o alvo de LRA é o maior entre `LRA_ALVO` e o LRA medido (até `LRA_TETO`, o máximo que o
+ffmpeg antigo aceita); acima do teto entra uma compressão leve (`COMPRESSAO_LEVE`) antes do loudnorm.
+
   medir(arq)                 -> Medicao(integrado_lufs, true_peak_dbtp, lra)
+  lra_do_alvo(lra_medido)    -> o LRA do alvo que deixa o loudnorm no modo linear
   normalizar(entrada, saida) -> Path da saída
   dentro_da_faixa(medicao)   -> bool (o que o gate de entrega cobra)
 """
@@ -25,6 +32,10 @@ from pathlib import Path
 LUFS_ALVO = -14.0
 TP_ALVO = -1.5
 LRA_ALVO = 11.0
+LRA_TETO = 20.0          # o maior LRA que o loudnorm aceita em todo ffmpeg (o 8.x vai a 50, o antigo a 20)
+FOLGA_LRA = 0.5          # o alvo fica um pouco acima do medido: o medido arredonda em 0,1
+# Compressão leve, só para take com LRA acima do teto: 3:1 acima de -24 dBFS, ataque e soltura de fala.
+COMPRESSAO_LEVE = "acompressor=threshold=-24dB:ratio=3:attack=20:release=250"
 TOLERANCIA_LUFS = 1.2     # faixa do gate: -14 mais ou menos 1,2
 SR = 48000
 
@@ -90,15 +101,16 @@ def _codec_de_audio(destino):
     return ["-c:a", "aac", "-b:a", "192k"]
 
 
-def normalizar(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
-    """Normaliza o áudio de `entrada` para `alvo` LUFS e grava em `saida` (48 kHz).
+def lra_do_alvo(lra_medido, lra=LRA_ALVO):
+    """O LRA do alvo do loudnorm: `lra` (padrão 11) ou, se o take tem mais dinâmica que isso, o LRA medido mais
+    `FOLGA_LRA`, até `LRA_TETO`. Com o alvo cobrindo o medido o loudnorm aplica só ganho (modo linear)."""
+    medido = _numero(lra_medido)
+    if medido is None or medido <= lra:
+        return lra
+    return min(LRA_TETO, round(medido + FOLGA_LRA, 1))
 
-    Vídeo: o quadro vai copiado. Nunca escreve por cima de `entrada`.
-    """
-    entrada, saida = Path(entrada), Path(saida)
-    if entrada.resolve() == saida.resolve():
-        raise ErroDeLoudness("a saída tem que ser outro arquivo: normalizar não sobrescreve a entrada")
-    base = f"loudnorm=I={alvo}:TP={tp}:LRA={lra}"
+
+def _primeiro_passe(entrada, base):
     p1 = _ffmpeg(["-i", str(entrada), "-vn", "-af", f"{base}:print_format=json", "-f", "null", "-"])
     achado = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p1.stderr)
     if p1.returncode != 0 or not achado:
@@ -106,6 +118,27 @@ def normalizar(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
     d = json.loads(achado.group(0))
     if _numero(d.get("input_i")) is None or _numero(d.get("input_tp")) is None:
         raise ErroDeLoudness(f"áudio sem sinal mensurável em {entrada} (mudo?): não há o que normalizar")
+    return d
+
+
+def normalizar(entrada, saida, alvo=LUFS_ALVO, tp=TP_ALVO, lra=LRA_ALVO):
+    """Normaliza o áudio de `entrada` para `alvo` LUFS e grava em `saida` (48 kHz).
+
+    O LRA do alvo acompanha o take (`lra_do_alvo`), para o loudnorm ficar no modo linear (só ganho). Take com
+    LRA acima de `LRA_TETO` passa antes por `COMPRESSAO_LEVE`. Vídeo: o quadro vai copiado. Nunca escreve por
+    cima de `entrada`.
+    """
+    entrada, saida = Path(entrada), Path(saida)
+    if entrada.resolve() == saida.resolve():
+        raise ErroDeLoudness("a saída tem que ser outro arquivo: normalizar não sobrescreve a entrada")
+    antes = ""
+    d = _primeiro_passe(entrada, f"loudnorm=I={alvo}:TP={tp}:LRA={lra}")
+    lra_alvo = lra_do_alvo(d.get("input_lra"), lra)
+    if (_numero(d.get("input_lra")) or 0.0) > LRA_TETO:
+        antes = COMPRESSAO_LEVE + ","
+        d = _primeiro_passe(entrada, f"{antes}loudnorm=I={alvo}:TP={tp}:LRA={lra}")
+        lra_alvo = lra_do_alvo(d.get("input_lra"), lra)
+    base = f"{antes}loudnorm=I={alvo}:TP={tp}:LRA={lra_alvo}"
     aplicar = (f"{base}:measured_I={d['input_i']}:measured_TP={d['input_tp']}:"
                f"measured_LRA={d['input_lra']}:measured_thresh={d['input_thresh']}:"
                f"offset={d['target_offset']}:linear=true")
