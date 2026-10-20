@@ -135,7 +135,7 @@ python3 scripts/vam.py avatar tres-horas --avatar-id <id-do-look> --plano medio
 
 Ele estima o custo pela duração da voz antes de pedir o job (cerca de US$ 7 por minuto) e recusa se passar do teto de US$ 9,00. Depois do job, ele lê o saldo da HeyGen antes e depois e grava o custo real em `_local/projetos/tres-horas/avatar/custo.json`.
 
-O HeyGen costuma devolver o avatar uns centésimos de segundo mais curto que a voz. Se isso acontecer (até 1 s), o comando completa o fim do avatar sozinho: congela o último quadro e completa o áudio. Ele avisa numa linha que começa com `avatar completado`. Você não precisa fazer nada.
+O HeyGen costuma devolver o avatar uns centésimos de segundo mais curto que a voz. Se o avatar ficar até 1 s mais curto, o comando completa o fim dele sozinho. Ele congela o último quadro e completa o áudio. Ele avisa numa linha que começa com `avatar completado`. Você não precisa fazer nada.
 
 Depois **abra `avatar/boca.png`** e olhe a boca do avatar. Se estiver boa:
 

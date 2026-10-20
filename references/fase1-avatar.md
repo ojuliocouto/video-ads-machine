@@ -21,9 +21,12 @@ vam avatar <slug> --teto-usd 9                     teto de gasto do job (padrão
 
 ## O que acontece
 
-- Antes de pedir o job, o motor estima o custo pela duração da voz limpa (cerca de US$ 7 por minuto) e recusa se passar do teto. Nada é gasto e a mensagem diz a duração máxima que cabe.
+- Antes de pedir o job, o motor estima o custo pela voz limpa (cerca de US$ 7 por minuto). Ele recusa se a estimativa passar do teto. Nada é gasto, e a mensagem diz a duração máxima que cabe.
 - O saldo da carteira é lido antes e depois do job (`GET /v3/users/me`) e o gasto vai para `avatar/custo.json`. Passou do teto, a prova para e reporta.
-- **Cauda do avatar.** O HeyGen costuma devolver o avatar alguns centésimos de segundo mais curto que a voz, e o transcritor dá o fim da última palavra um pouco depois do áudio. A footage pede o avatar até esse instante. Por isso, ao receber o avatar (download, `--retomar` ou `--existente`) e antes de conferir, o motor completa a cauda (`scripts/avatar/cauda.py`): congela o último quadro, completa o áudio com a voz original e deixa o avatar cobrir a voz com folga de 0,5 s. Ele registra numa linha (`avatar completado: ...`) e em `status.json` (etapa `cauda_avatar`). Isso só vale para falta de até 1,0 s. Mais que isso, a conferência reprova e diz a diferença.
+- **Cauda do avatar.** O HeyGen costuma devolver o avatar alguns centésimos de segundo mais curto que a voz. O transcritor dá o fim da última palavra um pouco depois do áudio. A footage pede o avatar até esse instante.
+- Por isso o motor completa a cauda (`scripts/avatar/cauda.py`) ao receber o avatar, antes de conferir. Isso vale para download, `--retomar` e `--existente`. O motor congela o último quadro e completa o áudio com a voz original. O avatar passa a cobrir a voz com folga de 0,5 s.
+- O motor registra a cauda numa linha (`avatar completado: ...`) e em `status.json` (etapa `cauda_avatar`).
+- A cauda vale só para falta de até 1,0 s. Com mais de 1,0 s de falta, a conferência reprova e diz a diferença.
 - A conferência (`avatar/conferencia.json` e `avatar/boca.png`) reprova tamanho diferente de 1080x1920, fração útil do quadro abaixo de 0,93 e duração diferente da voz limpa em mais de 1,0 s. Saída 1 se reprova.
 - **Olhe a boca.** Abra `avatar/boca.png` em resolução nativa. Só depois rode `--aprovar-look`: a aprovação é amarrada ao sha256 da conferência, e o `vam montar` recusa look sem aprovação vigente (`gate_look`).
 
