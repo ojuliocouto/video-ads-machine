@@ -5,6 +5,9 @@ que não está na lista fica como veio, e uma grafia sem variantes não altera n
 por palavra inteira (não mexe no meio de outra palavra), sem diferenciar maiúscula na variante,
 em uma passada só (a saída de uma troca nunca é reprocessada).
 
+A skill traz um glossário PADRÃO (`glossario_padrao`: Claude Code, Claude, IA) que `carregar` junta por
+baixo do glossário do aluno; o do aluno sempre ganha e o padrão nunca é gravado no arquivo dele.
+
 `equivalencias` são diferenças de fala que o gate fala x roteiro aceita (por exemplo
 roteiro "para", fala "pra"); valem do roteiro para a fala, não ao contrário.
 """
@@ -12,7 +15,7 @@ import re
 
 from contratos.validar import normalizar_palavra, palavras
 
-from . import modelo, pastas, status
+from . import glossario_padrao, modelo, pastas, status
 
 CONTRATO = "glossario"
 _LETRA = r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]"
@@ -28,8 +31,9 @@ def vazio():
     return {"versao": 1, "termos": []}
 
 
-def carregar(estado=None):
-    """glossario.json validado. Sem arquivo: glossário vazio."""
+def carregar_do_aluno(estado=None):
+    """glossario.json do aluno, validado, SEM o padrão da skill. Sem arquivo: glossário vazio.
+    É o que se lê para gravar de volta (o padrão nunca vai para o arquivo do aluno)."""
     arq = pastas.glossario_json(estado)
     if not arq.exists():
         return vazio()
@@ -39,6 +43,12 @@ def carregar(estado=None):
         raise GlossarioInvalido([modelo.ErroSimples(str(e))], arq)
     modelo.erros_do_contrato(CONTRATO, dados, GlossarioInvalido, arq)
     return dados
+
+
+def carregar(estado=None):
+    """O glossário em vigor: o padrão da skill (`glossario_padrao`) por baixo e o do aluno por cima.
+    O que o aluno declara sempre ganha. Para ler e gravar de volta, use `carregar_do_aluno`."""
+    return glossario_padrao.mesclar(carregar_do_aluno(estado))
 
 
 def salvar(dados, estado=None):
@@ -51,7 +61,7 @@ def salvar(dados, estado=None):
 def adicionar_termo(grafia, variantes=(), tipo=None, estado=None):
     """Declara um termo. Se a grafia já existe (sem diferenciar maiúscula), soma as variantes
     novas ao termo existente. Variante que já é de outro termo reprova e nada é gravado."""
-    dados = carregar(estado)
+    dados = carregar_do_aluno(estado)
     alvo = None
     for t in dados["termos"]:
         if t["grafia"].casefold() == str(grafia).casefold():
@@ -76,7 +86,7 @@ def adicionar_termo(grafia, variantes=(), tipo=None, estado=None):
 
 def adicionar_equivalencia(roteiro, fala, estado=None):
     """Declara que o roteiro 'roteiro' pode ser falado como 'fala'. Idempotente."""
-    dados = carregar(estado)
+    dados = carregar_do_aluno(estado)
     eqs = dados.setdefault("equivalencias", [])
     if {"roteiro": roteiro, "fala": fala} not in eqs:
         eqs.append({"roteiro": roteiro, "fala": fala})
@@ -117,7 +127,8 @@ def _nucleo(texto):
 def corrigir_palavras(lista, g):
     """Troca variantes numa lista [{text,start,end}] (saída do ASR). Variante de várias palavras
     vira uma palavra só, do início da primeira ao fim da última; a pontuação da ponta é mantida.
-    Devolve lista nova; a entrada não muda."""
+    Depois aplica o padrão da skill em padrões fechados (`glossario_padrao.corrigir_contexto`, idempotente: o
+    que `audio.transcrever` já consertou não muda). Devolve lista nova; a entrada não muda."""
     pares = [(tuple(v.casefold().split()), graf) for v, graf in _variantes(g)]
     out, i, n = [], 0, len(lista)
     while i < n:
@@ -141,7 +152,7 @@ def corrigir_palavras(lista, g):
         if not trocou:
             out.append(dict(lista[i]))
             i += 1
-    return out
+    return glossario_padrao.corrigir_contexto(out, g)
 
 
 def prompt_asr(g):

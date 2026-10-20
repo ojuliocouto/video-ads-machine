@@ -147,12 +147,12 @@ class Arquivo(unittest.TestCase):
         return self.estado / "glossario.json"
 
     def test_sem_arquivo_e_vazio(self):
-        self.assertEqual(glossario.carregar(self.estado), {"versao": 1, "termos": []})
+        self.assertEqual(glossario.carregar_do_aluno(self.estado), {"versao": 1, "termos": []})
 
     def test_exemplo_valido_carrega(self):
         ex = Path(__file__).resolve().parents[2] / "contratos" / "exemplos" / "glossario.valido.json"
         self.arquivo.write_bytes(ex.read_bytes())
-        self.assertEqual(len(glossario.carregar(self.estado)["termos"]), 4)
+        self.assertEqual(len(glossario.carregar_do_aluno(self.estado)["termos"]), 4)
 
     def test_exemplos_invalidos_reprovam(self):
         raiz = Path(__file__).resolve().parents[2] / "contratos" / "exemplos"
@@ -174,7 +174,7 @@ class Arquivo(unittest.TestCase):
     def test_adicionar_a_termo_existente_soma_variantes_sem_repetir(self):
         glossario.adicionar_termo("Fluxa", ["Flucha"], estado=self.estado)
         glossario.adicionar_termo("fluxa", ["Flucha", "Fluxá"], estado=self.estado)
-        d = glossario.carregar(self.estado)
+        d = glossario.carregar_do_aluno(self.estado)
         self.assertEqual(len(d["termos"]), 1)
         self.assertEqual(d["termos"][0]["variantes"], ["Flucha", "Fluxá"])
         self.assertEqual(d["termos"][0]["grafia"], "Fluxa")
@@ -190,7 +190,7 @@ class Arquivo(unittest.TestCase):
     def test_adicionar_equivalencia(self):
         glossario.adicionar_equivalencia("vamos embora", "vambora", estado=self.estado)
         glossario.adicionar_equivalencia("vamos embora", "vambora", estado=self.estado)  # idempotente
-        self.assertEqual(glossario.equivalencias(glossario.carregar(self.estado)), [("vamos embora", "vambora")])
+        self.assertEqual(glossario.equivalencias(glossario.carregar_do_aluno(self.estado)), [("vamos embora", "vambora")])
 
     def test_carregar_aplicando_a_pasta_do_aluno(self):
         glossario.adicionar_termo("Fluxa", ["Flucha"], estado=self.estado)

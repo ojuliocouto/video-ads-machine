@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "glossario.json",
-  "description": "Grafias do aluno, em _local/glossario.json. 'termos' corrige o que o ASR escreve errado (cada variante vira a grafia, e só ela) e alimenta o prompt da transcrição. 'equivalencias' lista diferenças de fala que o gate fala x roteiro aceita. Nada fora daqui é trocado: o glossário nunca reescreve palavra não declarada.",
+  "description": "Grafias do aluno, em _local/glossario.json. 'termos' corrige o que o ASR escreve errado (cada variante vira a grafia, e só ela) e alimenta o prompt da transcrição. 'equivalencias' lista diferenças de fala que o gate fala x roteiro aceita. A skill traz um glossário padrão por baixo deste (Claude Code, Claude, IA: 'Cloud Code' vira 'Claude Code' e 'time de A' vira 'time de IA'), e o que está aqui sempre ganha. Fora disso nada é trocado: o glossário nunca reescreve palavra não declarada.",
   "type": "object",
   "additionalProperties": false,
   "required": ["versao", "termos"],

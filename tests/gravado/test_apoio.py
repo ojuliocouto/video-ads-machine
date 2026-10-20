@@ -21,6 +21,7 @@ from gravado import (area_ad_inteiro, auditar, compor_caixinha, conferir_buracos
                      varredura_total)
 from gravado import projeto as gp
 from gravado.veredito import InsumoInvalido
+from projeto import glossario_padrao
 from projeto import modelo as modelo_projeto
 from tests.fixtures import sinteticos as fx
 from tests.gravado import sintese as sx
@@ -165,7 +166,7 @@ def test_glossario_do_projeto_vem_do_estado_do_aluno(tmp_path):
         {"versao": 1, "termos": [{"grafia": "Fluxa", "variantes": ["Flucha"], "tipo": "marca"}]}), encoding="utf-8")
     sx.projeto_minimo(tmp_path / "x", ADS)
     assert gp.carregar(tmp_path / "x", estado=estado).glossario()["termos"][0]["grafia"] == "Fluxa"
-    assert gp.carregar(tmp_path / "x", estado=tmp_path / "sem_glossario").glossario() == {"versao": 1, "termos": []}
+    assert gp.carregar(tmp_path / "x", estado=tmp_path / "sem_glossario").glossario() == glossario_padrao.mesclar({"versao": 1, "termos": []})
 
 
 def test_resolver_base_usa_o_argumento_ou_o_diretorio_atual(tmp_path, monkeypatch):

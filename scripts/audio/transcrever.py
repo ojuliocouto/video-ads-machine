@@ -39,8 +39,9 @@ de cache (ou passe `forcar=True`) para transcrever de novo.
 
 `glossario` é o dict de `_local/glossario.json` (contratos/glossario.schema.json):
   - `prompt_do_glossario` monta o prompt de vocabulário (grafias, sem as variantes);
-  - `aplicar_glossario` troca SÓ as variantes declaradas pela grafia. Nada fora do
-    glossário é reescrito.
+  - `aplicar_glossario` troca as variantes declaradas pela grafia e, além disso, só os padrões fechados do
+    glossário PADRÃO da skill (`projeto/glossario_padrao.py`: "Cloud Code" vira "Claude Code", "time de A" vira
+    "time de IA"). O artigo "a" e qualquer outra palavra não são reescritos.
 
 Uso:
   from audio.transcrever import transcrever
@@ -204,12 +205,21 @@ def _dividir_pontuacao(texto):
 
 
 def aplicar_glossario(palavras, glossario):
-    """Troca só as variantes DECLARADAS pela grafia. A pontuação da ponta fica.
+    """Troca as variantes DECLARADAS pela grafia e aplica o padrão da skill em padrões fechados
+    (`projeto.glossario_padrao.corrigir_contexto`: "Cloud Code" -> "Claude Code", "time de A" -> "time de IA").
+    A pontuação da ponta fica.
 
     Variante de várias palavras vence a de uma (mais longa primeiro). Quando a grafia tem
     outro número de palavras que a variante, o intervalo coberto é preservado e dividido
     em partes iguais. Devolve lista nova; não altera a de entrada.
     """
+    from projeto import glossario_padrao
+    resultado = _trocar_variantes(palavras, glossario)
+    return glossario_padrao.corrigir_contexto(resultado, glossario)
+
+
+def _trocar_variantes(palavras, glossario):
+    """As variantes declaradas viram a grafia (sem o padrão por contexto)."""
     saida = [dict(p) for p in palavras]
     pares = []
     for termo in ((glossario or {}).get("termos") or []):

@@ -60,7 +60,8 @@ def test_de_audio_passa_o_glossario_do_aluno_ao_transcritor(pronto):
     glossario.adicionar_termo("n8n", variantes=["n oito n"], estado=pronto.estado)
     assert pronto.roteiro("--de-audio", str(pronto.voz)) == 0
     termos = [t["grafia"] for t in pronto.vistos["glossario"]["termos"]]
-    assert termos == ["n8n"]
+    assert termos[0] == "n8n"                                     # o do aluno primeiro
+    assert "Claude Code" in termos                                # e o padrão da skill por baixo
     assert Path(pronto.vistos["audio"]) == pronto.voz and pronto.vistos["cache_dir"]
 
 

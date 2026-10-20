@@ -145,19 +145,32 @@ TEXTO_CLAUDE = ("Eu uso o Claude todo dia para montar propostas e o Claude ainda
                 "da empresa sem ninguém precisar abrir uma planilha ou mandar mensagem manual hoje")
 
 
-def test_nunca_troca_cravada_cloud_nao_vira_claude(tmp_path):
-    """O ASR ouviu 'cloud'. Sem o glossário declarar, é palavra faltando, não correção automática."""
+def _cloud_so_nos_claude_soltos(texto):
+    """'Claude' vira 'cloud' onde está sozinho; 'Claude Code' fica (o padrão da skill conserta 'Cloud Code')."""
+    return texto.replace("Claude Code", "@@").replace("Claude", "cloud").replace("@@", "Claude Code")
+
+
+def test_cloud_solto_sem_o_glossario_declarar_nao_vira_claude(tmp_path):
+    """O ASR ouviu 'cloud' sozinho (o Cloud do 'o cloud' pode ser nuvem). Sem o glossário declarar, é palavra faltando."""
     estado, pj = montar(tmp_path, em_blocos(TEXTO_CLAUDE))
-    fala = TEXTO_CLAUDE.replace("Claude", "cloud")
+    fala = _cloud_so_nos_claude_soltos(TEXTO_CLAUDE)
     r = G.rodar(pj, asr=asr_com(fala))
     assert not r.ok
-    assert r.detalhes["faltando"] == 3        # os três "Claude"
+    assert r.detalhes["faltando"] == 2        # os dois "Claude" soltos
     assert "Claude" in r.motivo or "claude" in r.motivo
+
+
+def test_cloud_code_vira_claude_code_sem_o_aluno_declarar_nada(tmp_path):
+    """Padrão da skill: o ASR escreve 'Cloud Code' e o gate já aceita 'Claude Code', sem glossário do aluno."""
+    estado, pj = montar(tmp_path, em_blocos(TEXTO_CLAUDE))
+    r = G.rodar(pj, asr=asr_com(TEXTO_CLAUDE.replace("Claude Code", "Cloud Code")))
+    assert r.ok, r.motivo
+    assert r.detalhes["faltando"] == 0
 
 
 def test_cloud_no_roteiro_e_cloud_na_fala_passa_sem_reescrever_nada(tmp_path):
     """Aluno que fala de computação em nuvem: 'cloud' é o certo, e o arquivo fica como está."""
-    texto = TEXTO_CLAUDE.replace("Claude", "cloud")
+    texto = _cloud_so_nos_claude_soltos(TEXTO_CLAUDE)
     estado, pj = montar(tmp_path, em_blocos(texto))
     antes = pj.roteiro.read_bytes()
     r = G.rodar(pj, asr=asr_com(texto))
@@ -168,7 +181,7 @@ def test_cloud_no_roteiro_e_cloud_na_fala_passa_sem_reescrever_nada(tmp_path):
 def test_variante_declarada_no_glossario_conserta_o_asr(tmp_path):
     estado, pj = montar(tmp_path, em_blocos(TEXTO_CLAUDE))
     glossario.adicionar_termo("Claude", variantes=["cloud"], estado=estado)
-    r = G.rodar(pj, asr=asr_com(TEXTO_CLAUDE.replace("Claude", "cloud")))
+    r = G.rodar(pj, asr=asr_com(_cloud_so_nos_claude_soltos(TEXTO_CLAUDE)))
     assert r.ok, r.motivo
 
 
@@ -291,3 +304,30 @@ def test_o_gate_nao_tem_troca_cravada_no_codigo():
     """Varredura estática: o gate novo não carrega a troca do revisor antigo."""
     fonte = (RAIZ / "scripts" / "gates" / "gate_fala_roteiro.py").read_text(encoding="utf-8").lower()
     assert "cloud" not in fonte
+
+
+# --- demo "Quanto custa por mês" (ensaio de 20/10): SEM glossário do aluno ------------------------------------
+
+ROTEIRO_QUANTO_CUSTA = (
+    "Quanto custa por mês para ter um time de IA na sua operação? Tá. Cara, com 100 reais você já consegue "
+    "criar ali o seu primeiro funcionário IA. Por exemplo, um editor de vídeo, um social media, é o mínimo "
+    "que você precisa. E com 100 reais você consegue. E olha só, o que você precisa saber, na verdade, é a "
+    "maneira certa de como criar isso daí, para que ele funcione da melhor forma. E olha que interessante, "
+    "eu te mostro exatamente como fazer isso no curso de Claude Code. É só clicar aqui embaixo e vir comigo.")
+# O que a Mistral devolveu para a voz real do ensaio (sem retoque).
+FALA_MISTRAL_QUANTO_CUSTA = (
+    "Quanto custa por mês para ter um time de A na sua operação? Cara, com R$100 você já consegue criar ali "
+    "o seu primeiro funcionário A. Por exemplo, um editor de vídeo, um social media, é o mínimo que você "
+    "precisa. E com R$100 você consegue. E olha só, o que você precisa saber, na verdade, é a maneira certa "
+    "de como criar isso daí. Para que ele funcione da melhor forma. E olha que interessante, eu te mostro "
+    "exatamente como fazer isso no curso de Cloud Code. É só clicar aqui embaixo e vir comigo.")
+
+
+def test_voz_real_do_ensaio_passa_sem_o_aluno_montar_glossario(tmp_path):
+    """Antes do padrão: 4,2% das palavras faltando e a conferência de fala reprovava."""
+    estado, pj = montar(tmp_path, em_blocos(ROTEIRO_QUANTO_CUSTA))
+    assert glossario.carregar_do_aluno(estado) == {"versao": 1, "termos": []}
+    r = G.rodar(pj, asr=asr_com(FALA_MISTRAL_QUANTO_CUSTA))
+    assert r.ok, r.motivo
+    assert r.detalhes["faltando"] <= 1        # só o "Tá." que o transcritor não ouviu
+    assert r.detalhes["maior_sequencia"] < 3
