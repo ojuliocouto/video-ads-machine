@@ -4,7 +4,7 @@ escala base de cada plano. Não monta filtro nem renderiza nada.
 ## O pipeline, na ordem
 
   1. `ler_blocos` / `palavras_da_narracao`: o parser do roteiro anotado e a narração contínua.
-  2. `alinhar`: a narração casada palavra a palavra com o áudio do avatar (parakeet + difflib). O casamento
+  2. `alinhar`: a narração casada palavra a palavra com o áudio do avatar (transcritor + difflib). O casamento
      em si mora em `timeline.alinhar.casar` (uma implementação só: a timeline usa o mesmo).
   3. `atribuir_spans`: o span de cada bloco, por CONTAGEM de palavras.
   4. `tornar_contiguos`: a fronteira entre blocos é sempre o início da 1ª palavra do próximo.
@@ -14,12 +14,12 @@ escala base de cada plano. Não monta filtro nem renderiza nada.
 ## Alinhamento PRECISO, por difflib e não por proporção
 
 Cada fronteira de bloco é o fim da última palavra do bloco, que cai num FIM DE PALAVRA real, e os
-cortes e dissolves não pegam o meio da fala. O parakeet quebra uma palavra em vários tokens
+cortes e dissolves não pegam o meio da fala. Um transcritor que quebra uma palavra em vários tokens
 ("Ag" + "ora"); estender só o tempo final SEM concatenar o texto deixava a palavra truncada, e o
 difflib casava só 39% das palavras (o resto virava interpolação de 0,18 s fixo, comprimindo os spans
 e adiantando os inserts em até 9 s: o insert do clímax durava 1,6 s).
 
-CAUDA FINAL sem casamento (o parakeet às vezes não reconhece as últimas palavras: voz baixa,
+CAUDA FINAL sem casamento (o transcritor às vezes não reconhece as últimas palavras: voz baixa,
 respiração, fade-out): sem o ajuste, a interpolação ancorava na última palavra REALMENTE casada e
 cortava a fala real cerca de 1 s antes do fim do áudio (o CTA perdia "ainda está disponível"). Se a
 cauda do roteiro ficou sem casamento, o fim dela é ancorado no fim REAL do áudio.
@@ -28,7 +28,7 @@ cauda do roteiro ficou sem casamento, o fim dela é ancorado no fim REAL do áud
 
 A cadeia posiciona cada bloco pela SOMA DAS DURAÇÕES, então o mapa tempo-do-avatar para tempo-do-reel
 só é exato se os spans forem contíguos. O alinhamento gera vãos (pausa entre blocos) e sobreposições
-(fuzz do parakeet) de até ~0,7 s, e cada um vira deriva ACUMULADA: o conteúdo desliza em relação às
+(fuzz do transcritor) de até ~0,7 s, e cada um vira deriva ACUMULADA: o conteúdo desliza em relação às
 janelas do PiP e da legenda. Gap: o bloco atual segura a pausa. Overlap: corta o rabo do atual. A
 duração mínima de 0,3 s por bloco garante monotonicidade.
 
@@ -129,21 +129,7 @@ def preparar_insert_cfg(b, inserts):
     return c
 
 
-# ------------------------------------------------------------------ alinhamento (parakeet)
-
-def executavel_parakeet(amb=None):
-    """Caminho do `parakeet-mlx`, achado pelo backend de áudio (PATH e scripts do `.venv`). Nunca num
-    caminho cravado no HOME: o do aluno não tem o do dono. Sem ele, UMA mensagem com o conserto."""
-    from audio.backends import parakeet as pk
-    from audio.transcrever import Ambiente
-    exe = pk.achar_executavel(amb if amb is not None else Ambiente.real())
-    if exe is None:
-        raise CA.ErroFootage(
-            "ERRO: parakeet-mlx não encontrado (ele alinha a narração ao áudio do avatar). "
-            "Instale com: python3 -m pip install parakeet-mlx (Apple Silicon). "
-            "O `bash setup.sh` instala no .venv do repo.")
-    return exe
-
+# ------------------------------------------------------------------ alinhamento
 
 def duracao_do_audio(avatar):
     return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -151,91 +137,17 @@ def duracao_do_audio(avatar):
                                 capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip())
 
 
-def tokens_do_parakeet(dados):
-    """As palavras ouvidas, `[(inicio, fim, texto)]`, do JSON do parakeet (tokens em qualquer
-    profundidade, em ordem de tempo). Token com espaço na frente abre palavra nova; sem espaço continua
-    a anterior ("Ag" + "ora")."""
-    raw = []
-
-    def grab(o):
-        if isinstance(o, dict):
-            if "tokens" in o and isinstance(o["tokens"], list):
-                for t in o["tokens"]:
-                    raw.append((float(t["start"]), float(t["end"]), t.get("text", "")))
-            for v in o.values():
-                grab(v)
-        elif isinstance(o, list):
-            for v in o:
-                grab(v)
-
-    grab(dados)
-    raw.sort()
-    pk = []
-    for s, e, txt in raw:
-        nova = txt.startswith(" ") or not pk
-        c = txt.strip()
-        if not c:
-            continue
-        if nova:
-            pk.append([s, e, c])
-        else:
-            pk[-1][1] = e
-            pk[-1][2] += c
-    return [(s, e, c) for s, e, c in pk]
-
-
-def alinhar_palavras(dados, narr_words, audio_dur):
-    """Casa as palavras do roteiro com as do parakeet. Devolve `[(inicio, fim, palavra)]`, uma por
-    palavra da narração. `dados` é o JSON do parakeet (tokens em qualquer profundidade). O casamento é o
-    `timeline.alinhar.casar`."""
-    return AL.casar(tokens_do_parakeet(dados), narr_words, audio_dur)
-
-
-def _modulo_do_backend(amb, backend):
-    """O backend que alinha: o pedido (nome ou objeto) ou o primeiro que existe na máquina (parakeet, depois
-    faster-whisper, depois Groq). Sem nenhum, UMA mensagem com o conserto."""
-    if backend is not None and not isinstance(backend, str):
-        return backend
-    try:
-        return _T.escolher_backend(amb, preferido=backend)
-    except _T.SemTranscritor as e:
-        raise CA.ErroFootage(f"ERRO: {e}")
-
-
-def alinhar(avatar, narr_words, tmp, executavel=None, run=None, duracao=None, amb=None, backend=None):
+def alinhar(avatar, narr_words, tmp, duracao=None, amb=None, backend=None):
     """Alinha a narração ao áudio do avatar. Devolve `[(inicio, fim, palavra)]`.
 
-    O backend de transcrição vem do seletor de áudio (`audio.transcrever`): no Apple Silicon com o parakeet
-    instalado nada muda (ffmpeg extrai o wav, o parakeet-mlx grava o JSON, o ffprobe mede: ordem dos subprocessos
-    conferida pela paridade). Sem parakeet (Windows, Linux, Mac Intel) o faster-whisper ou a Groq dão as palavras
-    com tempo, no mesmo perfil de alinhamento da timeline, e o `casar` é o mesmo. `executavel` dado à mão força o
-    caminho do parakeet (testes e quem já sabe onde ele está).
+    O transcritor é o do seletor de áudio (Groq por padrão). O `casar` é o mesmo da timeline
+    (`timeline.alinhar.casar`).
     """
-    run = run or CA.run
     duracao = duracao or duracao_do_audio
-    if executavel is None:
-        amb = amb if amb is not None else _T.Ambiente.real()
-        modulo = _modulo_do_backend(amb, backend)
-        if getattr(modulo, "NOME", None) != "parakeet":
-            return _alinhar_pelo_seletor(avatar, narr_words, tmp, modulo, amb, duracao)
-        executavel = executavel_parakeet(amb)
-    wav = os.path.join(tmp, "av.wav")
-    run(["ffmpeg", "-y", "-i", avatar, "-vn", "-ac", "1", "-ar", "16000", wav])
-    run([executavel, wav, "--output-format", "json", "--output-dir", tmp])
-    audio_dur = duracao(avatar)
-    saida = os.path.join(tmp, "av.json")
-    if not os.path.isfile(saida):
-        raise CA.ErroFootage(f"ERRO: o parakeet não gerou {saida}; rode `{executavel} {wav}` à mão para ver o motivo.")
-    with open(saida, encoding="utf-8") as f:
-        dados = json.load(f)
-    return alinhar_palavras(dados, narr_words, audio_dur)
-
-
-def _alinhar_pelo_seletor(avatar, narr_words, tmp, modulo, amb, duracao):
-    """O mesmo `casar`, com as palavras do backend escolhido (faster-whisper ou Groq) no lugar dos tokens do parakeet."""
+    amb = amb if amb is not None else _T.Ambiente.real()
     try:
-        palavras = _T.transcrever(avatar, cache_dir=os.path.join(tmp, "cache_asr"), backend=modulo, amb=amb,
-                                  perfil="alinhamento")
+        palavras = _T.transcrever(avatar, cache_dir=os.path.join(tmp, "cache_asr"), backend=backend, amb=amb,
+                                  corte=True)
     except (_T.SemTranscritor, FileNotFoundError) as e:
         raise CA.ErroFootage(f"ERRO: {e}")
     return AL.casar(AL.palavras_do_asr(palavras), narr_words, duracao(avatar))

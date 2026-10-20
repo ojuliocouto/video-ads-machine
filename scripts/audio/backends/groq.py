@@ -23,7 +23,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from ..transcrever import monotonizar
+from ..transcrever import monotonizar, normalizar_numeros
 
 NOME = "groq"
 URL = "https://api.groq.com/openai/v1/audio/transcriptions"
@@ -142,5 +142,5 @@ def transcrever(audio, *, amb, workdir, prompt="", idioma="pt", transporte=None,
         if texto.strip():
             raise ErroGroq("a resposta da Groq tem texto mas não tem words (tempo por palavra)")
         return []
-    return monotonizar({"text": w["word"], "start": w["start"], "end": w["end"]}
-                       for w in palavras)
+    return monotonizar(normalizar_numeros({"text": w["word"], "start": w["start"], "end": w["end"]}
+                                          for w in palavras))

@@ -1,7 +1,7 @@
 """timeline.alinhar (W3.A): UMA transcrição e UM alinhamento por avatar.
 
 Antes daqui, o avatar era transcrito três vezes num build (o overlay pelo `hyperframes transcribe`, uma vez
-por formato, e a footage pelo parakeet) e cada motor casava o roteiro com a fala por um algoritmo próprio. A
+por formato, e a footage por outro transcritor) e cada motor casava o roteiro com a fala por um algoritmo próprio. A
 deriva entre os dois relógios chegou a 1,07 s no fim de um anúncio de 2 min (defeito 20 do plano).
 
 O que este arquivo prova:
@@ -22,8 +22,8 @@ import plataforma
 import pytest
 
 from audio import transcrever as T
-from audio.backends import parakeet as PK
 from footage import blocos as BL
+from tests.fixtures.fala_gravada import palavras_dos_tokens
 from tests.footage.test_blocos import GOLDEN_ALINHAR
 from timeline import alinhar as AL
 
@@ -41,15 +41,14 @@ def _sha(caminho):
 def test_casar_e_o_algoritmo_da_footage_nos_goldens_do_original(nome):
     """Os goldens do produzir_roteiro original passam pelo `casar` (via os tokens juntados da footage)."""
     g = GOLDEN_ALINHAR[nome]
-    pk = BL.tokens_do_parakeet(g["json"])
+    pk = palavras_dos_tokens(g["json"])
     out = AL.casar(pk, g["narr"], g["audio_dur"])
     assert json.loads(json.dumps(out)) == g["palavras"]
 
 
-@pytest.mark.parametrize("nome", sorted(GOLDEN_ALINHAR))
-def test_a_footage_casa_pelo_alinhar_da_timeline(nome, monkeypatch):
+def test_a_footage_casa_pelo_alinhar_da_timeline(tmp_path, monkeypatch):
     """Uma implementação só: a footage chama o `casar` daqui (trocar o casar troca a footage)."""
-    g = GOLDEN_ALINHAR[nome]
+    g = GOLDEN_ALINHAR["exato_com_token_partido"]
     chamadas = []
     original = AL.casar
 
@@ -57,29 +56,37 @@ def test_a_footage_casa_pelo_alinhar_da_timeline(nome, monkeypatch):
         chamadas.append(1)
         return original(*a, **k)
 
+    class Backend:
+        NOME = "groq"
+
+        def disponivel(self, amb):
+            return True
+
+        def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt", **_):
+            return [{"text": c, "start": s, "end": e} for s, e, c in palavras_dos_tokens(g["json"])]
+
     monkeypatch.setattr(AL, "casar", espia)
-    assert json.loads(json.dumps(BL.alinhar_palavras(g["json"], g["narr"], g["audio_dur"]))) == g["palavras"]
+    avatar = tmp_path / "avatar.mp4"
+    avatar.write_bytes(b"av")
+    out = BL.alinhar(str(avatar), g["narr"], str(tmp_path), duracao=lambda a: g["audio_dur"], backend=Backend())
+    assert json.loads(json.dumps(out)) == g["palavras"]
     assert chamadas == [1]
 
 
-def _parakeet(sentencas):
-    """JSON no formato do parakeet: [[(texto do token, início, fim), ...] por sentença]."""
-    return {"sentences": [{"text": "".join(t for t, _, _ in toks), "start": toks[0][1], "end": toks[-1][2],
-                           "tokens": [{"text": t, "start": s, "end": e} for t, s, e in toks]}
-                          for toks in sentencas]}
-
-
-def test_palavras_do_audio_transcrever_dao_o_mesmo_relogio_que_os_tokens_crus():
-    """A transcrição única (audio.transcrever) junta os tokens como a footage juntava: mesmo relógio."""
-    dados = _parakeet([
-        [(" Ag", 5.6, 5.68), ("ora", 5.68, 5.8), (" eu", 5.84, 5.92), (" constru", 5.92, 6.2), ("o", 6.2, 6.3)],
-        [(" Sabe", 9.6, 9.9), (" qual", 9.92, 10.0), (" é", 10.08, 10.12), (" o", 10.16, 10.2),
-         (" melhor?", 10.24, 10.6)],
-    ])
+def test_palavras_juntas_do_asr_dao_o_mesmo_relogio_que_os_tokens_crus():
+    """Quem entrega palavras prontas (o transcritor) e quem entrega tokens partidos dão o mesmo `casar`."""
+    dados = {"sentences": [
+        {"tokens": [{"text": " Ag", "start": 5.6, "end": 5.68}, {"text": "ora", "start": 5.68, "end": 5.8},
+                    {"text": " eu", "start": 5.84, "end": 5.92}, {"text": " constru", "start": 5.92, "end": 6.2},
+                    {"text": "o", "start": 6.2, "end": 6.3}]},
+        {"tokens": [{"text": " Sabe", "start": 9.6, "end": 9.9}, {"text": " qual", "start": 9.92, "end": 10.0},
+                    {"text": " é", "start": 10.08, "end": 10.12}, {"text": " o", "start": 10.16, "end": 10.2},
+                    {"text": " melhor?", "start": 10.24, "end": 10.6}]},
+    ]}
     narr = "Agora eu construo Sabe qual é o melhor?".split()
-    cru = BL.alinhar_palavras(dados, narr, 11.0)
-    via_transcrever = AL.casar(AL.palavras_do_asr(PK.palavras_da_saida(dados)), narr, 11.0)
-    assert via_transcrever == cru
+    prontas = [{"text": c, "start": s, "end": e} for s, e, c in palavras_dos_tokens(dados)]
+    assert AL.casar(AL.palavras_do_asr(prontas), narr, 11.0) == AL.casar(palavras_dos_tokens(dados), narr, 11.0)
+    assert [p["text"] for p in prontas][:3] == ["Agora", "eu", "construo"]
 
 
 def test_primeira_palavra_que_o_asr_ouviu_com_outra_grafia_nasce_onde_a_fala_comeca():
@@ -200,77 +207,7 @@ def test_o_cache_por_sha_do_avatar_segura_a_segunda_transcricao(tmp_path, espioe
     b = AL.alinhar(av, NARR, cache_dir=cache, raiz=tmp_path / "projeto", duracao=lambda p: 2.0)
     assert len(chamadas["transcrever"]) == 2 and len(backend.chamadas) == 1
     assert a == b
-    assert (cache / (_sha(av) + ".alinhamento.json")).is_file()
-
-
-def test_o_alinhamento_transcreve_do_jeito_da_footage_antiga(tmp_path, espioes, monkeypatch):
-    """W3.X A2: o relógio é transcrito como a footage sempre transcreveu (perfil "alinhamento": wav 16 kHz, sem
-    chunk). Medido no fixture: o chunk de 15/3 s deslocava fronteira em até 0,16 s."""
-    pedidos = []
-    original = T.transcrever
-
-    def transcrever(audio, **kw):
-        pedidos.append(kw.get("perfil"))
-        return original(audio, **kw)
-
-    monkeypatch.setattr(T, "transcrever", transcrever)
-    AL.alinhar(_avatar(tmp_path), NARR, cache_dir=tmp_path / "c", raiz=tmp_path / "projeto", duracao=lambda p: 2.0)
-    assert pedidos == ["alinhamento"]
-
-
-# ==================================================================================== o stub da paridade (A2)
-# A paridade não pode cegar de novo: o stub do parakeet devolve a fala gravada só quando é chamado do jeito da
-# footage antiga (wav, sem chunk); chamado de outro jeito, devolve uma fala DESLOCADA, e a footage pela timeline
-# deixa de sair igual à footage antiga.
-
-def _rodar_stub(tmp_path, args):
-    from tests.paridade import capturar as C
-
-    asr = tmp_path / "asr"
-    asr.mkdir(exist_ok=True)
-    gravado = {"sentences": [{"text": " Agora eu", "start": 0.5, "end": 1.0,
-                              "tokens": [{"text": " Agora", "start": 0.5, "end": 0.8},
-                                         {"text": " eu", "start": 0.84, "end": 1.0}]}]}
-    (asr / "av.json").write_text(json.dumps(gravado), encoding="utf-8")
-    stub = tmp_path / "parakeet-mlx"
-    stub.write_text(C.stub_parakeet(asr), encoding="utf-8")
-    stub.chmod(0o755)
-    saida = tmp_path / "saida"
-    saida.mkdir(exist_ok=True)
-    # No Windows um arquivo sem extensão não é executável (WinError 193): o interpretador roda o stub. No Mac e no
-    # Linux o stub roda pelo shebang, como o parakeet-mlx de verdade.
-    executar = [sys.executable, str(stub)] if plataforma.eh_windows() else [str(stub)]
-    r = subprocess.run([*executar, *[a.replace("@SAIDA@", str(saida)) for a in args]], capture_output=True,
-                       text=True, encoding="utf-8", errors="replace")
-    assert r.returncode == 0, r.stderr
-    entrada = Path(args[0]).stem
-    return gravado, json.loads((saida / f"{entrada}.json").read_text(encoding="utf-8"))
-
-
-def test_stub_da_paridade_compila_com_pasta_de_caminho_do_windows():
-    """`C:\\Users\\...` escrito cru entre aspas dá SyntaxError (`\\U`): o stub guarda o caminho com `repr`."""
-    from tests.paridade import capturar as C
-
-    texto = C.stub_parakeet(r"C:\Users\ana\asr\x")
-    compile(texto, "stub", "exec")
-    assert r"C:\\Users\\ana" in texto
-
-
-def test_stub_da_paridade_devolve_a_fala_gravada_do_jeito_da_footage(tmp_path):
-    gravado, devolvido = _rodar_stub(tmp_path, ["/x/av.wav", "--output-format", "json", "--output-dir", "@SAIDA@"])
-    assert devolvido == gravado
-
-
-@pytest.mark.parametrize("args", [
-    ["/x/avatar.mp4", "--output-format", "json", "--output-dir", "@SAIDA@"],
-    ["/x/av.wav", "--output-format", "json", "--output-dir", "@SAIDA@", "--chunk-duration", "15",
-     "--overlap-duration", "3"],
-])
-def test_stub_da_paridade_chamado_de_outro_jeito_devolve_outra_fala(tmp_path, args):
-    gravado, devolvido = _rodar_stub(tmp_path, args)
-    assert devolvido != gravado
-    assert [t["text"] for s in devolvido["sentences"] for t in s["tokens"]] == \
-        [t["text"] for s in gravado["sentences"] for t in s["tokens"]]
+    assert (cache / (_sha(av) + ".json")).is_file()
 
 
 def test_alinhamento_guarda_avatar_relativo_sha_duracao_e_a_transcricao(tmp_path, espioes):
@@ -302,10 +239,10 @@ def test_glossario_chega_ao_audio_transcrever(tmp_path, espioes, monkeypatch):
 
 def test_sem_transcritor_a_mensagem_do_audio_transcrever_chega_inteira(tmp_path, monkeypatch):
     def sem(audio, **kw):
-        raise T.SemTranscritor("Nenhum transcritor disponível. Instale um com `pip install parakeet-mlx`.")
+        raise T.SemTranscritor("Nenhum transcritor disponível. Crie a chave em console.groq.com.")
 
     monkeypatch.setattr(T, "transcrever", sem)
-    with pytest.raises(AL.ErroAlinhamento, match="pip install parakeet-mlx"):
+    with pytest.raises(AL.ErroAlinhamento, match="console.groq.com"):
         AL.alinhar(_avatar(tmp_path), NARR, cache_dir=tmp_path / "c", raiz=tmp_path / "projeto",
                    duracao=lambda p: 2.0)
 

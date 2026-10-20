@@ -1,6 +1,6 @@
 """overlay.transcricao: avatar acelerado, transcrição com cache por conteúdo e palavras do roteiro.
 
-Sem ffmpeg e sem parakeet: `vdur` e `run` são trocados por falsos. O valor esperado de cada
+Sem ffmpeg e sem transcritor: `vdur` e `run` são trocados por falsos. O valor esperado de cada
 teste foi lido do `gen_ad_v2.py` original (argv do ffmpeg, arredondamento do total, ordem
 em que o cache e o transcritor são consultados).
 """
@@ -202,39 +202,26 @@ def test_sem_transcritor_para_com_a_mensagem_do_conserto(tmp_path, cache_em_tmp)
                          importavel=lambda m: False)
     with pytest.raises(SystemExit) as e:
         T.transcrever(out / "avatar.mp4", out, amb=vazio)
-    assert str(e.value).startswith("ERRO: ") and "faster-whisper" in str(e.value)
+    assert str(e.value).startswith("ERRO: ") and "console.groq.com" in str(e.value)
 
 
-# Saída do parakeet-mlx (formato real: sentenças com tokens; token com espaço na frente abre palavra).
-_SAIDA_PARAKEET = {"text": "Olá mundo agora.", "sentences": [
-    {"text": "Olá mundo agora.", "start": 0.0, "end": 1.5, "tokens": [
-        {"text": " Ol", "start": 0.0, "end": 0.2}, {"text": "á", "start": 0.2, "end": 0.4},
-        {"text": " mun", "start": 0.5, "end": 0.7}, {"text": "do", "start": 0.7, "end": 0.9},
-        {"text": " agora.", "start": 1.0, "end": 1.5}]}]}
-# A forma que o `hyperframes transcribe` gravava (medida com o parakeet real): `id` vazio, text, start, end.
+# A forma que o `hyperframes transcribe` gravava: `id` vazio, text, start, end.
 _PALAVRAS_ESPERADAS = [{"id": "", "text": "Olá", "start": 0.0, "end": 0.4},
                        {"id": "", "text": "mundo", "start": 0.5, "end": 0.9},
                        {"id": "", "text": "agora.", "start": 1.0, "end": 1.5}]
 
 
-@pytest.mark.skipif(plataforma.eh_windows(), reason="o parakeet falso é um script sh (o parakeet só roda no Mac)")
-def test_backend_forcado_em_parakeet_da_a_mesma_estrutura_do_caminho_antigo(tmp_path, cache_em_tmp):
-    """No Mac com parakeet o transcript.json segue sendo a lista `[{id, text, start, end}]` que o transcribe do
-    HyperFrames gravava: o resto do overlay (alinhar_palavras) não percebe a troca."""
-    from audio import transcrever as asr
-    exe = tmp_path / "bin" / "parakeet-mlx"
-    exe.parent.mkdir()
-    exe.write_text('#!/bin/sh\nb=$(basename "$1"); b="${b%%.*}"\ncp "%s" "$5/$b.json"\n'
-                   % (tmp_path / "saida.json"), encoding="utf-8")
-    exe.chmod(0o755)
-    (tmp_path / "saida.json").write_text(json.dumps(_SAIDA_PARAKEET), encoding="utf-8")
-    mac = asr.Ambiente(sistema="Darwin", arquitetura="arm64", env={},
-                       which=lambda n: str(exe) if n == "parakeet-mlx" else None, importavel=lambda m: False)
+def test_o_seletor_da_a_mesma_estrutura_do_caminho_antigo(tmp_path, cache_em_tmp):
+    """O transcript.json segue sendo a lista `[{id, text, start, end}]` que o transcribe do HyperFrames gravava:
+    o resto do overlay (alinhar_palavras) não percebe a troca."""
+    falso = _BackendFalso("groq", [{"text": "Olá", "start": 0.0, "end": 0.4},
+                                   {"text": "mundo", "start": 0.5, "end": 0.9},
+                                   {"text": "agora.", "start": 1.0, "end": 1.5}])
     out = tmp_path / "out"
     out.mkdir()
     dst = out / "avatar.mp4"
     dst.write_bytes(b"avatar")
-    palavras = T.transcrever(dst, out, backend="parakeet", amb=mac)
+    palavras = T.transcrever(dst, out, backend=falso)
     assert palavras == _PALAVRAS_ESPERADAS
     assert json.loads((out / "transcript.json").read_text(encoding="utf-8")) == _PALAVRAS_ESPERADAS
     assert all(list(p) == ["id", "text", "start", "end"] for p in palavras)
@@ -249,8 +236,8 @@ def test_overlay_nao_chama_mais_o_hyperframes_para_transcrever():
     assert '"transcribe"' not in fonte and "--engine" not in fonte
 
 
-def test_cache_hit_em_outro_out_dir_nao_chama_o_parakeet(tmp_path, cache_em_tmp, monkeypatch):
-    # 31/08/2026: 8 builds do mesmo avatar rodaram o parakeet 8 vezes
+def test_cache_hit_em_outro_out_dir_nao_chama_o_transcritor(tmp_path, cache_em_tmp, monkeypatch):
+    # 31/08/2026: 8 builds do mesmo avatar rodaram o transcritor 8 vezes
     conteudo = b"mesmo avatar nos dois builds"
     for nome in ("a", "b"):
         (tmp_path / nome).mkdir()

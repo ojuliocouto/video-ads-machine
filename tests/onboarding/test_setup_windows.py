@@ -145,17 +145,6 @@ def test_dicas_do_mac_continuam_com_brew(tmp_path):
     assert "winget" not in saida
 
 
-# --- transcritor -----------------------------------------------------------------------------------------------------
-
-@pytest.mark.parametrize("uname,esperado", [(MINGW, "faster-whisper"), (("MSYS_NT-10.0", "x86_64"), "faster-whisper"),
-                                            (("MINGW64_NT-10.0", "aarch64"), "faster-whisper"),
-                                            (("Linux", "x86_64"), "faster-whisper"), (("Darwin", "x86_64"), "faster-whisper"),
-                                            (("Darwin", "arm64"), "parakeet-mlx")])
-def test_so_o_apple_silicon_instala_o_parakeet(tmp_path, uname, esperado):
-    saida, _ = Ambiente(tmp_path, uname=uname).fonte("transcritor_alvo")
-    assert saida == esperado
-
-
 # --- a execução inteira no "Windows" ---------------------------------------------------------------------------------------
 
 PY_SISTEMA_WIN = base.PY_SISTEMA.replace('mkdir -p "$3/bin"; cp "$STUB_DIR/venv-python" "$3/bin/python"; chmod +x "$3/bin/python"',
@@ -178,7 +167,7 @@ def test_windows_cria_o_venv_em_scripts_e_fecha_o_setup_sem_brew(tmp_path):
     assert r.returncode == 0, r.stdout
     assert (m.repo / ".venv" / "Scripts" / "python.exe").is_file()
     assert not (m.repo / ".venv" / "bin").exists()
-    assert m.n_pip("faster-whisper") == 1 and m.n_pip("parakeet-mlx") == 0
+    assert m.n_pip("faster-whisper") == 0, "a transcrição é a Groq: o setup não instala transcritor"
     assert "brew" not in r.stdout and "tudo pronto" in r.stdout
 
 

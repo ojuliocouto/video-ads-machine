@@ -1,23 +1,19 @@
-"""Backends de transcrição (W1.C): parakeet, faster-whisper e Groq.
+"""Backends de transcrição: faster-whisper (local, o padrão) e Groq (nuvem, opcional).
 
-Tudo hermético: o executável do parakeet é um script falso, o faster-whisper é uma classe
-falsa e o HTTP da Groq é um transporte injetado. Nenhuma chamada paga, nenhuma rede.
+Tudo hermético: o faster-whisper é uma classe falsa e o HTTP da Groq é um transporte injetado.
+Nenhuma chamada paga, nenhuma rede, nenhum download de modelo.
 """
 import json
-import os
-import stat
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-import plataforma
 from audio import transcrever as T
 from audio.backends import faster_whisper as FW
 from audio.backends import groq as G
-from audio.backends import parakeet as PK
+from audio.backends import mistral as M
 from tests.fixtures import sinteticos as fx
+
 
 # Dados propositalmente ruins: início regride, fim antes do início, sobreposição.
 def _monotonico(palavras):
@@ -32,247 +28,11 @@ def _monotonico(palavras):
             assert p["end"] >= palavras[i - 1]["end"]
 
 
-def amb(sistema="Darwin", arquitetura="arm64", executaveis=(), modulos=(), env=None, bins=()):
+def amb(sistema="Darwin", arquitetura="arm64", executaveis=(), modulos=(), env=None):
     return T.Ambiente(
         sistema=sistema, arquitetura=arquitetura, env=dict(env or {}),
         which=lambda nome: (f"/falso/bin/{nome}" if nome in executaveis else None),
-        importavel=lambda nome: nome in modulos, bins_venv=tuple(bins))
-
-
-# =========================== parakeet ===========================================================
-
-# O parakeet-mlx só existe no Apple Silicon (`disponivel` exige macOS arm64). Os três testes abaixo rodam um
-# executável falso `#!/bin/sh` de verdade; o Windows não executa script de shell sem extensão (WinError 193), então lá
-# o mesmo contrato é coberto pelos testes com `executar` injetado (mais abaixo), que não dependem de shell.
-so_fora_do_windows = pytest.mark.skipif(plataforma.eh_windows(),
-                                        reason="executável falso #!/bin/sh não roda no Windows; parakeet é só Apple Silicon")
-
-
-def _executavel(pasta, nome="parakeet-mlx", corpo="#!/bin/sh\nexit 0\n"):
-    pasta.mkdir(parents=True, exist_ok=True)
-    p = pasta / nome
-    p.write_text(corpo)
-    p.chmod(p.stat().st_mode | stat.S_IXUSR)
-    return p
-
-
-def test_parakeet_acha_o_executavel_no_path():
-    a = amb(executaveis=("parakeet-mlx",))
-    assert PK.achar_executavel(a) == "/falso/bin/parakeet-mlx"
-    assert PK.disponivel(a)
-
-
-def test_parakeet_acha_o_executavel_nos_scripts_do_venv(tmp_path):
-    exe = _executavel(tmp_path / "venv" / "bin")
-    a = amb(bins=(tmp_path / "venv" / "bin",))
-    assert Path(PK.achar_executavel(a)) == exe
-    assert PK.disponivel(a)
-
-
-def test_parakeet_nunca_procura_em_local_bin_cravado(home_falso):
-    _executavel(home_falso / ".local" / "bin")
-    a = amb(bins=())                       # nem no PATH nem no venv
-    assert PK.achar_executavel(a) is None
-    assert not PK.disponivel(a)
-    assert ".local/bin" not in Path(PK.__file__).read_text(encoding="utf-8")
-
-
-def test_parakeet_so_no_apple_silicon_mesmo_com_o_executavel():
-    assert not PK.disponivel(amb(sistema="Linux", arquitetura="x86_64",
-                                 executaveis=("parakeet-mlx",)))
-
-
-def test_ambiente_real_inclui_o_bin_do_python_em_uso_e_o_venv_do_repo():
-    real = T.Ambiente.real()
-    bins = [str(b) for b in real.bins_venv]
-    assert str(Path(sys.executable).parent) in bins
-    assert any(b.endswith(os.path.join(".venv", "bin")) for b in bins)
-
-
-SAIDA_PARAKEET = {
-    "text": " Você perde três horas.",
-    "sentences": [{
-        "text": " Você perde três horas.", "start": 0.0, "end": 2.0,
-        "tokens": [
-            {"text": " Você", "start": 0.0, "end": 0.32},
-            {"text": " per", "start": 0.48, "end": 0.72},
-            {"text": "de", "start": 0.72, "end": 0.88},
-            {"text": " tr", "start": 0.88, "end": 1.04},
-            {"text": "ês", "start": 1.04, "end": 1.28},
-            {"text": " hor", "start": 1.28, "end": 1.44},
-            {"text": "as.", "start": 1.4, "end": 2.0},           # início regride 40 ms
-        ]}],
-}
-
-
-def test_parakeet_junta_tokens_em_palavras_e_devolve_monotonico():
-    palavras = PK.palavras_da_saida(SAIDA_PARAKEET)
-    assert [p["text"] for p in palavras] == ["Você", "perde", "três", "horas."]
-    assert palavras[1]["start"] == 0.48 and palavras[1]["end"] == 0.88
-    _monotonico(palavras)
-
-
-def test_parakeet_sem_tokens_cai_na_sentenca():
-    saida = {"sentences": [{"text": " Olá mundo.", "start": 1.0, "end": 2.0}]}
-    palavras = PK.palavras_da_saida(saida)
-    assert [p["text"] for p in palavras] == ["Olá", "mundo."]
-    _monotonico(palavras)
-    assert palavras[0]["start"] == 1.0 and palavras[-1]["end"] == 2.0
-
-
-@so_fora_do_windows
-def test_parakeet_chama_o_executavel_com_json_e_chunk_e_le_o_arquivo(tmp_path):
-    corpo = ("#!/bin/sh\n"
-             'while [ "$#" -gt 0 ]; do case "$1" in --output-dir) D="$2"; shift;; '
-             '--output-format) F="$2"; shift;; --chunk-duration) C="$2"; shift;; '
-             '--overlap-duration) O="$2"; shift;; *) A="$1";; esac; shift; done\n'
-             '[ "$F" = json ] && [ "$C" = 15 ] && [ "$O" = 3 ] || exit 3\n'
-             'B=$(basename "$A"); cat > "$D/${B%.*}.json" <<\'EOF\'\n'
-             + json.dumps(SAIDA_PARAKEET) + "\nEOF\n")
-    _executavel(tmp_path / "bin", corpo=corpo)
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    a = amb(bins=(tmp_path / "bin",))
-    trabalho = tmp_path / "trabalho"
-    palavras = PK.transcrever(audio, amb=a, workdir=trabalho)
-    assert [p["text"] for p in palavras] == ["Você", "perde", "três", "horas."]
-    _monotonico(palavras)
-    assert (trabalho / "fala.json").exists()
-
-
-@so_fora_do_windows
-def test_parakeet_com_falha_do_executavel_cita_a_saida_de_erro(tmp_path):
-    _executavel(tmp_path / "bin", corpo="#!/bin/sh\necho 'modelo nao encontrado' >&2\nexit 4\n")
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    with pytest.raises(PK.ErroParakeet, match="modelo nao encontrado"):
-        PK.transcrever(audio, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t")
-
-
-@so_fora_do_windows
-def test_parakeet_sem_arquivo_de_saida_e_erro_nao_lista_vazia(tmp_path):
-    _executavel(tmp_path / "bin", corpo="#!/bin/sh\nexit 0\n")
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    with pytest.raises(PK.ErroParakeet, match="json"):
-        PK.transcrever(audio, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t")
-
-
-def _com_executar(tmp_path, escrever=None, codigo=0, erro=""):
-    """Um `executar` injetado no lugar do subprocess: guarda o argv e, se pedido, grava o json no --output-dir.
-    Roda igual em qualquer sistema (não depende de shell)."""
-    chamadas = []
-
-    def executar(cmd):
-        chamadas.append(list(cmd))
-        if escrever is not None:
-            pasta = Path(cmd[cmd.index("--output-dir") + 1])
-            (pasta / (Path(cmd[1]).stem + ".json")).write_text(json.dumps(escrever), encoding="utf-8")
-        return subprocess.CompletedProcess(cmd, codigo, "", erro)
-
-    return amb(executaveis=("parakeet-mlx",)), executar, chamadas
-
-
-def test_parakeet_injetado_monta_o_comando_com_json_e_chunk_e_le_o_arquivo(tmp_path):
-    a, executar, chamadas = _com_executar(tmp_path, escrever=SAIDA_PARAKEET)
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    trabalho = tmp_path / "trabalho"
-    palavras = PK.transcrever(audio, amb=a, workdir=trabalho, executar=executar)
-    assert [p["text"] for p in palavras] == ["Você", "perde", "três", "horas."]
-    _monotonico(palavras)
-    (cmd,) = chamadas
-    assert cmd[1] == str(audio) and cmd[cmd.index("--output-format") + 1] == "json"
-    assert cmd[cmd.index("--output-dir") + 1] == str(trabalho)
-    assert cmd[cmd.index("--chunk-duration") + 1] == "15" and cmd[cmd.index("--overlap-duration") + 1] == "3"
-
-
-def test_parakeet_injetado_com_falha_cita_a_saida_de_erro(tmp_path):
-    a, executar, _ = _com_executar(tmp_path, codigo=4, erro="modelo nao encontrado")
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    with pytest.raises(PK.ErroParakeet, match="modelo nao encontrado"):
-        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=executar)
-
-
-def test_parakeet_injetado_sem_arquivo_de_saida_e_erro(tmp_path):
-    a, executar, _ = _com_executar(tmp_path)
-    audio = fx.tom_com_pausas(tmp_path / "fala.wav", dur=1.0, pausas=())
-    with pytest.raises(PK.ErroParakeet, match="json"):
-        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=executar)
-
-
-# =========================== parakeet, perfil "alinhamento" (W3.X A2) ===========================
-# Medido no avatar do fixture com o parakeet REAL: o chunk de 15 s com 3 s de sobreposição desloca fronteira de
-# bloco em até 0,16 s (16 de 52 palavras com outro tempo, a0 de 0,62 para 0,54, fim de 17,68 para 17,84); mp4 x wav
-# 16 kHz não muda nada e o leitor antigo x o novo também não. O relógio que vale é o da footage, que sempre
-# transcreveu wav 16 kHz mono SEM chunk. O perfil "alinhamento" é esse jeito, e lê os tokens pela regra da footage.
-
-class _Feito(object):
-    def __init__(self, returncode=0, stdout="", stderr=""):
-        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
-
-
-SAIDA_DUAS_SENTENCAS = {"sentences": [
-    {"text": " Agora eu", "start": 0.5, "end": 1.0,
-     "tokens": [{"text": " Ag", "start": 0.5, "end": 0.6}, {"text": "ora", "start": 0.6, "end": 0.8},
-                {"text": " eu", "start": 0.84, "end": 1.0}]},
-    {"text": "isso", "start": 1.2, "end": 1.6,      # abre SEM espaço: a regra da footage emenda na anterior
-     "tokens": [{"text": "isso", "start": 1.2, "end": 1.6}]},
-    {"text": " sem tokens aqui", "start": 2.0, "end": 3.0},   # a footage não tira palavra de sentença sem token
-]}
-
-
-def _executar_falso(cmds, saida=SAIDA_DUAS_SENTENCAS):
-    def executar(cmd):
-        cmd = [str(c) for c in cmd]
-        cmds.append(cmd)
-        if cmd[0] == "ffmpeg":
-            Path(cmd[-1]).write_bytes(b"RIFF")
-            return _Feito()
-        destino = Path(cmd[cmd.index("--output-dir") + 1]) / (Path(cmd[1]).stem + ".json")
-        destino.write_text(json.dumps(saida), encoding="utf-8")
-        return _Feito()
-    return executar
-
-
-def test_parakeet_perfil_alinhamento_extrai_wav_16k_mono_e_roda_sem_chunk(tmp_path):
-    exe = _executavel(tmp_path / "bin")
-    av = tmp_path / "avatar.mp4"
-    av.write_bytes(b"mp4")
-    cmds = []
-    trabalho = tmp_path / "t"
-    PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=trabalho, perfil="alinhamento",
-                   executar=_executar_falso(cmds))
-    wav = str(trabalho / "av.wav")
-    assert cmds[0] == ["ffmpeg", "-y", "-i", str(av), "-vn", "-ac", "1", "-ar", "16000", wav]
-    assert cmds[1] == [str(exe), wav, "--output-format", "json", "--output-dir", str(trabalho)]
-    assert "--chunk-duration" not in cmds[1] and "--overlap-duration" not in cmds[1]
-
-
-def test_parakeet_perfil_alinhamento_le_os_tokens_pela_regra_da_footage(tmp_path):
-    from footage import blocos as BL
-
-    _executavel(tmp_path / "bin")
-    av = tmp_path / "avatar.mp4"
-    av.write_bytes(b"mp4")
-    palavras = PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t", perfil="alinhamento",
-                              executar=_executar_falso([]))
-    esperado = [{"text": c, "start": s, "end": e} for s, e, c in BL.tokens_do_parakeet(SAIDA_DUAS_SENTENCAS)]
-    assert palavras == esperado
-    assert [p["text"] for p in palavras] == ["Agora", "euisso"]
-
-
-def test_parakeet_perfil_padrao_continua_com_chunk(tmp_path):
-    exe = _executavel(tmp_path / "bin")
-    av = tmp_path / "fala.wav"
-    av.write_bytes(b"wav")
-    cmds = []
-    PK.transcrever(av, amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t", executar=_executar_falso(cmds))
-    assert cmds == [[str(exe), str(av), "--output-format", "json", "--output-dir", str(tmp_path / "t"),
-                     "--chunk-duration", "15", "--overlap-duration", "3"]]
-
-
-def test_parakeet_perfil_desconhecido_e_erro_de_uso(tmp_path):
-    _executavel(tmp_path / "bin")
-    with pytest.raises(ValueError, match="perfil"):
-        PK.transcrever(tmp_path / "x.wav", amb=amb(bins=(tmp_path / "bin",)), workdir=tmp_path / "t",
-                       perfil="rapido", executar=_executar_falso([]))
+        importavel=lambda nome: nome in modulos)
 
 
 # =========================== faster-whisper =====================================================
@@ -368,6 +128,13 @@ def _rodar(audio, tmp_path, transporte, prompt="Transcrição em português do B
                              workdir=tmp_path / "t", prompt=prompt, transporte=transporte,
                              dormir=dormidas.append, **kw)
     return palavras, dormidas
+
+
+def test_groq_junta_numero_e_percentual_tambem(audio_groq, tmp_path):
+    t = Transporte(_ok([{"word": "cai", "start": 0.0, "end": 0.3}, {"word": "1", "start": 0.4, "end": 0.6},
+                        {"word": "%", "start": 0.6, "end": 0.9}]))
+    palavras, _ = _rodar(audio_groq, tmp_path, t)
+    assert [p["text"] for p in palavras] == ["cai", "1%"]
 
 
 def test_groq_disponivel_so_com_chave():
@@ -512,38 +279,230 @@ def test_groq_o_transporte_padrao_usa_curl_com_a_chave_fora_do_argv():
     assert f'header = "Authorization: Bearer {CHAVE}"' in cfg      # vai por stdin (-K -)
 
 
-# =========================== contrato comum ==================================================
+# --- faster-whisper: o modelo é UMA constante, com override por variável -------------------------
 
-@pytest.mark.parametrize("modulo,nome", [(PK, "parakeet"), (FW, "faster_whisper"), (G, "groq")])
+def test_o_modelo_do_faster_whisper_e_uma_constante_so_o_large_v3_turbo():
+    assert FW.MODELO_PADRAO == "large-v3-turbo"
+    assert (FW.COMPUTE, FW.IDIOMA_PADRAO) == ("int8", "pt")
+    fonte = Path(FW.__file__).read_text(encoding="utf-8")
+    assert fonte.count('"large-v3-turbo"') == 1, "o nome do modelo mora num lugar só"
+
+
+def test_variavel_vam_whisper_modelo_troca_o_modelo_e_vazia_nao_conta():
+    assert FW.VARIAVEL_DO_MODELO == "VAM_WHISPER_MODELO"
+    assert FW.modelo_configurado(amb()) == "large-v3-turbo"
+    assert FW.modelo_configurado(amb(env={"VAM_WHISPER_MODELO": "small"})) == "small"
+    assert FW.modelo_configurado(amb(env={"VAM_WHISPER_MODELO": "   "})) == "large-v3-turbo"
+
+
+def test_a_fabrica_real_carrega_o_modelo_configurado_em_cpu_int8(monkeypatch):
+    import sys
+    import types
+    carregados = []
+
+    class WhisperModel:
+        def __init__(self, nome, **kw):
+            carregados.append((nome, kw))
+
+    falso = types.ModuleType("faster_whisper")
+    falso.WhisperModel = WhisperModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", falso)
+    FW._fabrica_real(amb())()
+    FW._fabrica_real(amb(env={"VAM_WHISPER_MODELO": "medium"}))()
+    assert carregados == [("large-v3-turbo", {"device": "cpu", "compute_type": "int8"}),
+                          ("medium", {"device": "cpu", "compute_type": "int8"})]
+
+
+def test_modelo_que_nao_carrega_vira_erro_claro_com_o_tamanho_do_download(tmp_path):
+    def fabrica():
+        raise OSError("sem rede")
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    with pytest.raises(FW.ErroFasterWhisper) as e:
+        FW.transcrever(audio, amb=amb(), workdir=tmp_path, fabrica_modelo=fabrica)
+    msg = str(e.value)
+    assert "large-v3-turbo" in msg and "1,5 GB" in msg and "sem rede" in msg
+    assert "\n" not in msg.strip()
+
+
+def test_faster_whisper_liga_o_vad_e_pede_tempo_por_palavra(tmp_path):
+    modelo = ModeloFalso([Segmento(" Olá", 0.3, 0.8, [Palavra(" Olá", 0.3, 0.8)])])
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    FW.transcrever(audio, amb=amb(), workdir=tmp_path, fabrica_modelo=lambda: modelo)
+    kw = modelo.chamado[1]
+    assert kw["vad_filter"] is True
+    assert kw["word_timestamps"] is True and kw["language"] == "pt"
+
+
+def test_idioma_auto_ou_vazio_continua_em_portugues(tmp_path):
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    for pedido in (None, "", "auto", "AUTO"):
+        modelo = ModeloFalso([Segmento(" a", 0.0, 0.5, [Palavra(" a", 0.0, 0.5)])])
+        FW.transcrever(audio, amb=amb(), workdir=tmp_path, idioma=pedido, fabrica_modelo=lambda: modelo)
+        assert modelo.chamado[1]["language"] == "pt"
+
+
+# --- faster-whisper: "1 %" vira "1%" (medido: os três modelos escrevem com espaço) ---------------
+
+def test_numero_e_percentual_separados_viram_uma_palavra(tmp_path):
+    modelo = ModeloFalso([Segmento(" cai 1 % ao dia", 0.0, 2.0, [
+        Palavra(" cai", 0.0, 0.4), Palavra(" 1", 0.5, 0.8), Palavra(" %", 0.8, 1.2),
+        Palavra(" ao", 1.3, 1.5), Palavra(" dia", 1.5, 2.0)])])
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    palavras = FW.transcrever(audio, amb=amb(), workdir=tmp_path, fabrica_modelo=lambda: modelo)
+    assert [p["text"] for p in palavras] == ["cai", "1%", "ao", "dia"]
+    junto = palavras[1]
+    assert (junto["start"], junto["end"]) == (0.5, 1.2), "o tempo cobre o número e o símbolo"
+    _monotonico(palavras)
+
+
+def test_percentual_com_pontuacao_e_decimal_tambem_juntam(tmp_path):
+    modelo = ModeloFalso([Segmento(" é 1,5 %.", 0.0, 2.0, [
+        Palavra(" é", 0.0, 0.2), Palavra(" 1,5", 0.3, 0.7), Palavra(" %.", 0.7, 1.1)])])
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    palavras = FW.transcrever(audio, amb=amb(), workdir=tmp_path, fabrica_modelo=lambda: modelo)
+    assert [p["text"] for p in palavras] == ["é", "1,5%."]
+
+
+def test_percentual_sem_tempo_por_palavra_tambem_juntam(tmp_path):
+    modelo = ModeloFalso([Segmento(" de 10 % hoje", 0.0, 4.0, None)])
+    audio = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+    palavras = FW.transcrever(audio, amb=amb(), workdir=tmp_path, fabrica_modelo=lambda: modelo)
+    assert [p["text"] for p in palavras] == ["de", "10%", "hoje"]
+
+
+def test_normalizacao_nao_mexe_no_que_nao_e_numero_com_percentual():
+    brutas = [{"text": "por", "start": 0.0, "end": 0.2}, {"text": "cento", "start": 0.2, "end": 0.5},
+              {"text": "%", "start": 0.6, "end": 0.7},                      # sozinho: nada antes para juntar
+              {"text": "1", "start": 1.0, "end": 1.2}, {"text": "real", "start": 1.2, "end": 1.6}]
+    assert [p["text"] for p in FW.normalizar_numeros(brutas)] == ["por", "cento", "%", "1", "real"]
+    assert FW.normalizar_numeros([]) == []
+
+
+# --- contrato comum ----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("modulo,nome", [(FW, "faster_whisper"), (G, "groq"), (M, "mistral")])
 def test_todo_backend_expoe_nome_disponivel_e_transcrever(modulo, nome):
     assert modulo.NOME == nome
     assert callable(modulo.disponivel) and callable(modulo.transcrever)
 
 
-@pytest.mark.lento
-def test_parakeet_real_no_apple_silicon(tmp_path):
-    a = T.Ambiente.real()
-    if not PK.disponivel(a):
-        pytest.skip("parakeet-mlx não está instalado nesta máquina "
-                    "(python3 -m pip install parakeet-mlx)")
-    import os
-    hf = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")) / "hub"
-    if not any(hf.glob("models--*parakeet*")):
-        pytest.skip(f"modelo do parakeet não está em cache em {hf}: o teste real não baixa 1 GB")
-    audio = fx.tom_com_pausas(tmp_path / "tom.wav", dur=2.0, pausas=())
-    palavras = PK.transcrever(audio, amb=a, workdir=tmp_path / "t")
-    assert isinstance(palavras, list)                    # um tom não tem fala: pode vir vazio
-    for p in palavras:
-        assert set(p) == {"text", "start", "end"}
+def test_so_existem_tres_backends_faster_whisper_groq_e_mistral():
+    pasta = Path(FW.__file__).parent
+    assert sorted(p.stem for p in pasta.glob("*.py") if p.stem != "__init__") == ["faster_whisper", "groq", "mistral"]
 
 
-def test_parakeet_parado_vira_erro_com_conserto(tmp_path, monkeypatch):
-    """Processo pendurado não trava o build: vira ErroParakeet com a mensagem do conserto."""
-    import subprocess as sp
-    a = T.Ambiente.real()
-    monkeypatch.setattr(PK, "achar_executavel", lambda amb=None: "/bin/parakeet-falso")
-    def pendura(c):
-        raise sp.TimeoutExpired(c, PK.TETO_S)
-    audio = fx.tom_com_pausas(tmp_path / "tom.wav", dur=0.5, pausas=())
-    with pytest.raises(PK.ErroParakeet, match="HF_HOME"):
-        PK.transcrever(audio, amb=a, workdir=tmp_path / "t", executar=pendura)
+# =========================== Mistral (Voxtral Mini Transcribe) =================================
+
+CHAVE_M = "mstrl_chave_de_teste_nao_real"
+# O formato REAL medido em 20/10/2026 com timestamp_granularities[]=word: cada segmento é uma palavra.
+RESPOSTA_REAL = {
+    "model": "voxtral-mini-latest", "text": "Uma skill de criação cai 1 % hoje.", "language": None,
+    "segments": [
+        {"type": "transcription_segment", "text": "Uma", "start": 0.7, "end": 0.8, "speaker_id": None},
+        {"type": "transcription_segment", "text": " skill", "start": 0.8, "end": 1.1, "speaker_id": None},
+        {"type": "transcription_segment", "text": " cai", "start": 1.3, "end": 1.5, "speaker_id": None},
+        {"type": "transcription_segment", "text": " 1", "start": 1.5, "end": 1.7, "speaker_id": None},
+        {"type": "transcription_segment", "text": " %", "start": 1.7, "end": 1.9, "speaker_id": None},
+        {"type": "transcription_segment", "text": " hoje.", "start": 2.0, "end": 2.4, "speaker_id": None},
+    ],
+    "usage": {"prompt_audio_seconds": 3},
+}
+
+
+def _rodar_m(audio, tmp_path, transporte, dormidas=None):
+    return M.transcrever(audio, amb=amb(env={"MISTRAL_API_KEY": CHAVE_M}), workdir=tmp_path / "t",
+                         transporte=transporte, dormir=(dormidas if dormidas is not None else []).append)
+
+
+def test_mistral_disponivel_so_com_chave():
+    assert M.disponivel(amb(env={"MISTRAL_API_KEY": CHAVE_M}))
+    assert not M.disponivel(amb()) and not M.disponivel(amb(env={"MISTRAL_API_KEY": "  "}))
+
+
+def test_mistral_manda_modelo_palavra_e_nunca_language(audio_groq, tmp_path):
+    t = Transporte((200, json.dumps(RESPOSTA_REAL)))
+    _rodar_m(audio_groq, tmp_path, t)
+    req = t.requisicoes[0]
+    assert req["url"] == "https://api.mistral.ai/v1/audio/transcriptions"
+    assert req["headers"]["Authorization"] == f"Bearer {CHAVE_M}"
+    campos = dict((k, v) for k, v in req["campos"])
+    assert campos["model"] == M.MODELO == "voxtral-mini-latest"
+    assert [v for k, v in req["campos"] if k == "timestamp_granularities[]"] == ["word"]
+    assert "language" not in campos, "a documentação: timestamp por palavra não combina com language"
+    assert CHAVE_M not in json.dumps(req["campos"]) and CHAVE_M not in req["url"]
+
+
+def test_mistral_le_o_formato_real_um_segmento_por_palavra_e_junta_o_percentual(audio_groq, tmp_path):
+    palavras = _rodar_m(audio_groq, tmp_path, Transporte((200, json.dumps(RESPOSTA_REAL))))
+    assert [p["text"] for p in palavras] == ["Uma", "skill", "cai", "1%", "hoje."]
+    assert palavras[0] == {"text": "Uma", "start": 0.7, "end": 0.8}
+    _monotonico(palavras)
+
+
+def test_mistral_parser_defensivo_aceita_words_no_topo_e_dentro_do_segmento():
+    topo = {"words": [{"word": "oi", "start": 0.0, "end": 0.2}, {"text": "mundo", "start": 0.3, "end": 0.6}]}
+    assert [p["text"] for p in M.palavras_da_resposta(topo)] == ["oi", "mundo"]
+    aninhado = {"segments": [{"text": "oi mundo", "start": 0.0, "end": 1.0,
+                              "words": [{"word": "oi", "start": 0.0, "end": 0.4}, {"word": "mundo", "start": 0.5, "end": 1.0}]}]}
+    assert [p["text"] for p in M.palavras_da_resposta(aninhado)] == ["oi", "mundo"]
+    assert M.palavras_da_resposta({"text": "só texto"}) == [] and M.palavras_da_resposta("lixo") == []
+
+
+def test_mistral_segmento_de_frase_inteira_divide_o_tempo_entre_as_palavras():
+    palavras = M.palavras_da_resposta({"segments": [{"text": "um dois", "start": 1.0, "end": 2.0}]})
+    assert [(p["text"], p["start"], p["end"]) for p in palavras] == [("um", 1.0, 1.5), ("dois", 1.5, 2.0)]
+
+
+def test_mistral_texto_sem_tempo_por_palavra_e_erro_claro(audio_groq, tmp_path):
+    with pytest.raises(M.ErroMistral, match="palavras com tempo"):
+        _rodar_m(audio_groq, tmp_path, Transporte((200, json.dumps({"text": "Olá mundo", "segments": []}))))
+
+
+def test_mistral_audio_sem_fala_devolve_lista_vazia(audio_groq, tmp_path):
+    assert _rodar_m(audio_groq, tmp_path, Transporte((200, json.dumps({"text": "", "segments": []})))) == []
+
+
+CAPACIDADE = json.dumps({"object": "error", "message": "Not enough capacity available", "code": "3505",
+                         "type": "backend_out_of_capacity", "raw_status_code": 429})
+
+
+def test_mistral_401_vira_erro_sem_retry_e_sem_vazar_a_chave(audio_groq, tmp_path):
+    dormidas = []
+    t = Transporte((401, '{"detail":"Invalid API Key"}'))
+    with pytest.raises(M.ErroMistral) as e:
+        _rodar_m(audio_groq, tmp_path, t, dormidas)
+    assert "401" in str(e.value) and CHAVE_M not in str(e.value)
+    assert dormidas == [] and len(t.requisicoes) == 1
+
+
+def test_mistral_429_faz_um_retry_depois_de_20_s_e_funciona(audio_groq, tmp_path):
+    dormidas = []
+    t = Transporte((429, CAPACIDADE), (200, json.dumps(RESPOSTA_REAL)))
+    palavras = _rodar_m(audio_groq, tmp_path, t, dormidas)
+    assert dormidas == [20.0] and len(t.requisicoes) == 2 and palavras[0]["text"] == "Uma"
+
+
+def test_mistral_429_duas_vezes_vira_erro_para_o_seletor_cair_na_groq(audio_groq, tmp_path):
+    dormidas = []
+    t = Transporte((429, CAPACIDADE), (429, CAPACIDADE))
+    with pytest.raises(M.ErroMistral, match="429"):
+        _rodar_m(audio_groq, tmp_path, t, dormidas)
+    assert dormidas == [20.0] and len(t.requisicoes) == 2, "no máximo UM retry"
+
+
+def test_mistral_palavra_de_duracao_zero_ganha_a_largura_da_grade(audio_groq, tmp_path):
+    resposta = {"text": "e agora", "segments": [
+        {"type": "transcription_segment", "text": " e", "start": 5.6, "end": 5.6},
+        {"type": "transcription_segment", "text": " agora", "start": 5.9, "end": 6.3}]}
+    palavras = _rodar_m(audio_groq, tmp_path, Transporte((200, json.dumps(resposta))))
+    assert palavras[0] == {"text": "e", "start": 5.6, "end": pytest.approx(5.7)}
+
+
+def test_mistral_resposta_que_nao_e_json_vira_erro_claro(audio_groq, tmp_path):
+    with pytest.raises(M.ErroMistral, match="não é JSON"):
+        _rodar_m(audio_groq, tmp_path, Transporte((200, "<html>")))
+
+
+def test_mistral_sem_chave_da_erro_antes_de_converter(audio_groq, tmp_path):
+    with pytest.raises(M.ErroMistral, match="MISTRAL_API_KEY"):
+        M.transcrever(audio_groq, amb=amb(), workdir=tmp_path / "t", transporte=Transporte())

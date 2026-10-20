@@ -58,13 +58,11 @@ falha() { case ",$STUB_FAIL," in *,"$1",*) return 0;; esac; return 1; }
 case "$1" in
   -m) case "$2" in pip)
         if falha pip; then echo "pip falhou" >&2; exit 1; fi
-        case " $* " in *" parakeet-mlx "*) if falha parakeet; then echo "sem parakeet" >&2; exit 1; fi;; esac
-        case " $* " in *" faster-whisper "*) if falha fw; then echo "sem faster-whisper" >&2; exit 1; fi;; esac
         exit 0 ;; esac ;;
   *init_local.py) if falha init; then exit 1; fi; mkdir -p _local; exit 0 ;;
   *som_cortes.py) if falha sons; then exit 1; fi
                   mkdir -p _local/dados/assets/som; touch _local/dados/assets/som/whoosh.wav; exit 0 ;;
-  *vam.py) if falha doctor; then echo "[FAIL] transcritor: nenhum transcritor disponível"; exit 1; fi
+  *vam.py) if falha doctor; then echo "[FAIL] transcritor: sem GROQ_API_KEY"; exit 1; fi
            echo "Ambiente pronto."; exit 0 ;;
 esac
 exit 0
@@ -401,40 +399,21 @@ def test_gsap_que_nao_baixa_e_aviso_nao_derruba_o_setup(mundo):
 
 # --- transcritor e doctor no fim (W7.X itens 2 e 3) -------------------------------------------------------
 
-def test_apple_silicon_instala_o_parakeet_no_venv_e_nao_o_faster_whisper(mundo):
-    r = mundo.rodar(uname=("Darwin", "arm64"))
-    assert r.returncode == 0, r.stdout
-    assert mundo.n_pip("parakeet-mlx") == 1
-    assert mundo.n_pip("faster-whisper") == 0
-    assert mundo.n("python3 -m pip") == 0, "o transcritor também nunca vai para o Python do sistema"
-
-
-def test_fora_do_apple_silicon_instala_o_faster_whisper(mundo):
-    for uname in (("Linux", "x86_64"), ("Darwin", "x86_64")):
-        m = Mundo(mundo.repo.parent / ("outro-" + uname[0] + uname[1]) / "meu repo")
+def test_o_setup_nao_instala_transcritor_nenhum_em_nenhum_sistema(mundo):
+    """Decisão do dono (20/10/2026): a transcrição roda na Groq (nuvem). Nada de transcrição pesa no PC do aluno."""
+    for uname in (("Darwin", "arm64"), ("Darwin", "x86_64"), ("Linux", "x86_64")):
+        m = mundo if uname == ("Darwin", "arm64") else Mundo(mundo.repo.parent / ("outro-" + uname[0] + uname[1]) / "meu repo")
         r = m.rodar(uname=uname)
         assert r.returncode == 0, r.stdout
-        assert m.n_pip("faster-whisper") == 1, uname
-        assert m.n_pip("parakeet-mlx") == 0, uname
+        assert m.n_pip("faster-whisper") == 0, uname
+        assert m.n("whisper") == 0 and m.n("hf download") == 0, "nenhum modelo é baixado"
+        assert not (m.repo / ".venv" / ".vam-transcritor").exists()
 
 
-def test_parakeet_que_nao_instala_cai_para_o_faster_whisper_com_aviso(mundo):
-    r = mundo.rodar(falhas="parakeet")
-    assert r.returncode == 0, r.stdout
-    assert mundo.n_pip("faster-whisper") == 1
-    assert "AVISO" in r.stdout and "parakeet" in r.stdout
-
-
-def test_sem_nenhum_transcritor_o_setup_falha_e_nao_diz_pronto(mundo):
-    r = mundo.rodar(falhas="parakeet,fw")
-    assert r.returncode == 1 and "tudo pronto" not in r.stdout
-    assert "transcri" in resumo(r.stdout).lower() and "conserto:" in resumo(r.stdout)
-
-
-def test_segunda_execucao_nao_reinstala_o_transcritor(mundo):
-    assert mundo.rodar().returncode == 0
-    r = mundo.rodar()
-    assert r.returncode == 0 and mundo.n_pip("parakeet-mlx") == 1
+def test_o_setup_nao_tem_mais_passo_de_transcritor():
+    fonte = (RAIZ_REAL / "scripts" / "setup.sh").read_text(encoding="utf-8")
+    assert "passo_transcritor" not in fonte and "faster-whisper" in fonte        # só a nota de que é opcional
+    assert "pip install --quiet --disable-pip-version-check \"$1\"" not in fonte
 
 
 def test_o_resumo_roda_o_doctor_e_so_diz_pronto_com_zero_fail(mundo):
@@ -539,8 +518,7 @@ def test_requirements_da_raiz_tem_o_minimo_e_comenta_os_extras():
               for l in linhas if l.strip() and not l.strip().startswith("#")}
     assert ativas == {"numpy", "opencv-python-headless", "pillow", "scipy"}
     comentadas = "\n".join(l for l in linhas if l.strip().startswith("#"))
-    for extra in ("faster-whisper", "parakeet-mlx"):
-        assert extra in comentadas
+    assert "faster-whisper" in comentadas and "opcional" in comentadas.lower()
 
 
 def test_requirements_fixam_faixa_testada_e_opencv_abaixo_do_5():
@@ -563,7 +541,7 @@ def test_requirements_dos_gates_aponta_para_o_da_raiz():
 
 
 def test_venv_nasce_do_python_mais_novo_da_maquina(mundo):
-    """No macOS o `python3` do PATH é o 3.9 das Command Line Tools, e o parakeet-mlx pede 3.10+.
+    """No macOS o `python3` do PATH é o 3.9 das Command Line Tools, e o .venv deve nascer do mais novo.
     Havendo python3.12 no PATH, o .venv nasce dele, não do python3."""
     escrever_script(mundo.bin / "python3.12", PY_SISTEMA.replace('echo "python3 $*"', 'echo "python3.12 $*"'))
     mundo.rodar()

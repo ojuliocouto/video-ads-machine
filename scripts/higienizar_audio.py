@@ -6,7 +6,7 @@ Por que: o apresentador grava a voz e PARA pra respirar entre frases (pausas de 
 respiro). Isso precisa sair pro anuncio ficar dinamico e sem respiro. Mas as pausas naturais
 curtas (< ~0.5s) NAO podem sair (senao "picota" e fica robotico).
 
-Como (evolucao 11/07/2026): a deteccao por TRANSCRICAO (parakeet OU whisper) nao serve, os
+Como (evolucao 11/07/2026): a deteccao por TRANSCRICAO (qualquer motor) nao serve, os
 timestamps de fim de palavra sao curtos demais e alguns silencios grandes escapam. A deteccao
 DEFINITIVA e por ENERGIA (ffmpeg silencedetect) = ground truth das pausas reais. O whisper entra
 so como conferencia (transcricao no report). Passos:

@@ -2,7 +2,7 @@
 """Contrato do cache de transcricao entre builds.
 
 Motivo (31/08/2026): 8 builds seguidos do mesmo ad, mesmo avatar.mp4, geraram
-8 transcricoes parakeet identicas porque cada build cai num out_dir novo. Este
+8 transcricoes identicas porque cada build cai num out_dir novo. Este
 teste garante que o cache reaproveita entre out_dirs diferentes (mesmo audio)
 e invalida quando o audio muda de fato.
 """

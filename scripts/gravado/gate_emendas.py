@@ -2,14 +2,15 @@
 
 A emenda é onde aparece a sobra: meia palavra da frase descartada colada no começo ou no fim do
 trecho. Ouvir a peça inteira não pega (o ASR lê por cima) e ouvir o sub-bloco isolado também
-não (ele completa o que falta); o tempo de palavra do transcritor local pega:
+não (ele completa o que falta); o tempo de palavra do transcritor pega:
 
   - uma palavra que ATRAVESSA a emenda (começa antes e termina depois, com folga de TOL_S nas
     duas pontas) é uma palavra cortada ao meio;
   - a mesma palavra de um lado e do outro, colada, é o resto de uma retomada.
 
-A folga de TOL_S (0,08 s) é a resolução do tempo de palavra do parakeet. A Groq não serve aqui:
-infla o token. O leitor recusa e diz como instalar um transcritor local.
+A folga de TOL_S (0,08 s) é a resolução do tempo de palavra. A Groq marca o início de algumas palavras tarde (até
+388 ms no p90), então uma costura logo depois do início real de uma palavra pode escapar deste gate; o gate de fala
+preservada (re-transcrição do corte) cobre esse caso.
 
     python3 scripts/gravado/gate_emendas.py [PECA ...] [--projeto DIR]
 Saída: 0 passou, 1 emenda ruim, 2 insumo inválido.

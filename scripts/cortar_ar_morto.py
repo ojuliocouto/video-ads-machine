@@ -25,9 +25,9 @@ aconteceu (v1 comeu "voce nao comprou" de um anuncio inteiro).
 import argparse, array, json, math, os, re, shutil, subprocess, sys, tempfile, wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ar_morto import PADRAO, blocos_de_fala, planejar_cortes, segmentos_manter
+from ar_morto import (PADRAO, blocos_de_fala, margens_de_palavra, margens_do_ambiente, planejar_cortes,
+                      segmentos_manter)
 from audio import transcrever as _T
-from audio.backends import parakeet as _PK
 
 JAN = 0.02
 
@@ -69,55 +69,44 @@ def curva_db(wav_path, jan=JAN):
     return [20 * math.log10(v / pico) if v > 0 else -99.0 for v in rms]
 
 
-def _modulo_do_corte(amb, backend):
-    """O backend que transcreve para o corte: o primeiro local da ordem (parakeet, depois faster-whisper).
-    A Groq NUNCA serve: o tempo por palavra dela não é confiável, e cortar pelo tempo errado come fala."""
-    if backend is not None and not isinstance(backend, str):
-        if getattr(backend, "NOME", None) == "groq":
-            raise SystemExit("A Groq não serve para cortar ar morto: o tempo por palavra dela não é confiável. "
-                             "Instale um transcritor local: python3 -m pip install faster-whisper")
-        return backend
-    try:
-        return _T.escolher_backend(amb, preferido=backend, excluir=("groq",))
-    except _T.SemTranscritor as e:
-        raise SystemExit(str(e))
-
-
-def _json_no_formato_do_parakeet(palavras):
-    """Palavras do seletor `[{text,start,end}]` no JSON que o parakeet-mlx grava, para o resto do corte (tokens_de,
-    texto_de, blocos_de_fala) não perceber de qual backend a transcrição veio. Cada palavra vira um token com espaço
-    na frente (abre palavra), em uma sentença só."""
+def _json_das_palavras(palavras, backend=None):
+    """Palavras do seletor `[{text,start,end}]` no JSON de sentenças e tokens que o resto do corte lê (tokens_de,
+    texto_de, blocos_de_fala) e que o `--json` aceita de fora. Cada palavra vira um token com espaço na frente
+    (abre palavra), em uma sentença só."""
     tokens = [{"text": " " + p["text"], "start": p["start"], "end": p["end"]} for p in palavras]
     texto = " ".join(p["text"] for p in palavras)
     ini = palavras[0]["start"] if palavras else 0.0
     fim = palavras[-1]["end"] if palavras else 0.0
-    return {"text": texto, "sentences": [{"text": texto, "start": ini, "end": fim, "tokens": tokens}]}
+    dados = {"text": texto, "sentences": [{"text": texto, "start": ini, "end": fim, "tokens": tokens}]}
+    if backend:
+        dados["backend"] = backend            # quem fez o tempo: a margem de palavra do corte depende dele
+    return dados
+
+
+def backend_de(json_path):
+    """O backend que fez o tempo deste JSON (gravado por `transcrever`), ou None para um JSON de fora."""
+    with open(json_path, encoding="utf-8") as f:
+        return json.load(f).get("backend")
 
 
 def transcrever(wav_path, saida_dir, amb=None, backend=None):
-    """Transcreve com palavras e tempos; devolve o caminho de um JSON no formato do parakeet-mlx.
+    """Transcreve com palavras e tempos; devolve o caminho de um JSON de sentenças e tokens.
 
-    O backend sai do seletor de áudio (`audio.transcrever`), sem a Groq. Com o parakeet (Apple Silicon) o comando é o
-    de sempre: `parakeet-mlx` direto no wav, sem chunk, e o JSON dele é devolvido como veio. Com o faster-whisper
-    (Windows, Linux, Mac Intel) as palavras viram o mesmo JSON por `_json_no_formato_do_parakeet`.
+    O backend é o do seletor de áudio (`audio.transcrever`) no modo corte: a Groq na frente (tempo mais preciso), a
+    Mistral se não há chave da Groq e, sem nenhuma, o faster-whisper opcional. A nuvem marca o início da palavra
+    tarde: quem usa este JSON para cortar aplica `ar_morto.margens_de_palavra`, com o pré-roll do backend, que
+    fica no campo `backend` do JSON. As palavras viram o JSON por `_json_das_palavras`.
     """
     amb = amb if amb is not None else _T.Ambiente.real()
-    modulo = _modulo_do_corte(amb, backend)
     base = os.path.splitext(os.path.basename(wav_path))[0]
     destino = os.path.join(saida_dir, base + ".json")
-    if getattr(modulo, "NOME", None) == "parakeet":
-        exe = _PK.achar_executavel(amb)
-        if not exe:
-            raise SystemExit("parakeet-mlx nao encontrado: python3 -m pip install parakeet-mlx")
-        sh([exe, wav_path, "--output-format", "json", "--output-dir", saida_dir])
-        return destino
     try:
-        palavras = _T.transcrever(wav_path, cache_dir=os.path.join(saida_dir, "cache_asr"), backend=modulo,
-                                  amb=amb, idioma="pt")
+        palavras, nome = _T.transcrever_detalhado(wav_path, cache_dir=os.path.join(saida_dir, "cache_asr"),
+                                                  backend=backend, amb=amb, idioma="pt", corte=True)
     except _T.SemTranscritor as e:
         raise SystemExit(str(e))
     with open(destino, "w", encoding="utf-8") as f:
-        json.dump(_json_no_formato_do_parakeet(palavras), f, ensure_ascii=False)
+        json.dump(_json_das_palavras(palavras, nome), f, ensure_ascii=False)
     return destino
 
 
@@ -136,6 +125,16 @@ def texto_de(json_path):
 def palavras(txt):
     txt = re.sub(r"[^\wáâãàéêíóôõúüçÁÂÃÀÉÊÍÓÔÕÚÜÇ ]", " ", (txt or "").lower())
     return txt.split()
+
+
+def gate_de_palavras(bruto, cortado):
+    """Trechos do `bruto` (lista de palavras) que SUMIRAM ou ENCURTARAM no `cortado`: [(antes, depois)]. Vazio = ok.
+
+    É a regra do `auditar_audio.comparar_palavras`: palavra com menos de 60% das letras no corte é dano, e palavra
+    curta de função (menos de 3 letras) é ruído do transcritor, não fala perdida."""
+    import auditar_audio
+    danos, _suspeitas = auditar_audio.comparar_palavras(bruto, cortado)
+    return danos
 
 
 def filtro_ffmpeg(segs, extra_v="", extra_a=""):
@@ -180,7 +179,9 @@ def main():
         jpath = transcrever(wav, tmp)
 
     toks = tokens_de(jpath)
-    blocos = blocos_de_fala(toks)
+    pre, pos = margens_do_ambiente(_T.Ambiente.real().env, backend_de(jpath))
+    print(f"margem de palavra: {pre:.2f}s antes, {pos:.2f}s depois (a nuvem marca o início da palavra tarde)")
+    blocos = blocos_de_fala(margens_de_palavra(toks, pre, pos))
     print(f"{len(toks)} tokens -> {len(blocos)} blocos de fala | duracao {dur:.2f}s\n")
 
     db = curva_db(wav)
@@ -220,16 +221,15 @@ def main():
 
     pa, pb = palavras(texto_de(jpath)), palavras(texto_de(j2))
     print(f"  bruto: {len(pa)} palavras | cortado: {len(pb)} palavras")
-    if len(pb) < len(pa) - 2:
-        import difflib
-        print("\n  GATE REPROVADO: sumiu conteudo.")
-        for tag, i1, i2, j1, j2_ in difflib.SequenceMatcher(None, pa, pb).get_opcodes():
-            if tag == "delete":
-                print(f"    perdido: {' '.join(pa[i1:i2])!r}")
-                print(f"    contexto: ...{' '.join(pa[max(0,i1-5):i2+5])}...")
-        print("\n  Afrouxe (--respiro maior, --piso-db mais estrito) e rode de novo.")
+    danos = gate_de_palavras(pa, pb)
+    if danos:
+        print("\n  GATE REPROVADO: sumiu ou encurtou fala.")
+        for antes, depois in danos:
+            print(f"    perdido: {antes!r} virou {depois!r}")
+        print("\n  Afrouxe (--respiro maior, --piso-db mais estrito) ou aumente a margem "
+              "(VAM_CORTE_PRE_ROLL / VAM_CORTE_POS_ROLL) e rode de novo.")
         sys.exit(1)
-    print("  GATE OK: contagem de palavras preservada.")
+    print("  GATE OK: nenhuma palavra sumiu nem encurtou.")
 
 
 if __name__ == "__main__":

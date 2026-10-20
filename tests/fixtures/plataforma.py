@@ -1,6 +1,6 @@
 """Executável falso para os testes, que roda no sistema de quem testa (W0, port nativo para Windows).
 
-Vários testes montam uma "ferramenta" de mentira (um ffmpeg, um hyperframes, um parakeet) que imprime um texto e sai com
+Vários testes montam uma "ferramenta" de mentira (um ffmpeg, um hyperframes) que imprime um texto e sai com
 um código. Em macOS e Linux isso é um script `#!/bin/sh` com chmod; no Windows um script de shell não executa, então o
 equivalente é um `.cmd`. `exe_falso` esconde a diferença:
 

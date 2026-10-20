@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cache da transcricao do avatar (parakeet-mlx), entre builds diferentes.
+"""Cache da transcricao do avatar, entre builds diferentes.
 
 ## Por que existe
 
@@ -7,14 +7,14 @@ O `gen_ad_v2.py` ja evitava retranscrever DENTRO do mesmo out_dir (checa se
 `transcript.json` ja existe ali). O problema e que cada build normalmente cai
 num out_dir novo (render-*), entao a checagem local nunca acerta entre builds
 do MESMO anuncio. Resultado medido em 31/08/2026: 8 builds seguidos do mesmo
-ad, com o MESMO avatar.mp4, geraram 8 transcricoes identicas via parakeet, a
+ad, com o MESMO avatar.mp4, geraram 8 transcricoes identicas, a
 ~2,5 min cada, dentro de um build de 20 min. Essa e a parte mais facil de
 cortar: a transcricao so depende do AUDIO do avatar, nao do out_dir.
 
 Este modulo guarda o resultado da transcricao numa pasta de cache global,
 indexado por uma chave derivada do conteudo do proprio arquivo de audio/video
 de origem (nao do caminho). Assim, dois out_dirs diferentes com o mesmo
-avatar.mp4 reaproveitam o mesmo transcript.json sem rodar o parakeet de novo.
+avatar.mp4 reaproveitam o mesmo transcript.json sem transcrever de novo.
 
 ## Contrato
 
@@ -61,7 +61,7 @@ def guardar(audio_path, json_origem, pasta_cache):
     """Copia o json de transcricao ja gerado pro cache, indexado pela chave do audio.
 
     Devolve o caminho salvo no cache. Chamar so DEPOIS de transcrever de fato:
-    este modulo nunca chama o parakeet, so guarda/recupera o resultado.
+    este modulo nunca chama o transcritor, so guarda/recupera o resultado.
     """
     pasta_cache = Path(pasta_cache)
     pasta_cache.mkdir(parents=True, exist_ok=True)

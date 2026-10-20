@@ -620,7 +620,7 @@ def test_fixture_uma_transcricao_e_overlay_e_footage_no_mesmo_relogio():
 
     # uma transcrição por avatar no caminho novo
     novo = [cap[f"argv/{f}.jsonl"] for f in ("timeline", "overlay", "overlay_1x1", "timeline_footage")]
-    assert sum(t.count('"<PARAKEET>"') for t in novo) == 1
+    assert sum(t.count('"<CURL>"') for t in novo) == 1
     assert all('"<HF>", "transcribe"' not in t for t in novo)
 
     # mesmo plano e mesmas janelas

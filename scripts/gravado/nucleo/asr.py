@@ -3,15 +3,17 @@
 O pipeline de origem tinha um cliente Groq escrito à mão em nove arquivos, cada um com o
 vocabulário do cliente dentro do prompt e um cache próprio. Aqui há UM caminho:
 
-  - o backend é o da máquina (`audio.transcrever` escolhe parakeet, faster-whisper ou Groq);
+  - o backend é o da máquina (`audio.transcrever`): a Groq (o padrão, nuvem, plano gratuito) e, só se o aluno
+    instalou, o faster-whisper offline quando falta a chave;
   - o prompt de vocabulário e a correção de grafia vêm do glossário do aluno (nunca cravados);
   - o cache é por CONTEÚDO do trecho recortado, na pasta do projeto (`cache_dir`).
 
 Duas regras medidas que este módulo cumpre:
 
-  - BORDA de palavra pede um backend que não infle o tempo. A Groq infla token (um "Mas" de
-    7,3 s escondeu uma pausa de 5,4 s), então `exigir_borda=True` recusa a Groq e diz o comando
-    para instalar o parakeet-mlx ou o faster-whisper.
+  - BORDA de palavra: a Groq marca o início de 17% das palavras mais de 200 ms tarde (medido em 20/10/2026).
+    Quem corta pelo tempo de palavra compensa com margem antes e depois (`ar_morto.margens_de_palavra`) e confere
+    o resultado re-transcrevendo (gate de fala preservada). `exigir_borda=True` marca os passos que usam o tempo
+    de palavra e só exige que EXISTA um transcritor.
   - Trecho isolado faz o ASR completar a frase que falta e inventar repetição; a janela precisa
     de contexto dos dois lados. Quem decide a janela é o gate; aqui só se recorta com margem.
 
@@ -93,20 +95,13 @@ def recortar(audio, ini, fim, destino, margem=MARGEM_S):
 
 
 def checar_borda(amb=None, backend=None):
-    """Nome do backend que vai rodar, desde que dê tempo de palavra confiável. A Groq não dá."""
+    """Nome do backend que vai rodar. Sem nenhum transcritor, ErroDeASR com a mensagem do conserto."""
     amb = amb or _t.Ambiente.real()
     pedido = getattr(backend, "NOME", backend)
     try:
-        modulo = _t.escolher_backend(amb, preferido=pedido)
+        return _t.escolher_backend(amb, preferido=pedido).NOME
     except (_t.SemTranscritor, ValueError) as e:
         raise ErroDeASR(str(e))
-    if modulo.NOME == "groq":
-        raise ErroDeASR(
-            "a Groq infla o tempo de palavra (um token de 7 s escondeu uma pausa de 5 s) e a borda de "
-            "palavra precisa de tempo real. Instale um transcritor local com "
-            "`python3 -m pip install parakeet-mlx` (Apple Silicon) ou "
-            "`python3 -m pip install faster-whisper`.")
-    return modulo.NOME
 
 
 class Leitor(object):
@@ -117,18 +112,21 @@ class Leitor(object):
         self.glossario = glossario
         self.backend = backend
         self.amb = amb
+        self.ultimo_backend = None            # quem fez o tempo da última leitura (a margem do corte depende dele)
 
     def _transcrever(self, wav):
         try:
-            return _t.transcrever(wav, cache_dir=self.cache_dir, glossario=self.glossario,
-                                  backend=self.backend, amb=self.amb)
+            palavras, self.ultimo_backend = _t.transcrever_detalhado(
+                wav, cache_dir=self.cache_dir, glossario=self.glossario, backend=self.backend, amb=self.amb,
+                corte=True)                   # o gravado corta o take: a Groq na frente, pelo tempo mais preciso
+            return palavras
         except ErroDeASR:
             raise
-        except Exception as e:                    # SemTranscritor, ErroGroq, ErroParakeet, rede...
+        except Exception as e:                    # SemTranscritor, ErroGroq, ErroFasterWhisper, rede...
             raise ErroDeASR(str(e) if isinstance(e, _t.SemTranscritor) else "%s: %s" % (type(e).__name__, e))
 
     def palavras(self, audio, exigir_borda=False):
-        """Palavras com tempo da peça inteira. `exigir_borda` recusa a Groq."""
+        """Palavras com tempo da peça inteira. `exigir_borda`: o passo usa o tempo de palavra (ver o topo do módulo)."""
         if exigir_borda:
             checar_borda(self.amb, self.backend)
         with tempfile.TemporaryDirectory(prefix="vam-asr-") as pasta:

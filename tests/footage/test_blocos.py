@@ -12,6 +12,8 @@ import pytest
 from audio import transcrever as T
 from footage import blocos as BL
 from footage import cadeia as CA
+from tests.fixtures.fala_gravada import palavras_dos_tokens
+from timeline import alinhar as AL
 
 # nome -> {blocos_entrada, palavras, inserts, blocks, spans, bwords, plano, bases, ritmo_json}
 GOLDEN_CENARIOS = {'apresentadores_seguidos': {'blocos_entrada': [{'instr': 'apresentador',
@@ -1299,66 +1301,39 @@ def test_cfg_do_insert_leva_layout_crop_e_fonte_do_plano_de_ritmo():
 @pytest.mark.parametrize("nome", sorted(GOLDEN_ALINHAR))
 def test_alinhamento_casa_palavra_a_palavra_como_o_original(nome):
     g = GOLDEN_ALINHAR[nome]
-    out = BL.alinhar_palavras(g["json"], g["narr"], g["audio_dur"])
+    out = AL.casar(palavras_dos_tokens(g["json"]), g["narr"], g["audio_dur"])
     assert _viaja(out) == g["palavras"]
 
 
-def test_alinhar_roda_ffmpeg_parakeet_e_ffprobe_nessa_ordem(tmp_path):
-    g = GOLDEN_ALINHAR["exato_com_token_partido"]
-    chamadas = []
+def _transcricao_dos_tokens(dados):
+    return [{"text": c, "start": s, "end": e} for s, e, c in palavras_dos_tokens(dados)]
 
-    def run(cmd):
-        chamadas.append([str(c) for c in cmd])
-        if "parakeet" in str(cmd[0]):
-            (tmp_path / "av.json").write_text(json.dumps(g["json"]), encoding="utf-8")
 
-    def duracao(avatar):
-        chamadas.append(["ffprobe", avatar])
-        return g["audio_dur"]
+class _Backend:
+    """Backend do seletor que devolve a fala gravada do golden."""
+    NOME = "groq"
 
-    out = BL.alinhar("/AV/avatar.mp4", g["narr"], str(tmp_path), executavel="/falso/bin/parakeet-mlx",
-                     run=run, duracao=duracao)
+    def __init__(self, dados):
+        self.palavras, self.chamadas = _transcricao_dos_tokens(dados), []
+
+    def disponivel(self, amb):
+        return True
+
+    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt", **_):
+        self.chamadas.append((str(audio), idioma))
+        return [dict(p) for p in self.palavras]
+
+
+@pytest.mark.parametrize("nome", sorted(GOLDEN_ALINHAR))
+def test_alinhar_pelo_seletor_reproduz_os_goldens_sem_rodar_subprocesso(nome, tmp_path, monkeypatch):
+    """`alinhar` não chama ffmpeg nem executável nenhum para transcrever: pergunta ao seletor de áudio."""
+    import subprocess
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("subprocess.run não deve ser chamado"))
+    g = GOLDEN_ALINHAR[nome]
+    avatar = tmp_path / "avatar.mp4"
+    avatar.write_bytes(b"av")
+    backend = _Backend(g["json"])
+    out = BL.alinhar(str(avatar), g["narr"], str(tmp_path), duracao=lambda a: g["audio_dur"], backend=backend,
+                     amb=T.Ambiente("Linux", "x86_64", {}, lambda n: None, lambda m: False))
     assert _viaja(out) == g["palavras"]
-    assert chamadas[0] == ["ffmpeg", "-y", "-i", "/AV/avatar.mp4", "-vn", "-ac", "1", "-ar", "16000",
-                           str(tmp_path / "av.wav")]
-    assert chamadas[1] == ["/falso/bin/parakeet-mlx", str(tmp_path / "av.wav"), "--output-format", "json",
-                           "--output-dir", str(tmp_path)]
-    assert chamadas[2][0] == "ffprobe"
-
-
-# ------------------------------------------------------------------ parakeet (defeito 3)
-
-def _amb(achados, bins=()):
-    return T.Ambiente(sistema="Darwin", arquitetura="arm64", env={},
-                      which=lambda nome: achados.get(nome), importavel=lambda m: False, bins_venv=bins)
-
-
-def test_executavel_do_parakeet_vem_do_backend_de_audio():
-    amb = _amb({"parakeet-mlx": "/opt/x/bin/parakeet-mlx"})
-    assert BL.executavel_parakeet(amb) == "/opt/x/bin/parakeet-mlx"
-
-
-def test_executavel_do_parakeet_acha_no_venv(tmp_path):
-    exe = tmp_path / "parakeet-mlx"
-    exe.write_text("#!/bin/sh\n")
-    exe.chmod(0o755)
-    assert BL.executavel_parakeet(_amb({}, bins=[tmp_path])) == str(exe)
-
-
-def test_sem_parakeet_a_mensagem_traz_o_comando_que_resolve(home_falso):
-    with pytest.raises(CA.ErroFootage) as e:
-        BL.executavel_parakeet(_amb({}))
-    msg = str(e.value)
-    assert "parakeet-mlx" in msg and "pip install parakeet-mlx" in msg
-
-
-def test_nunca_mais_procura_o_parakeet_em_local_bin_cravado(home_falso):
-    """Com HOME falso o ~/.local/bin do aluno não existe: o caminho não pode depender dele."""
-    local = home_falso / ".local" / "bin"
-    local.mkdir(parents=True)
-    (local / "parakeet-mlx").write_text("#!/bin/sh\n")
-    (local / "parakeet-mlx").chmod(0o755)
-    with pytest.raises(CA.ErroFootage):
-        BL.executavel_parakeet(_amb({}))                      # existe em ~/.local/bin e mesmo assim não vale
-    fonte = Path(BL.__file__).read_text(encoding="utf-8")
-    assert ".local/bin" not in fonte
+    assert backend.chamadas == [(str(avatar), "pt")]

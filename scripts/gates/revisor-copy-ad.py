@@ -2,7 +2,7 @@
 """Revisor de COPY do roteiro anotado: pega erro de transcricao antes de virar legenda.
 
 Por que existe (regra do dono do motor, 05/08/2026): a legenda vem do roteiro anotado, que eu
-escrevo a partir da transcricao do parakeet. O parakeet ouve "Claude" e escreve
+escrevo a partir da transcricao do ASR. O ASR ouve "Claude" e escreve
 "Cloud": foram 39 ocorrencias em 10 dos 12 anuncios de uma leva de 08/2026, ou seja, o
 nome do PRODUTO errado queimado na tela de um anuncio pago. Ninguem revisou porque
 nao havia etapa de revisao de copy: a transcricao virava legenda direto.

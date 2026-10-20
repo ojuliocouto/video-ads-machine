@@ -133,7 +133,7 @@ def test_a_varredura_enxerga_as_variaveis_conhecidas_do_motor():
     lidas = todas_as_lidas()
     # W5.A: o montar por projeto não lê mais FASE_GATE, FIDELIDADE, GATE_FMT nem VAM_MUSICA (gate não se desliga por
     # variável; a trilha é a do projeto.json); lê o paralelismo dos gates de saída e o vam lê VAM_SEM_VENV
-    for conhecida in ("HEYGEN_API_KEY", "GROQ_API_KEY", "VAM_DADOS", "FASE_GATE_LEGADO", "VAM_GATES_PARALELO",
+    for conhecida in ("HEYGEN_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "VAM_DADOS", "FASE_GATE_LEGADO", "VAM_GATES_PARALELO",
                       "VAM_SEM_VENV", "HEYGEN_ENGINE_OVERRIDE", "WHISPER_SIZE", "ACCEL_FINAL"):
         assert conhecida in lidas, f"a varredura deveria ter achado {conhecida}"
 
@@ -167,16 +167,16 @@ def test_chaves_de_api_vem_vazias_nunca_com_valor():
             assert m.group(2).strip() == "", f"{m.group(1)} não pode trazer valor no exemplo"
 
 
-def test_as_duas_chaves_do_aluno_estao_ativas_e_vazias():
+def test_as_chaves_do_aluno_estao_ativas_e_vazias():
     texto = ENV_EXAMPLE.read_text(encoding="utf-8")
-    assert re.search(r"^HEYGEN_API_KEY=$", texto, flags=re.M)
-    assert re.search(r"^GROQ_API_KEY=$", texto, flags=re.M)
+    for chave in ("HEYGEN_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"):
+        assert re.search(r"^%s=$" % chave, texto, flags=re.M), chave
 
 
 def test_so_as_chaves_ficam_ativas_o_resto_e_comentado_para_nao_mudar_o_comportamento():
     """Copiar .env.example para .env não pode ligar bypass nem trocar caminho sem querer."""
     ativas = re.findall(r"^([A-Z][A-Z0-9_]*)=", ENV_EXAMPLE.read_text(encoding="utf-8"), re.M)
-    assert set(ativas) <= {"HEYGEN_API_KEY", "GROQ_API_KEY"}, ativas
+    assert set(ativas) <= {"HEYGEN_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"}, ativas
 
 
 def test_cada_variavel_tem_uma_linha_de_comentario_logo_acima_ou_na_secao():
@@ -198,7 +198,7 @@ def test_env_example_sem_travessao():
     assert "\u2014" not in texto and "\u2013" not in texto
 
 
-@pytest.mark.parametrize("nome", ["HEYGEN_API_KEY", "GROQ_API_KEY"])
+@pytest.mark.parametrize("nome", ["HEYGEN_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"])
 def test_a_chave_diz_onde_conseguir(nome):
     texto = ENV_EXAMPLE.read_text(encoding="utf-8")
     bloco = texto.split(f"{nome}=")[0].splitlines()[-6:]

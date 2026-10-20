@@ -4,14 +4,26 @@
 Devolve SEMPRE `[{"text": str, "start": float, "end": float}]`, uma entrada por palavra,
 monotônica (início não regride, fim >= início, uma palavra não invade a seguinte).
 
-## Qual backend roda (a primeira que existir na máquina)
+## Qual backend roda
 
-  1. parakeet      Apple Silicon (Darwin + arm64) e o executável `parakeet-mlx` no PATH ou
-                   nos scripts do `.venv`. Nunca num caminho cravado.
-  2. faster_whisper  qualquer máquina onde o módulo `faster_whisper` importa.
-  3. groq          a variável GROQ_API_KEY está definida (API de nuvem, pagamento por uso).
+  Nuvem (os padrões, para TUDO: voz, fala x roteiro, legenda, alinhamento, corte de take). `ORDEM_NUVEM` é a ordem
+  única; `VAM_TRANSCRITOR=mistral|groq` (no `.env` ou no ambiente) põe um deles na frente. Vale o primeiro cuja
+  chave existe:
+  1. mistral         Voxtral Mini Transcribe, com a MISTRAL_API_KEY que o aluno criou na aula Curso → Skill.
+  2. groq            `whisper-large-v3-turbo`, plano gratuito, com a GROQ_API_KEY.
+  Local, OPCIONAL (NÃO é instalado pelo setup):
+  3. faster_whisper  Offline: modelo `large-v3-turbo`, CPU, int8, português, VAD ligado (ver
+                     `backends/faster_whisper.py`), cerca de 1,5 GB baixados no primeiro uso. Só roda se o aluno
+                     instalou o pacote (`pip install faster-whisper`).
 
-Sem nenhum dos três, sai UMA mensagem com o comando que resolve (SemTranscritor).
+Nada pesado fica na máquina do aluno. A nuvem marca o início de algumas palavras tarde (Groq: 17% mais de 200 ms;
+Mistral: 39%; o local: 6%). Quem CORTA por tempo de palavra pede `corte=True`: a Groq vai na frente da Mistral (tempo mais
+preciso), a palavra ganha margem antes (0,30 s Groq, 0,40 s Mistral) e depois (0,15 s) com `ar_morto.margens_de_palavra`,
+e o resultado é conferido re-transcrevendo.
+
+Na escolha automática, se o backend da vez falha (sem internet, limite, chave recusada, resposta sem tempo por
+palavra), o seguinte da ordem entra no lugar e UMA linha sai no stderr dizendo qual caiu em qual. Backend pedido pelo
+nome ou por objeto nunca cai em outro. Sem nenhum, sai UMA mensagem com o que resolve (SemTranscritor).
 
 ## Cache
 
@@ -20,14 +32,8 @@ fica na pasta que o chamador passa em `cache_dir` (a do projeto): este módulo n
 padrão, de propósito, para nada cair em pasta temporária do sistema. O cache guarda o
 resultado BRUTO do ASR; o glossário é aplicado depois, na saída, então trocar o glossário
 não retranscreve nada. (O prompt do glossário só influencia a primeira transcrição.)
-
-## Perfil
-
-`perfil="padrao"` é a transcrição de sempre. `perfil="alinhamento"` é a do relógio do anúncio (timeline/alinhar):
-no parakeet, wav 16 kHz sem chunk e leitor da footage, porque o chunk deslocava fronteira em até 0,16 s (medido no
-fixture, W3.X A2). Backend que não distingue perfil (não declara `PERFIS`) recebe a chamada de sempre. Cada perfil
-tem o seu arquivo de cache (`<sha>.json` e `<sha>.alinhamento.json`): a mesma fala lida de dois jeitos nunca se
-mistura.
+A chave NÃO inclui o backend nem o modelo: depois de trocar de motor ou de `VAM_WHISPER_MODELO`, apague a pasta
+de cache (ou passe `forcar=True`) para transcrever de novo.
 
 ## Glossário
 
@@ -48,16 +54,17 @@ import platform
 import re
 import shutil
 import sys
-import sysconfig
 from pathlib import Path
 
-ORDEM = ("parakeet", "faster_whisper", "groq")
-PERFIS = ("padrao", "alinhamento")
+ORDEM_NUVEM = ("mistral", "groq")             # a ordem única dos backends de nuvem (a primeira chave que existe vence)
+LOCAIS = ("faster_whisper",)
+ORDEM = ORDEM_NUVEM + LOCAIS                  # os nomes que existem (a ordem real sai de `ordem_dos_backends`)
+
+_RAIZ_DO_REPO = Path(__file__).resolve().parent.parent.parent
 
 PROMPT_BASE = "Transcrição em português do Brasil."
 PROMPT_MAX = 600       # o Whisper aceita ~224 tokens de prompt; folga para o português
 
-_RAIZ_DO_REPO = Path(__file__).resolve().parent.parent.parent
 _PONTUACAO = re.compile(r"^([^\w]*)(.*?)([^\w]*)$", re.S)
 
 
@@ -66,36 +73,30 @@ class SemTranscritor(RuntimeError):
 
 
 class Ambiente(object):
-    """O que a escolha de backend olha: sistema, arquitetura, PATH, módulos e variáveis.
+    """O que a escolha de backend olha: sistema, módulos importáveis e variáveis (GROQ_API_KEY, VAM_WHISPER_MODELO).
 
     Existe para a escolha ser testável sem tocar na máquina de quem roda o teste.
     """
 
-    def __init__(self, sistema, arquitetura, env, which, importavel, bins_venv=()):
+    def __init__(self, sistema, arquitetura, env, which, importavel):
         self.sistema = sistema
         self.arquitetura = arquitetura
         self.env = env
         self.which = which                # nome -> caminho do executável ou None (busca no PATH)
         self.importavel = importavel      # nome do módulo -> bool
-        self.bins_venv = tuple(Path(b) for b in bins_venv)
-
-    @property
-    def apple_silicon(self):
-        return self.sistema == "Darwin" and self.arquitetura == "arm64"
 
     @classmethod
-    def real(cls):
+    def real(cls, raiz=None):
+        """A máquina de verdade. As variáveis do ambiente mandam; o `.env` da raiz do repo completa o que falta
+        (é onde o aluno põe a GROQ_API_KEY)."""
         import importlib.util
-        bins = []
-        for b in (Path(sys.executable).parent, Path(sysconfig.get_path("scripts") or "."),
-                  _RAIZ_DO_REPO / ".venv" / "bin"):
-            if b not in bins:
-                bins.append(b)
+        from onboarding.doctor import carregar_dotenv
+        env = dict(carregar_dotenv(Path(raiz if raiz is not None else _RAIZ_DO_REPO) / ".env"))
+        env.update(os.environ)
         return cls(
-            sistema=platform.system(), arquitetura=platform.machine(), env=dict(os.environ),
+            sistema=platform.system(), arquitetura=platform.machine(), env=env,
             which=lambda nome: shutil.which(nome),
-            importavel=lambda nome: importlib.util.find_spec(nome) is not None,
-            bins_venv=bins)
+            importavel=lambda nome: importlib.util.find_spec(nome) is not None)
 
 
 # --- palavras: forma e monotonia ------------------------------------------------------------
@@ -120,6 +121,25 @@ def monotonizar(palavras):
     return saida
 
 
+_NUMERO = re.compile(r"\d[\d.,]*$")
+
+
+def normalizar_numeros(palavras):
+    """Junta número e "%" que o modelo separou: "1" + "%" vira "1%" (o tempo cobre as duas). Devolve lista nova.
+
+    Só junta quando a palavra anterior termina em dígito e a atual COMEÇA com "%" (a pontuação que vem depois,
+    "%.", fica). "%" sem número antes não muda."""
+    saida = []
+    for p in palavras:
+        texto = str(p["text"]).strip()
+        if saida and texto.startswith("%") and _NUMERO.search(str(saida[-1]["text"]).strip()):
+            anterior = saida[-1]
+            saida[-1] = {"text": str(anterior["text"]).strip() + texto, "start": anterior["start"], "end": p["end"]}
+        else:
+            saida.append(dict(p))
+    return saida
+
+
 # --- cache ----------------------------------------------------------------------------------
 
 def sha_do_conteudo(caminho):
@@ -132,29 +152,28 @@ def sha_do_conteudo(caminho):
 
 
 def _ler_cache(arquivo, sha):
+    """`(palavras, nome do backend que as fez)` guardados, ou `(None, None)`."""
     try:
         dados = json.loads(Path(arquivo).read_text(encoding="utf-8"))
         if dados.get("sha256") == sha and isinstance(dados.get("palavras"), list):
-            return monotonizar(dados["palavras"])
+            return monotonizar(dados["palavras"]), str(dados.get("backend") or "")
     except (OSError, ValueError, KeyError, TypeError):
         pass
-    return None
+    return None, None
 
 
-def _gravar_cache(arquivo, sha, backend, palavras, perfil="padrao"):
+def _gravar_cache(arquivo, sha, backend, palavras):
     arquivo = Path(arquivo)
     arquivo.parent.mkdir(parents=True, exist_ok=True)
     tmp = arquivo.with_name(arquivo.name + ".tmp")
     dados = {"versao": 1, "sha256": sha, "backend": backend, "palavras": palavras}
-    if perfil != "padrao":
-        dados["perfil"] = perfil
     tmp.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(str(tmp), str(arquivo))
 
 
-def arquivo_de_cache(cache_dir, sha, perfil="padrao"):
-    """`<sha>.json` no perfil padrão; `<sha>.<perfil>.json` nos outros."""
-    return Path(cache_dir) / (f"{sha}.json" if perfil == "padrao" else f"{sha}.{perfil}.json")
+def arquivo_de_cache(cache_dir, sha):
+    """`<sha>.json` dentro da pasta de cache do projeto."""
+    return Path(cache_dir) / f"{sha}.json"
 
 
 # --- glossário ------------------------------------------------------------------------------
@@ -241,90 +260,126 @@ def _modulo(nome):
     return importlib.import_module(f"{__package__ or 'audio'}.backends.{nome}")
 
 
-def backends_disponiveis(amb=None):
+PREFERIDO_NO_CORTE = "groq"       # medido: o início de palavra da Groq é mais preciso que o da Mistral (grade de 0,1 s)
+
+
+def ordem_dos_backends(amb, corte=False):
+    """Os nomes na ordem em que são tentados: a nuvem (`ORDEM_NUVEM`, com `VAM_TRANSCRITOR` na frente se definida) e
+    depois o local. `corte=True` (passos que cortam por tempo de palavra) põe a Groq na frente da Mistral quando
+    `VAM_TRANSCRITOR` não manda outra coisa: o tempo de palavra dela é mais preciso."""
+    pedido = str(amb.env.get("VAM_TRANSCRITOR") or "").strip().lower()
+    if not pedido:
+        if corte:
+            return [PREFERIDO_NO_CORTE] + [n for n in ORDEM_NUVEM if n != PREFERIDO_NO_CORTE] + list(LOCAIS)
+        return list(ORDEM_NUVEM) + list(LOCAIS)
+    if pedido not in ORDEM_NUVEM:
+        raise SemTranscritor(f"VAM_TRANSCRITOR={pedido!r} não existe (use {' ou '.join(ORDEM_NUVEM)})")
+    return [pedido] + [n for n in ORDEM_NUVEM if n != pedido] + list(LOCAIS)
+
+
+def backends_disponiveis(amb=None, corte=False):
     amb = amb or Ambiente.real()
-    return [n for n in ORDEM if _modulo(n).disponivel(amb)]
+    return [n for n in ordem_dos_backends(amb, corte) if _modulo(n).disponivel(amb)]
 
 
-def mensagem_sem_transcritor(amb, excluir=()):
-    if amb.apple_silicon:
-        instalar = f"{sys.executable} -m pip install parakeet-mlx"
-    else:
-        instalar = f"{sys.executable} -m pip install faster-whisper"
-    if "groq" in excluir:
-        return (f"Nenhum transcritor local disponível. Instale um com `{instalar}`. "
-                "A Groq não serve aqui: o tempo por palavra dela não é confiável para cortar.")
-    return (f"Nenhum transcritor disponível. Instale um com `{instalar}` "
-            "(ou defina GROQ_API_KEY para usar a Groq).")
+def mensagem_sem_transcritor(amb=None):
+    return ("Nenhum transcritor disponível. Ponha no arquivo .env da raiz do repo a MISTRAL_API_KEY (a mesma chave que "
+            "você criou na aula Curso → Skill) ou a GROQ_API_KEY (chave GRÁTIS em console.groq.com). (O faster-whisper "
+            f"local serve offline, mas é opcional: `{sys.executable} -m pip install faster-whisper`.)")
 
 
-def escolher_backend(amb=None, preferido=None, excluir=()):
-    """Módulo do backend: o `preferido` se existir nesta máquina, senão o primeiro da ORDEM.
-
-    `excluir` tira backends da escolha automática (o corte de take recusa a Groq: o tempo por palavra
-    dela não é confiável). Pedir pelo nome um backend excluído é erro.
-    """
+def escolher_backend(amb=None, preferido=None, corte=False):
+    """Módulo do backend: o `preferido` se existir nesta máquina, senão o primeiro da ORDEM."""
     amb = amb or Ambiente.real()
     if preferido is not None:
         if preferido not in ORDEM:
             raise ValueError(f"backend desconhecido: {preferido!r} (use um de {', '.join(ORDEM)})")
-        if preferido in excluir:
-            raise SemTranscritor(f"O backend {preferido} não serve para este passo. "
-                                 + mensagem_sem_transcritor(amb, excluir))
         modulo = _modulo(preferido)
         if not modulo.disponivel(amb):
             raise SemTranscritor(f"O backend {preferido} não está disponível nesta máquina. "
                                  + mensagem_sem_transcritor(amb))
         return modulo
-    for nome in ORDEM:
-        if nome in excluir:
-            continue
+    for nome in ordem_dos_backends(amb, corte):
         modulo = _modulo(nome)
         if modulo.disponivel(amb):
             return modulo
-    raise SemTranscritor(mensagem_sem_transcritor(amb, excluir))
+    raise SemTranscritor(mensagem_sem_transcritor(amb))
 
 
 # --- API ------------------------------------------------------------------------------------
 
-def transcrever(audio, *, cache_dir, glossario=None, backend=None, amb=None, forcar=False,
-                idioma="pt", perfil="padrao"):
-    """Palavras com tempo de `audio`. `cache_dir` é obrigatório (a pasta do projeto).
+def _candidatos(amb, backend, corte=False):
+    """Os módulos a tentar, em ordem. Escolha automática: todos os disponíveis (o seguinte é a reserva do
+    anterior). Pedido por nome ou por objeto: só ele."""
+    if backend is None:
+        achados = [m for m in (_modulo(n) for n in ordem_dos_backends(amb, corte)) if m.disponivel(amb)]
+        if not achados:
+            raise SemTranscritor(mensagem_sem_transcritor(amb))
+        return achados
+    if isinstance(backend, str):
+        return [escolher_backend(amb, preferido=backend)]
+    return [backend]
 
-    `backend`: nome (um de ORDEM), um módulo/objeto com `NOME` e `transcrever`, ou None
-    para a escolha automática. `forcar=True` ignora o cache. `perfil`: ver "Perfil" no topo.
+
+def _rodar(modulo, audio, amb, trabalho, prompt, idioma):
+    trabalho.mkdir(parents=True, exist_ok=True)
+    try:
+        return monotonizar(modulo.transcrever(audio, amb=amb, workdir=trabalho, prompt=prompt, idioma=idioma))
+    finally:
+        shutil.rmtree(str(trabalho), ignore_errors=True)
+        try:
+            trabalho.parent.rmdir()          # some a pasta _trabalho se ficou vazia
+        except OSError:
+            pass
+
+
+def transcrever_detalhado(audio, *, cache_dir, glossario=None, backend=None, amb=None, forcar=False,
+                          idioma="pt", corte=False):
+    """`(palavras, nome do backend)`. Palavras com tempo de `audio`; `cache_dir` é obrigatório (a pasta do projeto).
+
+    `backend`: nome (um de ORDEM), um módulo/objeto com `NOME` e `transcrever`, ou None para a escolha
+    automática (a nuvem na ordem de `ordem_dos_backends`, e o faster-whisper, se instalado, quando a nuvem falha).
+    `corte=True` marca o passo que corta por tempo de palavra: a Groq vai na frente da Mistral. O nome do backend
+    serve para escolher a margem de palavra do corte (`ar_morto.margens_do_ambiente`). `forcar=True` ignora o cache.
     """
-    if perfil not in PERFIS:
-        raise ValueError(f"perfil desconhecido: {perfil!r} (use um de {', '.join(PERFIS)})")
     audio = Path(audio)
     if not audio.is_file():
         raise FileNotFoundError(f"áudio não encontrado: {audio}")
     amb = amb or Ambiente.real()
     cache_dir = Path(cache_dir)
     sha = sha_do_conteudo(audio)
-    arquivo = arquivo_de_cache(cache_dir, sha, perfil)
+    arquivo = arquivo_de_cache(cache_dir, sha)
 
-    palavras = None if forcar else _ler_cache(arquivo, sha)
+    palavras, nome = (None, None) if forcar else _ler_cache(arquivo, sha)
     if palavras is None:
-        if backend is None or isinstance(backend, str):
-            modulo = escolher_backend(amb, preferido=backend)
-        else:
-            modulo = backend
+        candidatos = _candidatos(amb, backend, corte)
+        prompt = prompt_do_glossario(glossario)
         trabalho = cache_dir / "_trabalho" / sha[:16]
-        trabalho.mkdir(parents=True, exist_ok=True)
-        extra = {"perfil": perfil} if perfil != "padrao" and perfil in getattr(modulo, "PERFIS", ()) else {}
-        try:
-            bruto = modulo.transcrever(audio, amb=amb, workdir=trabalho,
-                                       prompt=prompt_do_glossario(glossario), idioma=idioma, **extra)
-        finally:
-            shutil.rmtree(str(trabalho), ignore_errors=True)
+        for k, modulo in enumerate(candidatos):
             try:
-                trabalho.parent.rmdir()          # some a pasta _trabalho se ficou vazia
-            except OSError:
-                pass
-        palavras = monotonizar(bruto)
-        _gravar_cache(arquivo, sha, getattr(modulo, "NOME", "desconhecido"), palavras, perfil)
-    return aplicar_glossario(palavras, glossario)
+                palavras = _rodar(modulo, audio, amb, trabalho, prompt, idioma)
+                break
+            except Exception as e:
+                if k + 1 < len(candidatos):
+                    print(f"AUDIO: {getattr(modulo, 'NOME', 'o transcritor')} falhou ({e}); "
+                          f"tentando {getattr(candidatos[k + 1], 'NOME', 'o próximo')}.", file=sys.stderr)
+                    continue
+                if backend is None and getattr(modulo, "NOME", "") in ORDEM_NUVEM:
+                    raise SemTranscritor(
+                        f"O transcritor {modulo.NOME} falhou ({e}). Confira a internet e a chave no .env "
+                        "(MISTRAL_API_KEY ou GROQ_API_KEY, a da Groq é grátis em console.groq.com). "
+                        f"Para trabalhar offline, instale o faster-whisper: `{sys.executable} -m pip install faster-whisper`.")
+                raise
+        nome = getattr(modulo, "NOME", "desconhecido")
+        _gravar_cache(arquivo, sha, nome, palavras)
+    return aplicar_glossario(palavras, glossario), nome
+
+
+def transcrever(audio, *, cache_dir, glossario=None, backend=None, amb=None, forcar=False,
+                idioma="pt", corte=False):
+    """Só as palavras com tempo de `transcrever_detalhado`."""
+    return transcrever_detalhado(audio, cache_dir=cache_dir, glossario=glossario, backend=backend, amb=amb,
+                                 forcar=forcar, idioma=idioma, corte=corte)[0]
 
 
 def main(argv=None, amb=None):
@@ -335,12 +390,11 @@ def main(argv=None, amb=None):
     ap.add_argument("--glossario", help="caminho do _local/glossario.json")
     ap.add_argument("--backend", choices=ORDEM)
     ap.add_argument("--forcar", action="store_true")
-    ap.add_argument("--perfil", choices=PERFIS, default="padrao")
     a = ap.parse_args(argv)
     glossario = json.loads(Path(a.glossario).read_text(encoding="utf-8")) if a.glossario else None
     try:
         palavras = transcrever(a.audio, cache_dir=a.cache_dir, glossario=glossario,
-                               backend=a.backend, amb=amb, forcar=a.forcar, perfil=a.perfil)
+                               backend=a.backend, amb=amb, forcar=a.forcar)
     except SemTranscritor as e:
         print(str(e), file=sys.stderr)
         return 2

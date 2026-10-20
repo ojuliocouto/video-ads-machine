@@ -146,25 +146,25 @@ def test_janelas_sobrepostas_cobrem_cada_emenda_com_margem(tmp_path):
         assert any(a + 1.0 - 1e-9 <= t <= b - 1.0 + 1e-9 for a, b in jan), t
 
 
-def test_borda_de_palavra_exige_backend_que_nao_infla_token():
+def test_borda_de_palavra_aceita_a_groq_e_o_local():
+    """Decisão do dono (20/10/2026): tudo na nuvem. A Groq serve; a compensação é a margem de palavra no corte."""
     groq_so = Ambiente("Darwin", "arm64", {"GROQ_API_KEY": "x"}, which=lambda n: None,
                        importavel=lambda m: False)
-    with pytest.raises(asr.ErroDeASR) as e:
-        asr.checar_borda(groq_so)
-    assert "parakeet" in str(e.value) and "faster-whisper" in str(e.value)
-    com_parakeet = Ambiente("Darwin", "arm64", {}, which=lambda n: "/x/parakeet-mlx" if n == "parakeet-mlx" else None,
-                            importavel=lambda m: False)
-    assert asr.checar_borda(com_parakeet) == "parakeet"
+    assert asr.checar_borda(groq_so) == "groq"
     com_whisper = Ambiente("Linux", "x86_64", {}, which=lambda n: None,
                            importavel=lambda m: m == "faster_whisper")
     assert asr.checar_borda(com_whisper) == "faster_whisper"
+    os_dois = Ambiente("Linux", "x86_64", {"GROQ_API_KEY": "x"}, which=lambda n: None,
+                       importavel=lambda m: m == "faster_whisper")
+    assert asr.checar_borda(os_dois) == "groq"
 
 
-def test_sem_nenhum_backend_a_mensagem_e_uma_so_com_o_comando():
+def test_sem_nenhum_backend_a_mensagem_e_uma_so_com_o_conserto():
     vazio = Ambiente("Linux", "x86_64", {}, which=lambda n: None, importavel=lambda m: False)
     with pytest.raises(asr.ErroDeASR) as e:
         asr.checar_borda(vazio)
-    assert str(e.value).count("pip install") == 1
+    assert "console.groq.com" in str(e.value) and "GROQ_API_KEY" in str(e.value)
+    assert "\n" not in str(e.value).strip()
 
 
 # --- falas_entregues.json: o insumo dos gates de repetição e fora do roteiro -----------------

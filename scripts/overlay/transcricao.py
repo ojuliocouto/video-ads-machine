@@ -7,8 +7,8 @@ nada no HeyGen: é só re-timing local (vídeo com `setpts`, áudio com `atempo`
 Com a timeline.json (W3.A, relógio único), o overlay NÃO transcreve: as palavras vêm do alinhamento
 único que a timeline cita (`palavras_da_timeline`), o mesmo que a footage usa, transcrito uma vez só
 pelo `audio.transcrever`. Sem timeline segue o caminho antigo, até a W5.A ligar a timeline no build:
-a transcrição do avatar pelo seletor de backend do `audio.transcrever` (parakeet no Apple Silicon, senão
-faster-whisper, senão Groq), gravada em `transcript.json` no diretório de saída, mais o cache por conteúdo em
+a transcrição do avatar pelo seletor de backend do `audio.transcrever` (Groq com GROQ_API_KEY, senão
+faster-whisper local), gravada em `transcript.json` no diretório de saída, mais o cache por conteúdo em
 `<dados>/output/_cache/transcricao`, e o `gerar` avisa no fim (`AVISO_SEM_TIMELINE`).
 """
 import hashlib
@@ -93,8 +93,8 @@ def chave_do_conteudo(caminho):
 def _transcrever_pelo_seletor(dst, backend=None, amb=None):
     """As palavras `[{id, text, start, end}]` do avatar pelo seletor de backend do `audio.transcrever`.
 
-    Antes era o comando de transcrição do HyperFrames com o motor parakeet, que só roda no Apple Silicon. O seletor escolhe o que
-    existe na máquina e devolve a MESMA forma (lista de palavras com início e fim), então `alinhar_palavras` e o
+    Antes era o comando de transcrição do HyperFrames. O seletor escolhe o que existe na máquina (Groq, senão
+    faster-whisper) e devolve a MESMA forma (lista de palavras com início e fim), então `alinhar_palavras` e o
     resto do overlay não percebem a troca. O idioma é fixo em português. O cache do seletor fica numa subpasta do
     cache de transcrição (o `*.json` da pasta de cima continua sendo só o cache por conteúdo do overlay).
     """
@@ -103,16 +103,15 @@ def _transcrever_pelo_seletor(dst, backend=None, amb=None):
                                     backend=backend, amb=amb, idioma="pt")
     except _asr.SemTranscritor as e:
         sys.exit(f"ERRO: {e}")
-    # Adaptador: o transcript.json do HyperFrames trazia `id` (vazio) em cada palavra. Medido em 19/10/2026 no
-    # avatar do fixture com o parakeet real: as 61 palavras, texto e tempo, saem IDÊNTICAS às do caminho antigo;
-    # só faltava a chave `id`, que entra aqui para o arquivo ficar com a mesma forma de antes.
+    # O transcript.json do HyperFrames trazia `id` (vazio) em cada palavra: a chave entra aqui para o arquivo
+    # ter a mesma forma de antes e o resto do overlay não perceber a troca.
     return [{"id": "", "text": p["text"], "start": p["start"], "end": p["end"]} for p in palavras]
 
 
 def transcrever(dst, out, backend=None, amb=None):
     """Lista de palavras `{text, start, end}` do avatar, vinda do cache por CONTEÚDO se existir.
 
-    Cache entre builds (31/08/2026): 8 builds do mesmo anúncio no mesmo dia rodaram o parakeet 8
+    Cache entre builds (31/08/2026): 8 builds do mesmo anúncio no mesmo dia rodaram o transcritor 8
     vezes para o MESMO avatar, cerca de 2,5 min cada, porque cada build cai num out_dir novo e a
     checagem do `transcript.json` local nunca acerta entre eles. A chave é o sha256 do conteúdo do
     `avatar.mp4`, então qualquer out_dir com o mesmo áudio reaproveita sem chamar o transcritor.

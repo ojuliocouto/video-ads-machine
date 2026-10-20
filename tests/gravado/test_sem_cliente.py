@@ -124,7 +124,7 @@ def test_zero_travessao_no_gravado_e_nos_testes():
 
 def test_os_arquivos_de_cliente_e_de_drive_nao_vieram():
     ausentes = ["exemplo_conferencia_oc" + "c6.py", "subir_drive.py", "conferir_drive.py", "renomear_drive.py",
-                "teste_caixinha_fundo_preto.png", "novo_projeto.sh", "plano.exemplo.py", "parakeet_lote.sh"]
+                "teste_caixinha_fundo_preto.png", "novo_projeto.sh", "plano.exemplo.py"]
     for nome in ausentes:
         assert not (GRAVADO / nome).exists(), nome
     assert not any(GRAVADO.rglob("*drive*"))

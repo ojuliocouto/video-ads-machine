@@ -7,7 +7,7 @@ editar é o trabalho. Cada passo é medido no arquivo, nunca estimado; os erros 
 no método de origem foram todos valor chutado, e todos se resolveram de primeira quando medidos.
 
     0  ENTENDER      assistir o bruto e transcrever ANTES de tocar em nada (a CLI mostra o plano e para: --so-plano)
-    1  TRANSCREVER   tempo de palavra REAL (parakeet ou faster-whisper; a Groq infla o token e é recusada)
+    1  TRANSCREVER   tempo de palavra pela Groq; no corte cada palavra ganha margem (0,30 s antes, 0,15 s depois)
     2  CORTAR        o ar morto sai pelas duas fontes que se corrigem: o vão entre as palavras diz ONDE,
                      a energia da onda diz QUANTO (`ar_morto.py`, cinco bugs reais, cada um um teste)
     3  ENQUADRAR     janela 9:16 centrada no rosto MEDIDO (`oneshot.enquadrar`)
@@ -34,6 +34,7 @@ from pathlib import Path
 
 import ar_morto
 from audio import loudness
+from audio import transcrever as _asr_t
 from cinema import grade as _grade
 from gravado import auditar, gate_ar_morto, gate_fala
 from gravado import montar as gravado_montar
@@ -76,9 +77,14 @@ def leitor_do_projeto(pj, backend=None, estado=None):
 
 # --- planejar ----------------------------------------------------------------------------------------
 
-def cortes_do_take(palavras, db_relativo, duracao):
-    """[(início, fim)] a MANTER do take. As palavras (com tempo real) ancoram, a energia mede o silêncio."""
-    tokens = [(p["start"], p["end"], p["text"]) for p in palavras]
+def cortes_do_take(palavras, db_relativo, duracao, margens=None, backend=None):
+    """[(início, fim)] a MANTER do take. As palavras ancoram, a energia mede o silêncio.
+
+    A nuvem marca o início da palavra tarde: cada palavra ganha margem antes (0,30 s na Groq, 0,40 s na Mistral,
+    conforme o `backend` que fez o tempo) e depois (0,15 s), sem invadir a vizinha (`ar_morto.margens_de_palavra`).
+    `margens=(pre, pos)` troca o padrão; sem ele valem VAM_CORTE_PRE_ROLL e VAM_CORTE_POS_ROLL."""
+    pre, pos = margens if margens is not None else ar_morto.margens_do_ambiente(_asr_t.Ambiente.real().env, backend)
+    tokens = ar_morto.margens_de_palavra([(p["start"], p["end"], p["text"]) for p in palavras], pre, pos)
     blocos = ar_morto.blocos_de_fala(tokens)
     if not blocos:
         raise InsumoInvalido("o transcritor não ouviu nenhuma palavra no take: sem saber onde há fala não dá para "
@@ -108,7 +114,7 @@ def planejar(pj, take, leitor, detector=None, medidor_luz=None):
     db, _ = energia.curva(take, jan=JAN)
     if not len(db):
         raise InsumoInvalido("o take %s é curto demais para medir" % take.name)
-    segs = cortes_do_take(palavras, (db - db.max()).tolist(), dur)
+    segs = cortes_do_take(palavras, (db - db.max()).tolist(), dur, backend=getattr(leitor, "ultimo_backend", None))
     if not segs:
         raise InsumoInvalido("o corte não deixou nenhum trecho do take: confira o áudio de %s" % take.name)
     avisos = []

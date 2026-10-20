@@ -25,7 +25,6 @@ import tempfile
 from pathlib import Path
 
 from audio import transcrever as _T
-from audio.backends import parakeet as _PK
 from caminhos import V1, CODIGO  # noqa: E402
 
 # Ritmo: uma fala de anuncio TEM pausa de fim de frase. Zero pausa longa = achatado.
@@ -139,35 +138,15 @@ def _normalizar_fala(txt):
 def _transcrever(caminho, amb=None, backend=None):
     """Palavras normalizadas da fala de `caminho`, ou None se nenhum transcritor serviu.
 
-    O backend sai do seletor de áudio (`audio.transcrever`): parakeet no Apple Silicon, senão faster-whisper, senão
-    Groq. Aqui só importa o TEXTO (o gate compara duas transcrições), então qualquer backend serve. Com o parakeet o
-    comando é o de sempre (`parakeet-mlx ... --output-format txt`), numa pasta temporária do sistema. O openai-whisper
-    puro segue proibido (trava a máquina do diretor). Sem nenhum transcritor, AVISA alto em vez de fingir que conferiu.
+    O backend sai do seletor de áudio (`audio.transcrever`): a Groq (o padrão, com GROQ_API_KEY) e, se ela faltar
+    ou falhar, o faster-whisper local. Aqui só importa o TEXTO (o gate compara duas transcrições), então qualquer
+    backend serve. O openai-whisper puro segue proibido (trava a máquina do diretor). Sem nenhum transcritor,
+    AVISA alto em vez de fingir que conferiu.
     """
     amb = amb if amb is not None else _T.Ambiente.real()
-    try:
-        if backend is not None and not isinstance(backend, str):
-            modulo = backend
-        else:
-            modulo = _T.escolher_backend(amb, preferido=backend)
-    except _T.SemTranscritor as e:
-        print(f"AUDIO: a conferência de fala NÃO rodou: {e}", file=sys.stderr)
-        return None
     with tempfile.TemporaryDirectory(prefix="auditar_audio_") as pasta:
-        if getattr(modulo, "NOME", None) == "parakeet":
-            exe = _PK.achar_executavel(amb)
-            if not exe:
-                print("AUDIO: a conferência de fala NÃO rodou: parakeet-mlx não encontrado "
-                      "(python3 -m pip install parakeet-mlx)", file=sys.stderr)
-                return None
-            saida = Path(pasta) / (Path(caminho).stem + ".txt")
-            subprocess.run([exe, str(caminho), "--output-format", "txt", "--output-dir", pasta],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace")
-            if not saida.exists():
-                return None
-            return _normalizar_fala(saida.read_text(encoding="utf-8", errors="replace"))
         try:
-            palavras = _T.transcrever(caminho, cache_dir=Path(pasta) / "cache_asr", backend=modulo, amb=amb,
+            palavras = _T.transcrever(caminho, cache_dir=Path(pasta) / "cache_asr", backend=backend, amb=amb,
                                       idioma="pt")
         except _T.SemTranscritor as e:
             print(f"AUDIO: a conferência de fala NÃO rodou: {e}", file=sys.stderr)
@@ -182,7 +161,7 @@ def _transcrever(caminho, amb=None, backend=None):
 # e preserva o miolo.
 FRACAO_LETRAS_DANO = 0.60
 # Trecho com menos letras que isso e ruido do transcritor, nao fala perdida. Palavra
-# curta de funcao ('e', 'um', 'a') troca sozinha entre duas passadas do parakeet: no
+# curta de funcao ('e', 'um', 'a') troca sozinha entre duas passadas do transcritor: no
 # AD16 foi o BRUTO que inventou um 'um' que o roteiro nao tem.
 MIN_LETRAS_TRECHO = 3
 
@@ -191,12 +170,20 @@ def comparar_transcricoes(bruto, limpo):
     """Trechos em que a fala do limpo DIVERGE do bruto (palavra comida no corte).
 
     Devolve (danos, suspeitas): danos reprovam, suspeitas so aparecem no relatorio.
-    Comparar duas transcricoes acusa MUITA coisa que nao e corte: o parakeet re-segmenta
+    Comparar duas transcricoes acusa MUITA coisa que nao e corte: o transcritor re-segmenta
     quando o audio muda, e elisao natural ("vamos embora" -> "vambora") encurta sem
     perder fala. Sem separar os dois, o gate reprova audio bom e a leva inteira trava.
     """
+    return comparar_palavras(_transcrever(bruto), _transcrever(limpo))
+
+
+def comparar_palavras(a, b):
+    """O mesmo que `comparar_transcricoes`, sobre duas listas de palavras normalizadas (sem transcrever).
+
+    Palavra que SUMIU ou ficou ENCURTADA no `b` (menos de 60% das letras) é dano; encurtada menos que isso, suspeita.
+    Lista vazia de um dos lados não prova nada: devolve `([], [])`.
+    """
     import difflib
-    a, b = _transcrever(bruto), _transcrever(limpo)
     if not a or not b:
         return [], []
     danos, suspeitas = [], []

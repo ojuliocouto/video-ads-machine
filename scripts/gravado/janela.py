@@ -2,9 +2,9 @@
 
 Serve para medir a borda de um trecho: `--achar "frase"` devolve o início e o fim de cada vez que
 a frase aparece, nas palavras cronometradas (sem diferenciar acento, caixa nem pontuação). A
-borda de PALAVRA se mede pelo tempo de palavra do transcritor local (parakeet ou faster-whisper),
-nunca lendo o texto de um recorte: o ASR omite o fragmento da borda numa ponta e inventa o que
-falta na outra. O leitor recusa a Groq aqui, que infla o token.
+borda de PALAVRA se mede pelo tempo de palavra do transcritor, nunca lendo o texto de um
+recorte: o ASR omite o fragmento da borda numa ponta e inventa o que falta na outra. A Groq marca o início
+da palavra um pouco tarde: some 0,30 s ao início ao decidir um corte (ver `ar_morto.margens_de_palavra`).
 
     python3 scripts/gravado/janela.py TAKE INI FIM [--projeto DIR]
     python3 scripts/gravado/janela.py TAKE --achar "uma frase" [--projeto DIR]

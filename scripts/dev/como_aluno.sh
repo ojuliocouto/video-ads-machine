@@ -3,12 +3,12 @@
 #
 # Roda um comando COMO o aluno roda num clone limpo: ambiente vazio (env -i), HOME falso, PATH só do sistema e do
 # Homebrew (sem ~/.local/bin, onde mora ferramenta do dono), sem CLAUDE_CONFIG_DIR. Repassa só as três variáveis que
-# o aluno teria definido: HEYGEN_API_KEY, GROQ_API_KEY e HF_HOME (o cache do modelo público de transcrição, declarado no
+# o aluno teria definido: HEYGEN_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY e HF_HOME (o cache do modelo público de transcrição, declarado no
 # laudo para não baixar cerca de 1 GB de novo).
 #
 # No Git Bash do Windows o `env -i` quebraria tudo (sem SystemRoot, TEMP e PATH o Python e o Node nem sobem) e o PATH do
 # Homebrew não existe. Lá o ambiente é mantido, com HOME e USERPROFILE no HOME falso e sem o que é do dono: variáveis
-# VAM_*, CLAUDE*, ANTHROPIC*, chaves e tokens de API (menos as três do aluno), PYTHONPATH/VIRTUAL_ENV e as pastas
+# VAM_*, CLAUDE*, ANTHROPIC*, chaves e tokens de API (menos as do aluno), PYTHONPATH/VIRTUAL_ENV e as pastas
 # `.local/bin` do PATH.
 #
 #   VAM_HOME_ALUNO=<pasta> bash scripts/dev/como_aluno.sh bash setup.sh
@@ -38,7 +38,7 @@ if eh_windows; then
     REMOVER=()
     while IFS= read -r nome; do
         case "$nome" in
-            HEYGEN_API_KEY|GROQ_API_KEY|HF_HOME|VAM_HOME_ALUNO) continue ;;
+            HEYGEN_API_KEY|MISTRAL_API_KEY|GROQ_API_KEY|HF_HOME|VAM_HOME_ALUNO) continue ;;
             VAM_*|CLAUDE*|ANTHROPIC*|PYTHONPATH|PYTHONHOME|VIRTUAL_ENV|*_API_KEY|*_TOKEN|*_SECRET)
                 REMOVER+=("-u" "$nome") ;;
         esac
@@ -61,7 +61,7 @@ if eh_windows; then
 fi
 
 REPASSA=()
-for nome in HEYGEN_API_KEY GROQ_API_KEY HF_HOME; do
+for nome in HEYGEN_API_KEY MISTRAL_API_KEY GROQ_API_KEY HF_HOME; do
     valor="$(printenv "$nome")"
     [ -n "$valor" ] && REPASSA+=("$nome=$valor")
 done

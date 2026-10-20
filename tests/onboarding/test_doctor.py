@@ -113,7 +113,6 @@ REGRAS_SAUDAVEIS = [
     (node_versao(), (0, "v22.11.0")),
     (hyperframes_versao(), (0, "0.7.56")),
     (python_c(), (0, "3 11\n\n")),
-    (exe("parakeet-mlx", "--help"), (0, "usage")),
 ]
 
 
@@ -347,60 +346,132 @@ def test_saida_ilegivel_do_python_e_fail_sem_traceback(repo):
     conserto_de_uma_linha(r)
 
 
-# --- transcritor (usa o audio.transcrever, não duplica) ---------------------------------------------
+# --- transcritor: Mistral ou Groq (a primeira chave que existe); o faster-whisper local é opcional ------------
 
-def test_transcritor_parakeet_no_apple_silicon_e_ok(repo):
-    amb = amb_falso(repo, executaveis=("ffmpeg", "parakeet-mlx"), modulos=())
-    r = transcritor.checar(amb)
-    assert r.status == "OK" and "parakeet" in r.detalhe
+SISTEMAS = [("Darwin", "arm64", "darwin"), ("Darwin", "x86_64", "darwin"),
+            ("Windows", "AMD64", "win32"), ("Linux", "x86_64", "linux")]
+SEGREDO_G, SEGREDO_M = "gsk_segredo_de_teste", "mstrl_segredo_de_teste"
 
 
-def test_transcritor_parakeet_quebrado_sem_alternativa_e_fail(repo):
-    regras = [(exe("parakeet-mlx", "--help"), (1, "bad interpreter"))]
-    amb = amb_falso(repo, executaveis=("parakeet-mlx",), modulos=(), regras=regras)
-    r = transcritor.checar(amb)
-    assert r.status == "FAIL" and "parakeet" in r.detalhe
+@pytest.fixture(params=SISTEMAS, ids=["mac-apple", "mac-intel", "windows", "linux"])
+def sistema(request, monkeypatch):
+    """Roda o teste nos três sistemas: o sistema do `plataforma` e o do ambiente do doctor andam juntos."""
+    nome, arq, plat = request.param
+    monkeypatch.setattr(plataforma, "_sistema", lambda: plat)
+    return {"sistema": nome, "arquitetura": arq}
+
+
+def test_so_groq_aceita_e_ok_dizendo_que_vai_usar_a_groq_nos_tres_sistemas(repo, sistema):
+    chamadas = []
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"GROQ_API_KEY": SEGREDO_G},
+                                     http=http_falso((200, '{"data": []}'), chamadas), **sistema))
+    assert r.status == "OK"
+    assert "vai usar Groq" in r.detalhe and "gratuito" in r.detalhe
+    assert "reserva offline" not in r.detalhe
+    assert SEGREDO_G not in r.detalhe + r.conserto
+    assert chamadas[0]["url"] == "https://api.groq.com/openai/v1/models"
+    assert chamadas[0]["headers"]["Authorization"] == "Bearer " + SEGREDO_G
+    assert chamadas[0]["headers"]["User-Agent"].startswith("Mozilla/5.0")     # sem isso a Cloudflare dá 403
     conserto_de_uma_linha(r)
 
 
-def test_transcritor_parakeet_quebrado_com_groq_de_reserva_e_warn(repo):
-    regras = [(exe("parakeet-mlx", "--help"), (1, "bad interpreter"))]
-    amb = amb_falso(repo, executaveis=("parakeet-mlx",), modulos=(), regras=regras,
-                    env={"GROQ_API_KEY": "gsk_x"})
-    r = transcritor.checar(amb)
-    assert r.status == "WARN" and "groq" in r.detalhe
-
-
-def test_nenhum_transcritor_e_fail_com_uma_mensagem_que_resolve(repo):
-    r = transcritor.checar(amb_falso(repo, executaveis=(), modulos=()))
-    assert r.status == "FAIL"
-    assert "pip install parakeet-mlx" in r.conserto and "GROQ_API_KEY" in r.conserto
+def test_so_mistral_aceita_e_ok_dizendo_que_vai_usar_a_mistral(repo, sistema):
+    chamadas = []
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"MISTRAL_API_KEY": SEGREDO_M},
+                                     http=http_falso((200, "{}"), chamadas), **sistema))
+    assert r.status == "OK" and "vai usar Mistral" in r.detalhe
+    assert SEGREDO_M not in r.detalhe + r.conserto
+    assert chamadas[0]["url"] == "https://api.mistral.ai/v1/models"
+    assert chamadas[0]["headers"]["Authorization"] == "Bearer " + SEGREDO_M
     conserto_de_uma_linha(r)
 
 
-def test_nenhum_transcritor_fora_do_mac_sugere_faster_whisper(repo):
-    r = transcritor.checar(amb_falso(repo, sistema="Linux", arquitetura="x86_64",
-                                     executaveis=(), modulos=()))
-    assert r.status == "FAIL" and "faster-whisper" in r.conserto
+def test_com_as_duas_chaves_a_mistral_e_a_usada_e_a_groq_e_a_reserva(repo):
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"GROQ_API_KEY": SEGREDO_G, "MISTRAL_API_KEY": SEGREDO_M},
+                                     http=http_falso((200, "{}"))))
+    assert r.status == "OK" and "vai usar Mistral" in r.detalhe and "reserva: groq" in r.detalhe
 
 
-def test_so_groq_e_ok_e_diz_que_e_nuvem(repo):
-    r = transcritor.checar(amb_falso(repo, executaveis=(), modulos=(),
-                                     env={"GROQ_API_KEY": "gsk_x"}))
-    assert r.status == "OK" and "groq" in r.detalhe
+def test_vam_transcritor_groq_faz_a_groq_ser_a_usada(repo):
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"GROQ_API_KEY": SEGREDO_G, "MISTRAL_API_KEY": SEGREDO_M,
+                                                            "VAM_TRANSCRITOR": "groq"}, http=http_falso((200, "{}"))))
+    assert "vai usar Groq" in r.detalhe and "reserva: mistral" in r.detalhe
 
 
-def test_faster_whisper_no_linux_e_ok(repo):
-    r = transcritor.checar(amb_falso(repo, sistema="Linux", arquitetura="x86_64",
-                                     executaveis=(), modulos=("faster_whisper",)))
-    assert r.status == "OK" and "faster_whisper" in r.detalhe
+def test_vam_transcritor_invalido_e_fail_com_conserto(repo):
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"GROQ_API_KEY": SEGREDO_G, "VAM_TRANSCRITOR": "x"}))
+    assert r.status == "FAIL" and "VAM_TRANSCRITOR" in r.detalhe
+    conserto_de_uma_linha(r)
 
 
-def test_transcritor_delega_a_escolha_ao_audio_transcrever(repo, monkeypatch):
-    from audio import transcrever as T
-    monkeypatch.setattr(T, "backends_disponiveis", lambda amb=None: ["groq"])
-    r = transcritor.checar(amb_falso(repo, executaveis=(), modulos=()))
-    assert r.status == "OK" and "groq" in r.detalhe
+def test_mistral_recusada_e_groq_aceita_a_groq_e_a_usada(repo):
+    def http_get(url, headers=None, timeout=10, metodo="GET"):
+        return (401, "{}") if "mistral" in url else (200, "{}")
+    r = transcritor.checar(amb_falso(repo, modulos=(), env={"GROQ_API_KEY": SEGREDO_G, "MISTRAL_API_KEY": SEGREDO_M},
+                                     http=http_get))
+    assert r.status == "OK" and "vai usar Groq" in r.detalhe
+
+
+def test_chave_aceita_e_faster_whisper_instalado_mostra_a_reserva_offline(repo):
+    r = transcritor.checar(amb_falso(repo, modulos=("faster_whisper",), env={"GROQ_API_KEY": "gsk_x"},
+                                     http=http_falso((200, "{}"))))
+    assert r.status == "OK" and "reserva offline" in r.detalhe
+    assert "large-v3-turbo" in r.detalhe and "1,5 GB" in r.detalhe and "primeiro uso" in r.detalhe
+
+
+def test_sem_nenhuma_chave_e_sem_local_e_fail_com_os_dois_consertos_nos_tres_sistemas(repo, sistema):
+    chamadas = []
+    r = transcritor.checar(amb_falso(repo, modulos=(), http=http_falso((200, "{}"), chamadas), **sistema))
+    assert r.status == "FAIL" and chamadas == []
+    assert "MISTRAL_API_KEY" in r.detalhe and "GROQ_API_KEY" in r.detalhe
+    assert "console.groq.com" in r.conserto and ".env" in r.conserto
+    assert "MISTRAL_API_KEY" in r.conserto and "Curso → Skill" in r.conserto and "GRÁTIS" in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_sem_chave_com_faster_whisper_opcional_e_warn_e_ainda_manda_criar_a_chave(repo, sistema):
+    r = transcritor.checar(amb_falso(repo, modulos=("faster_whisper",), **sistema))
+    assert r.status == "WARN"
+    assert "faster-whisper local" in r.detalhe and "large-v3-turbo" in r.detalhe and "1,5 GB" in r.detalhe
+    assert "console.groq.com" in r.conserto and "Curso → Skill" in r.conserto
+    conserto_de_uma_linha(r)
+
+
+def test_chave_em_branco_conta_como_ausente(repo):
+    assert transcritor.checar(amb_falso(repo, env={"GROQ_API_KEY": "   ", "MISTRAL_API_KEY": ""}, modulos=())).status == "FAIL"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_todas_as_chaves_recusadas_sem_local_e_fail_e_com_local_e_warn(repo, status):
+    env = {"GROQ_API_KEY": "gsk_x", "MISTRAL_API_KEY": "mstrl_x"}
+    sem = transcritor.checar(amb_falso(repo, modulos=(), env=env, http=http_falso((status, "{}"))))
+    assert sem.status == "FAIL" and str(status) in sem.detalhe and "console.groq.com" in sem.conserto
+    com = transcritor.checar(amb_falso(repo, modulos=("faster_whisper",), env=env, http=http_falso((status, "{}"))))
+    assert com.status == "WARN" and "faster-whisper local" in com.detalhe
+    conserto_de_uma_linha(sem)
+    conserto_de_uma_linha(com)
+
+
+def test_sem_rede_com_chave_e_ok_e_avisa_que_nao_conferiu(repo):
+    from onboarding.doctor import ErroRede
+    r = transcritor.checar(amb_falso(repo, env={"GROQ_API_KEY": "gsk_x"}, modulos=(),
+                                     http=http_falso(ErroRede("sem internet"))))
+    assert r.status == "OK" and "não consegui conferir" in r.detalhe
+
+
+def test_modelo_local_vem_da_constante_e_da_variavel(repo, monkeypatch):
+    from audio.backends import faster_whisper as FW
+    r = transcritor.checar(amb_falso(repo, modulos=("faster_whisper",), env={"VAM_WHISPER_MODELO": "small"}))
+    assert "modelo small" in r.detalhe and "1,5 GB" not in r.detalhe
+    monkeypatch.setattr(FW, "MODELO_PADRAO", "modelo-de-teste")
+    assert "modelo-de-teste" in transcritor.checar(amb_falso(repo, modulos=("faster_whisper",))).detalhe
+
+
+def test_transcritor_nao_roda_subprocesso(repo):
+    chamadas = []
+    transcritor.checar(amb_falso(repo, modulos=("faster_whisper",), env={"GROQ_API_KEY": "gsk_x"},
+                                 chamadas=chamadas, http=http_falso((200, "{}"))))
+    assert chamadas == []
 
 
 # --- heygen --------------------------------------------------------------------------------------
@@ -563,12 +634,11 @@ NOMES = ["python_deps", "ffmpeg_libass", "node_hyperframes", "transcritor", "fon
 
 
 def amb_saudavel(repo):
-    return amb_falso(repo, env={"HEYGEN_API_KEY": CHAVE}, executaveis=("ffmpeg", "ffprobe",
-                                                                      "node", "parakeet-mlx"),
-                     http=http_falso((200, corpo())))
+    return amb_falso(repo, env={"HEYGEN_API_KEY": CHAVE, "MISTRAL_API_KEY": "mstrl_x"},
+                     executaveis=("ffmpeg", "ffprobe", "node"), http=http_falso((200, corpo())))
 
 
-def test_os_sete_checks_do_plano_existem_na_ordem(repo):
+def test_os_sete_checks_existem_na_ordem(repo):
     assert [m.NOME for m in D.checks_padrao()] == NOMES
 
 
@@ -618,7 +688,7 @@ def test_main_barra_quando_o_binario_do_hyperframes_falta(repo, capsys):
 
 
 def test_main_warn_sozinho_nao_barra_e_mostra_o_conserto(repo, capsys):
-    amb = amb_falso(repo, executaveis=("ffmpeg", "ffprobe", "node", "parakeet-mlx"),
+    amb = amb_falso(repo, executaveis=("ffmpeg", "ffprobe", "node"), env={"GROQ_API_KEY": "gsk_x"},
                     http=http_falso((200, "{}")))      # sem HEYGEN_API_KEY
     rc = D.main([], amb=amb)
     saida = capsys.readouterr().out
@@ -763,25 +833,6 @@ def test_opencv_ruim_no_windows_cita_o_python_do_venv_do_windows(repo, windows):
     _escrever(repo / ".venv/Scripts/python.exe", "x", 0o755)
     r = python_deps.checar(amb_falso(repo, regras=py_com("3 11\n\n5.0.0\n")))
     assert r.status == "FAIL" and "Scripts" in r.conserto and "bin/python" not in r.conserto
-
-
-def test_transcritor_no_windows_aceita_faster_whisper_e_explica_que_o_parakeet_e_so_do_mac(repo, windows):
-    r = transcritor.checar(amb_falso(repo, sistema="Windows", arquitetura="AMD64",
-                                     executaveis=(), modulos=("faster_whisper",)))
-    assert r.status == "OK" and "faster_whisper" in r.detalhe
-    assert "parakeet" in r.detalhe and "Mac" in r.detalhe
-    conserto_de_uma_linha(r)
-
-
-def test_transcritor_no_mac_nao_fala_do_parakeet_so_do_mac(repo):
-    r = transcritor.checar(amb_falso(repo, executaveis=("ffmpeg", "parakeet-mlx"), modulos=()))
-    assert r.status == "OK" and "só" not in r.detalhe and "Mac" not in r.detalhe
-
-
-def test_transcritor_sem_nada_no_windows_manda_faster_whisper_e_explica_o_parakeet(repo, windows):
-    r = transcritor.checar(amb_falso(repo, sistema="Windows", arquitetura="AMD64", executaveis=(), modulos=()))
-    assert r.status == "FAIL" and "faster-whisper" in r.conserto and "parakeet" in r.conserto and "Mac" in r.conserto
-    conserto_de_uma_linha(r)
 
 
 def test_fonte_woff2_de_verdade_passa(repo):

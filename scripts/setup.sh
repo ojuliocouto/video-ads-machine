@@ -12,8 +12,9 @@
 #   1. cria o .venv do repo (o Python do Homebrew recusa `pip install` fora de um ambiente
 #      virtual, PEP 668, então NADA vai para o Python do sistema)
 #   2. instala o requirements.txt no .venv
-#   2b. instala o transcritor no .venv: parakeet-mlx no Apple Silicon, faster-whisper nos outros
-#      (sem transcritor o `vam audio` não roda; o doctor dá FAIL)
+#      (O transcritor é a nuvem, Mistral ou Groq: o setup NÃO instala nem baixa nada de transcrição. A chave
+#      MISTRAL_API_KEY ou GROQ_API_KEY (grátis) vai no .env, passo 7; o doctor cobra se faltar. O faster-whisper local é opcional e fica por
+#      conta do aluno: `.venv/bin/python -m pip install faster-whisper`, modelo de 1,5 GB baixado no primeiro uso.)
 #   3. confere o Node 22 ou superior
 #   4. instala o HyperFrames na versão pinada no package.json (npm install)
 #   5. garante o Chromium do render (hyperframes browser ensure)
@@ -35,7 +36,7 @@
 #
 # Windows: roda no Git Bash, com o Python e o Node do Windows (sem WSL, sem Homebrew). Lá o .venv guarda o Python em
 # .venv/Scripts/python.exe, o `python3` pode ser o atalho da Microsoft Store (que não é Python), as dicas de instalação
-# usam winget e o transcritor é sempre o faster-whisper. O Mac e o Linux ficam como sempre foram.
+# usam winget. O Mac e o Linux ficam como sempre foram.
 #
 # Carregado com `source` (os testes fazem isso), o arquivo só define as funções e volta, sem rodar passo nenhum.
 
@@ -67,7 +68,6 @@ done
 VENV="$REPO_ROOT/.venv"
 VENV_PY=""
 SELO="$VENV/.vam-requirements"
-SELO_TRANSCRITOR="$VENV/.vam-transcritor"
 HF_BIN="$REPO_ROOT/node_modules/.bin/hyperframes"
 GSAP_DEST="$REPO_ROOT/templates/_vendor/gsap.min.js"
 ESTADO_DIR="${VAM_ESTADO:-$REPO_ROOT/_local}"
@@ -110,8 +110,8 @@ python_de_verdade() {
     "$@" -c 'import sys' >/dev/null 2>&1
 }
 
-# O .venv nasce do Python mais novo da máquina (>= 3.10 quando existe): o parakeet-mlx pede 3.10+,
-# e no macOS o `python3` do PATH costuma ser o 3.9 das Command Line Tools.
+# O .venv nasce do Python mais novo da máquina (>= 3.10 quando existe): no macOS o `python3` do PATH costuma ser
+# o 3.9 das Command Line Tools.
 # No Windows: `python3` (se não for o atalho da Store), depois `py -3` (o launcher oficial), depois `python`.
 escolher_python() {
     local cand achado
@@ -243,56 +243,6 @@ passo_requirements() {
         problema "o pip falhou ao instalar o requirements.txt" "$(dica_venv_py) -m pip install -r requirements.txt"
         return 1
     fi
-}
-
-# --- 2b. transcritor ---------------------------------------------------------------------------------------
-# O motor escolhe sozinho o primeiro que existir (parakeet, faster-whisper, Groq). Sem nenhum, o `vam audio`
-# não roda e o doctor dá FAIL: por isso o setup instala UM, no .venv (nunca no Python do sistema).
-# O selo guarda qual foi instalado; o pip já é idempotente, o selo só evita o gasto de rodá-lo à toa.
-transcritor_alvo() {
-    if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "$(uname -m 2>/dev/null)" = "arm64" ]; then
-        echo "parakeet-mlx"
-    else
-        echo "faster-whisper"
-    fi
-}
-
-instalar_transcritor() {
-    "$VENV_PY" -m pip install --quiet --disable-pip-version-check "$1"
-}
-
-passo_transcritor() {
-    local alvo
-    alvo="$(transcritor_alvo)"
-    if [ -f "$SELO_TRANSCRITOR" ] && [ -n "$(cat "$SELO_TRANSCRITOR" 2>/dev/null)" ]; then
-        nota "transcritor ($(cat "$SELO_TRANSCRITOR")) já instalado no .venv. Pulando."
-        return 0
-    fi
-    if [ "$CHECAR" = 1 ]; then
-        aviso "transcritor local ($alvo) não instalado no .venv (sem ele só a Groq, com GROQ_API_KEY, transcreve)" "bash scripts/setup.sh"
-        return 0
-    fi
-    if ! venv_ok; then
-        problema "sem .venv não há onde instalar o transcritor ($alvo)" "corrija o .venv e rode bash scripts/setup.sh"
-        return 1
-    fi
-    nota "instalando o transcritor $alvo no .venv (pode demorar: baixa bibliotecas pesadas)..."
-    if instalar_transcritor "$alvo"; then
-        echo "$alvo" > "$SELO_TRANSCRITOR"
-        nota "transcritor $alvo OK."
-        return 0
-    fi
-    if [ "$alvo" = "parakeet-mlx" ]; then
-        aviso "o parakeet-mlx não instalou (ele pede Python 3.10 ou superior); tentando o faster-whisper" "$VENV_PY -m pip install parakeet-mlx"
-        nota "instalando o faster-whisper no .venv..."
-        if instalar_transcritor "faster-whisper"; then
-            echo "faster-whisper" > "$SELO_TRANSCRITOR"
-            nota "transcritor faster-whisper OK."
-            return 0
-        fi
-    fi
-    problema "nenhum transcritor instalou no .venv (o vam audio precisa de um)" "$(dica_venv_py) -m pip install $alvo (ou ponha GROQ_API_KEY no .env para usar a Groq)"
-    return 1
 }
 
 # --- 3. Node 22 ou superior ------------------------------------------------------------------------
@@ -545,7 +495,6 @@ fi
 
 passo_venv
 passo_requirements
-passo_transcritor
 passo_node
 passo_hyperframes
 passo_browser

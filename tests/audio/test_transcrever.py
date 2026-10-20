@@ -13,47 +13,66 @@ from audio import transcrever as T
 from tests.fixtures import sinteticos as fx
 
 
-def amb(sistema="Darwin", arquitetura="arm64", executaveis=(), modulos=(), env=None, bins=()):
+def amb(sistema="Darwin", arquitetura="arm64", executaveis=(), modulos=(), env=None):
     """Ambiente falso. `executaveis` e `modulos` são o que EXISTE nessa máquina."""
     return T.Ambiente(
         sistema=sistema, arquitetura=arquitetura, env=dict(env or {}),
         which=lambda nome: (f"/falso/bin/{nome}" if nome in executaveis else None),
-        importavel=lambda nome: nome in modulos,
-        bins_venv=tuple(bins))
+        importavel=lambda nome: nome in modulos)
 
 
 # --- ordem de backend ---------------------------------------------------------------------
 
-def test_ordem_e_parakeet_depois_faster_whisper_depois_groq():
-    assert T.ORDEM == ("parakeet", "faster_whisper", "groq")
+def test_ordem_da_nuvem_e_uma_constante_mistral_depois_groq():
+    assert T.ORDEM_NUVEM == ("mistral", "groq")
+    assert T.ORDEM == ("mistral", "groq", "faster_whisper")
 
 
-def test_apple_silicon_com_tudo_instalado_escolhe_parakeet():
-    a = amb(executaveis=("parakeet-mlx",), modulos=("faster_whisper",),
-            env={"GROQ_API_KEY": "gsk_falsa"})
-    assert T.escolher_backend(a).NOME == "parakeet"
-    assert T.backends_disponiveis(a) == ["parakeet", "faster_whisper", "groq"]
+CHAVES = {"MISTRAL_API_KEY": "mstrl_falsa", "GROQ_API_KEY": "gsk_falsa"}
 
 
-def test_sem_parakeet_cai_no_faster_whisper_e_depois_no_groq():
-    a = amb(modulos=("faster_whisper",), env={"GROQ_API_KEY": "gsk_falsa"})
-    assert T.escolher_backend(a).NOME == "faster_whisper"
-    b = amb(env={"GROQ_API_KEY": "gsk_falsa"})
-    assert T.escolher_backend(b).NOME == "groq"
+@pytest.mark.parametrize("sistema,arquitetura", [("Darwin", "arm64"), ("Darwin", "x86_64"),
+                                                 ("Windows", "AMD64"), ("Linux", "x86_64")])
+def test_com_as_duas_chaves_a_mistral_vence_e_o_resto_e_reserva(sistema, arquitetura):
+    a = amb(sistema=sistema, arquitetura=arquitetura, modulos=("faster_whisper",), env=CHAVES)
+    assert T.escolher_backend(a).NOME == "mistral"
+    assert T.backends_disponiveis(a) == ["mistral", "groq", "faster_whisper"]
 
 
-def test_parakeet_so_vale_no_apple_silicon_mesmo_com_o_executavel_no_path():
-    linux = amb(sistema="Linux", arquitetura="x86_64", executaveis=("parakeet-mlx",),
-                modulos=("faster_whisper",))
-    intel = amb(sistema="Darwin", arquitetura="x86_64", executaveis=("parakeet-mlx",),
-                modulos=("faster_whisper",))
-    assert T.escolher_backend(linux).NOME == "faster_whisper"
-    assert T.escolher_backend(intel).NOME == "faster_whisper"
+def test_so_vale_o_backend_cuja_chave_existe():
+    assert T.escolher_backend(amb(env={"GROQ_API_KEY": "gsk_falsa"})).NOME == "groq"
+    assert T.escolher_backend(amb(env={"MISTRAL_API_KEY": "mstrl_falsa"})).NOME == "mistral"
+    assert T.escolher_backend(amb(modulos=("faster_whisper",))).NOME == "faster_whisper"
+    with pytest.raises(T.SemTranscritor):
+        T.escolher_backend(amb())
+
+
+def test_vam_transcritor_poe_um_da_nuvem_na_frente():
+    a = amb(env={**CHAVES, "VAM_TRANSCRITOR": "groq"})
+    assert T.ordem_dos_backends(a) == ["groq", "mistral", "faster_whisper"]
+    assert T.escolher_backend(a).NOME == "groq"
+    b = amb(env={**CHAVES, "VAM_TRANSCRITOR": " MISTRAL "})
+    assert T.escolher_backend(b).NOME == "mistral"
+
+
+def test_vam_transcritor_sem_a_chave_do_escolhido_cai_no_proximo_com_chave():
+    a = amb(env={"GROQ_API_KEY": "gsk_falsa", "VAM_TRANSCRITOR": "mistral"})
+    assert T.escolher_backend(a).NOME == "groq"
+
+
+def test_vam_transcritor_invalido_e_erro_claro():
+    with pytest.raises(T.SemTranscritor, match="VAM_TRANSCRITOR"):
+        T.escolher_backend(amb(env={**CHAVES, "VAM_TRANSCRITOR": "outro"}))
+
+
+def test_backend_que_nao_existe_na_ordem_e_erro_de_uso():
+    with pytest.raises(ValueError, match="outro_motor"):
+        T.escolher_backend(amb(modulos=("faster_whisper",)), preferido="outro_motor")
 
 
 def test_groq_sem_chave_ou_com_chave_vazia_nao_conta():
     assert T.backends_disponiveis(amb(env={})) == []
-    assert T.backends_disponiveis(amb(env={"GROQ_API_KEY": "   "})) == []
+    assert T.backends_disponiveis(amb(env={"GROQ_API_KEY": "   ", "MISTRAL_API_KEY": ""})) == []
 
 
 def test_backend_pedido_que_nao_existe_na_maquina_falha_citando_o_nome():
@@ -64,27 +83,24 @@ def test_backend_pedido_que_nao_existe_na_maquina_falha_citando_o_nome():
 
 
 def test_backend_pedido_e_respeitado_quando_disponivel():
-    a = amb(executaveis=("parakeet-mlx",), env={"GROQ_API_KEY": "gsk_falsa"})
+    a = amb(modulos=("faster_whisper",), env={"GROQ_API_KEY": "gsk_falsa"})
     assert T.escolher_backend(a, preferido="groq").NOME == "groq"
+    assert T.escolher_backend(a, preferido="faster_whisper").NOME == "faster_whisper"
 
 
 # --- sem nenhum backend: UMA mensagem com o comando de instalação ------------------------
 
-def test_sem_nenhum_backend_levanta_uma_mensagem_com_o_comando_de_instalacao_no_apple():
+@pytest.mark.parametrize("sistema,arquitetura", [("Darwin", "arm64"), ("Windows", "AMD64"), ("Linux", "x86_64")])
+def test_sem_nenhum_backend_levanta_uma_mensagem_que_manda_criar_a_chave_da_groq(sistema, arquitetura):
     with pytest.raises(T.SemTranscritor) as e:
-        T.escolher_backend(amb())
+        T.escolher_backend(amb(sistema=sistema, arquitetura=arquitetura))
     msg = str(e.value)
-    assert "pip install parakeet-mlx" in msg
-    assert "GROQ_API_KEY" in msg
+    assert "console.groq.com" in msg and "GROQ_API_KEY" in msg and "MISTRAL_API_KEY" in msg and ".env" in msg
+    assert "Curso → Skill" in msg
+    assert "GRÁTIS" in msg and "opcional" in msg
+    assert "pip install faster-whisper" in msg
     assert "\n" not in msg.strip()              # uma mensagem só, em uma linha
     assert "Traceback" not in msg
-
-
-def test_sem_nenhum_backend_fora_do_apple_manda_instalar_o_faster_whisper():
-    with pytest.raises(T.SemTranscritor) as e:
-        T.escolher_backend(amb(sistema="Linux", arquitetura="x86_64"))
-    assert "pip install faster-whisper" in str(e.value)
-    assert "parakeet" not in str(e.value)
 
 
 def test_transcrever_sem_backend_nao_cria_pasta_de_cache_nem_arquivo(tmp_path):
@@ -320,61 +336,178 @@ def test_monotonizar_aceita_lista_vazia():
     assert T.monotonizar([]) == []
 
 
-# --- perfil "alinhamento" (W3.X A2) ----------------------------------------------------------
-# O relógio do anúncio é transcrito do jeito da footage antiga (parakeet sem chunk, wav 16 kHz): medido no fixture,
-# o chunk move fronteira em até 0,16 s. Os outros chamadores (gates, plano) seguem com o perfil padrão. Os dois
-# perfis nunca se misturam no cache: a mesma fala transcrita de dois jeitos é guardada em dois arquivos.
+# --- escolha automática: Groq primeiro, faster-whisper opcional de reserva ---------------------------
 
-class EspiaoComPerfil(Espiao):
-    NOME = "espiao_perfil"
-    PERFIS = ("padrao", "alinhamento")
+from audio.backends import faster_whisper as FW  # noqa: E402
+from audio.backends import groq as G  # noqa: E402
+from audio.backends import mistral as M  # noqa: E402
 
-    def __init__(self, palavras=None):
-        super().__init__(palavras)
-        self.perfis = []
-
-    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt", perfil="padrao"):
-        self.perfis.append(perfil)
-        return super().transcrever(audio, amb=amb, workdir=workdir, prompt=prompt, idioma=idioma)
+PALAVRAS_LOCAL = [{"text": "local", "start": 0.1, "end": 0.5}]
+PALAVRAS_NUVEM = [{"text": "nuvem", "start": 0.2, "end": 0.6}]
+PALAVRAS_MISTRAL = [{"text": "mistral", "start": 0.3, "end": 0.7}]
 
 
-class EspiaoSemPerfil(Espiao):
-    """Backend que não distingue perfil (faster-whisper e Groq não fatiam como o parakeet): não recebe o argumento."""
-    NOME = "espiao_sem_perfil"
+@pytest.fixture
+def motores(monkeypatch):
+    """Troca o `transcrever` dos dois backends reais por falsos que contam chamadas."""
+    chamadas = {"groq": 0, "faster_whisper": 0, "mistral": 0}
+    estado = {"groq_falha": None, "mistral_falha": None}
 
-    def transcrever(self, audio, *, amb, workdir, prompt="", idioma="pt"):
-        return super().transcrever(audio, amb=amb, workdir=workdir, prompt=prompt, idioma=idioma)
+    def mistral(audio, *, amb, workdir, prompt="", idioma="pt", **_):
+        chamadas["mistral"] += 1
+        if estado["mistral_falha"]:
+            raise M.ErroMistral(estado["mistral_falha"])
+        return [dict(p) for p in PALAVRAS_MISTRAL]
 
+    def groq(audio, *, amb, workdir, prompt="", idioma="pt", **_):
+        chamadas["groq"] += 1
+        if estado["groq_falha"]:
+            raise G.ErroGroq(estado["groq_falha"])
+        return [dict(p) for p in PALAVRAS_NUVEM]
 
-def test_perfil_alinhamento_chega_ao_backend_que_o_declara(tmp_path):
-    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
-    esp = EspiaoComPerfil()
-    T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb(), perfil="alinhamento")
-    T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb())
-    assert esp.perfis == ["alinhamento", "padrao"]
+    def local(audio, *, amb, workdir, prompt="", idioma="pt", **_):
+        chamadas["faster_whisper"] += 1
+        return [dict(p) for p in PALAVRAS_LOCAL]
 
-
-def test_perfil_alinhamento_e_padrao_tem_caches_separados(tmp_path):
-    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
-    cache = tmp_path / "c"
-    sha = T.sha_do_conteudo(a)
-    esp = EspiaoComPerfil()
-    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb(), perfil="alinhamento")
-    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb(), perfil="alinhamento")
-    assert esp.chamadas == 1 and (cache / f"{sha}.alinhamento.json").is_file()
-    assert not (cache / f"{sha}.json").exists(), "o perfil padrão não pode achar a transcrição do alinhamento"
-    T.transcrever(a, cache_dir=cache, backend=esp, amb=amb())
-    assert esp.chamadas == 2 and (cache / f"{sha}.json").is_file()
-
-
-def test_backend_sem_perfil_recebe_a_chamada_de_sempre(tmp_path):
-    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
-    esp = EspiaoSemPerfil()
-    assert T.transcrever(a, cache_dir=tmp_path / "c", backend=esp, amb=amb(), perfil="alinhamento")
-    assert esp.chamadas == 1
+    monkeypatch.setattr(M, "transcrever", mistral)
+    monkeypatch.setattr(G, "transcrever", groq)
+    monkeypatch.setattr(FW, "transcrever", local)
+    return chamadas, estado
 
 
-def test_perfil_desconhecido_e_erro_de_uso(tmp_path):
-    a = fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
-    with pytest.raises(ValueError, match="perfil"):
-        T.transcrever(a, cache_dir=tmp_path / "c", backend=Espiao(), amb=amb(), perfil="rapido")
+def _wav(tmp_path):
+    return fx.tom_com_pausas(tmp_path / "a.wav", dur=1.0, pausas=())
+
+
+AMBOS = dict(modulos=("faster_whisper",), env={"GROQ_API_KEY": "gsk_falsa"})
+
+
+def test_automatico_usa_a_groq_e_nao_toca_o_local(tmp_path, motores):
+    chamadas, _ = motores
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(**AMBOS))
+    assert [p["text"] for p in palavras] == ["nuvem"] and chamadas == {"groq": 1, "faster_whisper": 0, "mistral": 0}
+
+
+def test_groq_que_falha_cai_no_local_com_aviso_no_stderr(tmp_path, motores, capsys):
+    chamadas, estado = motores
+    estado["groq_falha"] = "sem internet"
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(**AMBOS))
+    assert [p["text"] for p in palavras] == ["local"] and chamadas == {"groq": 1, "faster_whisper": 1, "mistral": 0}
+    err = capsys.readouterr().err
+    assert "groq falhou" in err and "sem internet" in err and "faster_whisper" in err
+    assert "gsk_falsa" not in err
+
+
+def test_groq_que_falha_sem_local_vira_uma_mensagem_com_o_conserto(tmp_path, motores):
+    _, estado = motores
+    estado["groq_falha"] = "sem internet"
+    with pytest.raises(T.SemTranscritor) as e:
+        T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(env={"GROQ_API_KEY": "gsk_falsa"}))
+    assert "sem internet" in str(e.value) and "pip install faster-whisper" in str(e.value)
+    assert not list((tmp_path / "c").rglob("*.json")), "falha não grava cache"
+
+
+def test_sem_chave_o_automatico_vai_direto_ao_local(tmp_path, motores):
+    chamadas, _ = motores
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(modulos=("faster_whisper",)))
+    assert [p["text"] for p in palavras] == ["local"] and chamadas["groq"] == 0
+
+
+def test_backend_pedido_pelo_nome_nao_tem_reserva(tmp_path, motores):
+    chamadas, estado = motores
+    estado["groq_falha"] = "429"
+    with pytest.raises(G.ErroGroq):
+        T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(**AMBOS), backend="groq")
+    assert chamadas["faster_whisper"] == 0
+
+
+def test_mistral_vence_quando_as_duas_chaves_existem_e_nao_toca_o_resto(tmp_path, motores):
+    chamadas, _ = motores
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(modulos=("faster_whisper",), env=CHAVES))
+    assert [p["text"] for p in palavras] == ["mistral"]
+    assert chamadas == {"groq": 0, "faster_whisper": 0, "mistral": 1}
+
+
+def test_mistral_que_falha_cai_na_groq_com_uma_linha_no_stderr(tmp_path, motores, capsys):
+    chamadas, estado = motores
+    estado["mistral_falha"] = "Mistral respondeu 429: sem capacidade"
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(env=CHAVES))
+    assert [p["text"] for p in palavras] == ["nuvem"] and chamadas == {"groq": 1, "faster_whisper": 0, "mistral": 1}
+    err = capsys.readouterr().err.strip().splitlines()
+    assert len(err) == 1 and "mistral falhou" in err[0] and "tentando groq" in err[0]
+    assert "mstrl_falsa" not in err[0]
+    assert json.loads(next((tmp_path / "c").glob("*.json")).read_text(encoding="utf-8"))["backend"] == "groq"
+
+
+def test_mistral_sem_palavra_com_tempo_cai_na_groq(tmp_path, motores, capsys):
+    chamadas, estado = motores
+    estado["mistral_falha"] = "a resposta da Mistral tem texto mas não tem palavras com tempo"
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(env=CHAVES))
+    assert [p["text"] for p in palavras] == ["nuvem"]
+    assert "palavras com tempo" in capsys.readouterr().err
+
+
+def test_as_duas_nuvens_caem_e_o_local_assume(tmp_path, motores):
+    chamadas, estado = motores
+    estado["mistral_falha"], estado["groq_falha"] = "fora", "fora"
+    palavras = T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(modulos=("faster_whisper",), env=CHAVES))
+    assert [p["text"] for p in palavras] == ["local"] and chamadas == {"groq": 1, "faster_whisper": 1, "mistral": 1}
+
+
+def test_vam_transcritor_groq_pula_a_mistral(tmp_path, motores):
+    chamadas, _ = motores
+    T.transcrever(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(env={**CHAVES, "VAM_TRANSCRITOR": "groq"}))
+    assert chamadas["mistral"] == 0 and chamadas["groq"] == 1
+
+
+# --- o ambiente real lê o .env do repo (é lá que o aluno põe as chaves) -------------------------
+
+def test_ambiente_real_completa_o_ambiente_com_o_dotenv_da_raiz(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("GROQ_API_KEY=gsk_do_dotenv\nVAM_WHISPER_MODELO=small\n", encoding="utf-8")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("VAM_WHISPER_MODELO", raising=False)
+    real = T.Ambiente.real(raiz=tmp_path)
+    assert real.env["GROQ_API_KEY"] == "gsk_do_dotenv" and real.env["VAM_WHISPER_MODELO"] == "small"
+    assert G.disponivel(real)
+
+
+def test_variavel_do_ambiente_vence_o_dotenv(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("GROQ_API_KEY=gsk_do_dotenv\n", encoding="utf-8")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_da_variavel")
+    assert T.Ambiente.real(raiz=tmp_path).env["GROQ_API_KEY"] == "gsk_da_variavel"
+
+
+def test_sem_dotenv_o_ambiente_real_so_tem_o_do_processo(tmp_path, monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    assert not G.disponivel(T.Ambiente.real(raiz=tmp_path))
+
+
+# --- passos que CORTAM: a Groq vai na frente da Mistral (tempo de palavra mais preciso) ----------------------
+
+def test_no_corte_a_groq_vai_na_frente_quando_as_duas_chaves_existem():
+    a = amb(modulos=("faster_whisper",), env=CHAVES)
+    assert T.ordem_dos_backends(a, corte=True) == ["groq", "mistral", "faster_whisper"]
+    assert T.escolher_backend(a, corte=True).NOME == "groq"
+    assert T.escolher_backend(a).NOME == "mistral", "fora do corte vale a ordem da constante"
+
+
+def test_no_corte_sem_chave_da_groq_usa_a_mistral():
+    assert T.escolher_backend(amb(env={"MISTRAL_API_KEY": "mstrl_falsa"}), corte=True).NOME == "mistral"
+
+
+def test_vam_transcritor_explicito_vale_tambem_no_corte():
+    a = amb(env={**CHAVES, "VAM_TRANSCRITOR": "mistral"})
+    assert T.escolher_backend(a, corte=True).NOME == "mistral"
+
+
+def test_transcrever_com_corte_chama_a_groq_primeiro_e_devolve_o_nome(tmp_path, motores):
+    chamadas, _ = motores
+    palavras, nome = T.transcrever_detalhado(_wav(tmp_path), cache_dir=tmp_path / "c", amb=amb(env=CHAVES), corte=True)
+    assert nome == "groq" and [p["text"] for p in palavras] == ["nuvem"] and chamadas["mistral"] == 0
+
+
+def test_o_nome_do_backend_sobrevive_ao_cache(tmp_path, motores):
+    wav, cache = _wav(tmp_path), tmp_path / "c"
+    T.transcrever_detalhado(wav, cache_dir=cache, amb=amb(env=CHAVES))
+    palavras, nome = T.transcrever_detalhado(wav, cache_dir=cache, amb=amb(env=CHAVES))
+    assert nome == "mistral" and [p["text"] for p in palavras] == ["mistral"]

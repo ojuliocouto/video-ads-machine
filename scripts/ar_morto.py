@@ -200,3 +200,64 @@ def segmentos_manter(cortes, dur_total, minimo=0.05):
     if cursor < dur_total:
         manter.append((cursor, dur_total))
     return [(round(a, 3), round(b, 3)) for a, b in manter if b - a > minimo]
+
+
+# ---------------------------------------------------------------- margens de palavra (nuvem)
+# A nuvem marca o início de algumas palavras tarde. Medido em 20/10/2026 contra a energia do áudio:
+#   Groq     17% dos inícios mais de 200 ms tarde, p90 do erro 388 ms;
+#   Mistral  39% dos inícios mais de 200 ms tarde, p90 394 ms, tempo numa grade de 0,1 s.
+# Cortar pelo tempo cru comeria a sílaba inicial. Antes de procurar pausa, cada palavra ganha um pré-roll para trás (o
+# do backend que fez o tempo) e POS_ROLL_PALAVRA para a frente, nunca invadindo a palavra vizinha. Quem quiser outro
+# valor define VAM_CORTE_PRE_ROLL / VAM_CORTE_POS_ROLL (segundos) no `.env` ou no terminal; o pré-roll definido vale
+# para qualquer backend.
+
+PRE_ROLL_PALAVRA = 0.30                     # padrão (Groq e o modelo local)
+PRE_ROLL_POR_BACKEND = {"groq": 0.30, "mistral": 0.40}
+POS_ROLL_PALAVRA = 0.15
+VARIAVEL_PRE_ROLL = "VAM_CORTE_PRE_ROLL"
+VARIAVEL_POS_ROLL = "VAM_CORTE_POS_ROLL"
+
+
+def _segundos(bruto, variavel, padrao):
+    bruto = str(bruto or "").strip()
+    if not bruto:
+        return padrao
+    try:
+        valor = float(bruto.replace(",", "."))
+    except ValueError:
+        valor = -1.0
+    if valor < 0:
+        raise ValueError(f"{variavel} deve ser um número de segundos maior ou igual a zero (veio {bruto!r})")
+    return valor
+
+
+def margens_do_ambiente(env=None, backend=None):
+    """(pre_roll, pos_roll) em segundos. Padrão: o pré-roll do `backend` que fez o tempo (`PRE_ROLL_POR_BACKEND`;
+    0,30 s se for outro) e `POS_ROLL_PALAVRA`; `VAM_CORTE_PRE_ROLL` e `VAM_CORTE_POS_ROLL` mandam."""
+    import os
+    env = os.environ if env is None else env
+    return (_segundos(env.get("VAM_CORTE_PRE_ROLL"), VARIAVEL_PRE_ROLL, PRE_ROLL_POR_BACKEND.get(backend, PRE_ROLL_PALAVRA)),
+            _segundos(env.get("VAM_CORTE_POS_ROLL"), VARIAVEL_POS_ROLL, POS_ROLL_PALAVRA))
+
+
+def margens_de_palavra(tokens, pre=None, pos=None):
+    """Alarga cada palavra: o início recua `pre`, o fim avança `pos`. Devolve `[(inicio, fim, texto)]` novos.
+
+    `tokens` = iterável de (inicio, fim, texto). Em cada vão entre duas palavras, o pós-roll da anterior vem
+    primeiro e o pré-roll da seguinte pega o que sobrar, então o fim alargado de uma nunca passa do início alargado
+    da próxima. A palavra nunca encolhe e o início nunca fica abaixo de zero. Pontuação não ganha margem.
+    """
+    pre = PRE_ROLL_PALAVRA if pre is None else pre
+    pos = POS_ROLL_PALAVRA if pos is None else pos
+    palavras = sorted(((a, b, t) for a, b, t in tokens if e_fala(t)), key=lambda x: (x[0], x[1]))
+    pontuacao = [(a, b, t) for a, b, t in tokens if not e_fala(t)]
+    saida, fim_anterior = [], 0.0
+    for i, (a, b, t) in enumerate(palavras):
+        proximo = palavras[i + 1][0] if i + 1 < len(palavras) else None
+        fim = b + pos
+        if proximo is not None:
+            fim = max(b, min(fim, proximo))
+        ini = max(0.0, min(a, max(a - pre, fim_anterior)))
+        saida.append((ini, fim, t))
+        fim_anterior = max(fim_anterior, fim)
+    return sorted(saida + pontuacao, key=lambda x: (x[0], x[1]))

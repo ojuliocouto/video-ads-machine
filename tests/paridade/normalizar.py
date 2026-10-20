@@ -7,7 +7,7 @@ token estável:
   caminhos do sandbox      <RAIZ> <ESTADO> <DADOS> <MIDIA> <HOME> <TMP>
   nome aleatório de tempdir <TMP>/tmp*   (tempfile.TemporaryDirectory do motor)
   executável do Python     <PY>
-  executável do parakeet   <PARAKEET>    (a W2.B muda onde ele é achado: só o caminho)
+  curl (a chamada à Groq)  <CURL>        (o stub da paridade devolve a fala gravada)
   executável do hyperframes <HF>
   ffmpeg / ffprobe         só o nome, sem o caminho
 
@@ -58,8 +58,8 @@ def _executavel(primeiro, tokens):
         return base
     if base.startswith("python"):
         return "<PY>"
-    if base == "parakeet-mlx":
-        return "<PARAKEET>"
+    if base == "curl":
+        return "<CURL>"
     if base == "hyperframes":
         return "<HF>"
     return normalizar_texto(primeiro, tokens)

@@ -41,12 +41,11 @@ overlay roda como sempre rodou, então o golden antigo continua reproduzível.
     o golden vale antes e depois do conserto da W2.B. A medição em si NÃO é coberta;
   - `PYTHONHASHSEED=0` e `PYTHONUTF8=1`: o motor lê arquivo sem `encoding=` e usa
     `hash()` em nome de arquivo; sem isso o resultado dependeria do locale e da semente;
-  - ASR gravado: `~/.local/bin/parakeet-mlx` (e um do PATH) e `node_modules/.bin/
-    hyperframes transcribe` são stubs que devolvem a saída REAL do parakeet sobre o
-    avatar do fixture. Sem rede, sem modelo de 1 GB, sem o binário do HyperFrames. O que
-    o `hyperframes render` faria (MOV com alpha) NÃO é coberto: não há Chromium aqui.
-    O do parakeet só devolve a fala gravada quando chamado do jeito em que ela foi gravada
-    (wav, sem chunk); de outro jeito ela vem deslocada (W3.X A2, ver `stub_parakeet`).
+  - ASR gravado: um `curl` no PATH (a chamada à Groq) e `node_modules/.bin/hyperframes
+    transcribe` são stubs que devolvem a fala GRAVADA do avatar do fixture (asr/av.json, tokens
+    de sentenças; o stub a junta em palavras no formato da Groq). Sem rede, sem chave de
+    verdade, sem o binário do HyperFrames. O que o `hyperframes render` faria (MOV com alpha)
+    NÃO é coberto: não há Chromium aqui. Ver `stub_curl_groq`.
 
 ## Uso
 
@@ -95,45 +94,34 @@ SUFIXO_FOOTAGE_TIMELINE = "_pelatimeline"     # nome da saída da footage que ro
 # A fase dela é `timeline_footage` e nunca `footage_...`: comparar por prefixo `argv/footage` pegaria as duas.
 
 # stubs: devolvem a transcrição REAL gravada em fixture/asr/
-# W3.X A2: o stub do parakeet NÃO devolve o mesmo JSON a qualquer chamada. A fala gravada (asr/av.json) é a do
-# parakeet sobre o wav 16 kHz, sem chunk: é o que ele devolve quando chamado desse jeito. Chamado de outro (um mp4,
-# ou com --chunk-duration), devolve a mesma fala com todo tempo DESLOCADO de DESLOCAMENTO_FORA_DO_JEITO s, o que o
-# parakeet real fez no avatar do fixture com chunk de 15/3 s (fronteira 0,16 s adiante). Assim a footage pela
-# timeline só sai igual à antiga se a timeline transcrever do mesmo jeito: a paridade não cega de novo.
-DESLOCAMENTO_FORA_DO_JEITO = 0.16
-
-_STUB_PARAKEET = """#!/usr/bin/env python3
-# Stub do parakeet-mlx (paridade): devolve a saída real gravada em <output-dir>/<nome>.json quando chamado do
-# jeito da footage antiga (um .wav, sem --chunk-duration); de outro jeito, a mesma fala com os tempos deslocados.
+_STUB_CURL = """#!/usr/bin/env python3
+# Stub do curl (paridade): a chamada à Groq. Devolve a fala gravada em <asr>/av.json, já em palavras no formato da
+# resposta verbose_json da Groq, e o código HTTP 200 na última linha (o `write-out` do curl real).
 import json, os, sys
-args = sys.argv[1:]
-entrada = args[0]
-saida = args[args.index("--output-dir") + 1] if "--output-dir" in args else "."
+sys.stdin.read()
 with open(os.path.join(__ASR__, "av.json"), encoding="utf-8") as f:
     dados = json.load(f)
-if not entrada.endswith(".wav") or "--chunk-duration" in args:
-    def mexe(o):
-        if isinstance(o, dict):
-            for k in ("start", "end"):
-                if isinstance(o.get(k), (int, float)):
-                    o[k] = round(o[k] + __DESLOCA__, 3)
-            for v in o.values():
-                mexe(v)
-        elif isinstance(o, list):
-            for v in o:
-                mexe(v)
-    mexe(dados)
-nome = os.path.splitext(os.path.basename(entrada))[0]
-with open(os.path.join(saida, nome + ".json"), "w", encoding="utf-8") as f:
-    json.dump(dados, f)
-print("stub parakeet: " + nome)
+brutas = []
+for sentenca in dados.get("sentences", []):
+    for t in sentenca.get("tokens", []):
+        texto = t.get("text", "")
+        if not texto.strip():
+            continue
+        if texto.startswith(" ") or not brutas:
+            brutas.append({"word": texto.strip(), "start": t["start"], "end": t["end"]})
+        else:
+            brutas[-1]["word"] += texto.strip()
+            brutas[-1]["end"] = t["end"]
+print(json.dumps({"text": " ".join(w["word"] for w in brutas), "words": brutas}))
+print(200)
 """
 
 
-def stub_parakeet(asr):
-    """O texto do stub do parakeet-mlx, lendo a fala gravada da pasta `asr` (fixture/asr)."""
+def stub_curl_groq(asr):
+    """O texto do stub do `curl` da Groq, lendo a fala gravada da pasta `asr` (fixture/asr)."""
     # repr: no Windows o caminho com barra invertida, dentro de aspas, seria lido como escape (`\U` é erro de sintaxe)
-    return _STUB_PARAKEET.replace("__ASR__", repr(str(asr))).replace("__DESLOCA__", repr(DESLOCAMENTO_FORA_DO_JEITO))
+    return _STUB_CURL.replace("__ASR__", repr(str(asr)))
+
 
 _STUB_HYPERFRAMES = """#!/bin/sh
 # Stub do hyperframes (paridade): so entende `transcribe`; devolve a transcricao real gravada.
@@ -144,7 +132,7 @@ if [ "$1" = "transcribe" ]; then
     prev="$a"
   done
   cp "__ASR__/transcript.json" "$dir/transcript.json"
-  echo '{"ok":true,"engine":"parakeet","stub":true}'
+  echo '{"ok":true,"engine":"groq","stub":true}'
   exit 0
 fi
 echo "stub do hyperframes (paridade): so existe 'transcribe'; o render nao e coberto" >&2
@@ -355,8 +343,7 @@ def montar_sandbox(motor_raiz, midia, mutacao=None):
     shutil.copy(AQUI / "sitecustomize.py", sb.pysite / "sitecustomize.py")
 
     asr = (midia / "fixture" / "asr").resolve()
-    _gravar_exec(sb.bin / "parakeet-mlx", stub_parakeet(asr))
-    _gravar_exec(sb.home / ".local" / "bin" / "parakeet-mlx", stub_parakeet(asr))
+    _gravar_exec(sb.bin / "curl", stub_curl_groq(asr))
     (sb.raiz / "node_modules" / ".bin").mkdir(parents=True, exist_ok=True)
     _gravar_exec(sb.raiz / "node_modules" / ".bin" / "hyperframes",
                  _STUB_HYPERFRAMES.replace("__ASR__", str(asr)))
@@ -416,6 +403,7 @@ def _env(sb, extra=None):
     })
     if userbase:
         env["PYTHONUSERBASE"] = userbase
+    env["GROQ_API_KEY"] = "gsk_paridade_sem_valor"          # o curl do sandbox é o stub; a chave só liga o backend
     env.update(extra or {})
     return env
 
@@ -462,7 +450,7 @@ def caminho_timeline(sb):
 
 
 def rodar_timeline(sb):
-    """timeline/construir.py: UMA transcrição (o stub do parakeet) e a timeline.json. Devolve o caminho."""
+    """timeline/construir.py: UMA transcrição (o stub do curl da Groq) e a timeline.json. Devolve o caminho."""
     _marcar_fase(sb, "timeline")
     inputs = sb.dados / "inputs"
     destino = caminho_timeline(sb)

@@ -173,7 +173,7 @@ def test_normalizar_executaveis(tmp_path):
     assert N.normalizar_argv(["/opt/homebrew/bin/ffmpeg", "-y"], t) == ["ffmpeg", "-y"]
     assert N.normalizar_argv(["/usr/bin/ffprobe", "-v", "error"], t)[0] == "ffprobe"
     assert N.normalizar_argv(["/usr/bin/python3.9", "x.py"], t)[0] == "<PY>"
-    assert N.normalizar_argv(["/qualquer/lugar/parakeet-mlx", "a.wav"], t)[0] == "<PARAKEET>"
+    assert N.normalizar_argv(["/qualquer/lugar/curl", "-K", "-"], t)[0] == "<CURL>"
     assert N.normalizar_argv([f"{tmp_path}/raiz/node_modules/.bin/hyperframes", "transcribe"], t)[0] == "<HF>"
 
 

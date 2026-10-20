@@ -294,8 +294,8 @@ def gerar_relatorio(proj, nome, palavras):
 def legendar_pecas(proj, nomes, leitor, omitir=(), relatorio=None):
     """Gera `legendas/<peça>.ass` e o relatório fala x roteiro de cada peça. Devolve {peça: número de linhas}.
 
-    O tempo de palavra EXIGE backend de borda real (parakeet ou faster-whisper): o leitor recusa
-    a Groq. O texto vem da transcrição já corrigida pelo glossário do aluno, e a cor de destaque também."""
+    O tempo de palavra vem do transcritor (a Groq; ela marca o início tarde, o texto da legenda não depende disso).
+    O texto vem da transcrição já corrigida pelo glossário do aluno, e a cor de destaque também."""
     glossario = proj.glossario()
     destacar = destaques_do_glossario(glossario)
     feitos = {}

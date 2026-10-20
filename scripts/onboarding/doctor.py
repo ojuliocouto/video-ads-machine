@@ -11,7 +11,7 @@ mostra traceback: o que estoura por dentro vira FAIL com a mensagem do erro.
   ffmpeg_libass     ffmpeg e ffprobe; um render de verdade pelo filtro `subtitles` prova o libass
   node_hyperframes  Node 22+ e o HyperFrames do repo (rodado por `node <cli.js>`, via plataforma.hf_cmd), na versão
                     pinada. HyperFrames ausente BARRA: é ele que o motor chama para renderizar.
-  transcritor       parakeet, faster-whisper ou Groq, pela mesma escolha do audio.transcrever
+  transcritor       MISTRAL_API_KEY ou GROQ_API_KEY (a nuvem transcreve tudo). Sem chave e sem faster-whisper opcional é FAIL
   fontes            as fontes que os templates pedem existem em fonts/ e são woff2 de verdade (no Windows sem
                     core.symlinks o git grava o link como um arquivo de texto)
   rede              o GSAP local existe, ou a CDN responde (o render carrega o GSAP)
@@ -32,7 +32,6 @@ import re
 import shutil
 import subprocess
 import sys
-import sysconfig
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -162,7 +161,7 @@ class AmbienteDoctor(object):
     """
 
     def __init__(self, raiz, sistema="Darwin", arquitetura="arm64", env=None, which=None,
-                 importavel=None, executar=None, http_get=None, python="python3", bins_venv=()):
+                 importavel=None, executar=None, http_get=None, python="python3"):
         self.raiz = Path(raiz)
         self.sistema = sistema
         self.arquitetura = arquitetura
@@ -172,11 +171,6 @@ class AmbienteDoctor(object):
         self.executar = executar or _sem_comando
         self.http_get = http_get or _sem_rede
         self.python = python
-        self.bins_venv = tuple(Path(b) for b in bins_venv)
-
-    @property
-    def apple_silicon(self):
-        return self.sistema == "Darwin" and self.arquitetura == "arm64"
 
     @property
     def venv_python(self):
@@ -190,8 +184,7 @@ class AmbienteDoctor(object):
         """O mesmo ambiente, no formato que o `audio.transcrever` escolhe backend."""
         from audio.transcrever import Ambiente
         return Ambiente(sistema=self.sistema, arquitetura=self.arquitetura, env=self.env,
-                        which=self.which, importavel=self.importavel,
-                        bins_venv=self.bins_venv)
+                        which=self.which, importavel=self.importavel)
 
     @classmethod
     def real(cls, raiz=None):
@@ -199,16 +192,10 @@ class AmbienteDoctor(object):
         # Variável do ambiente manda; o .env do repo só completa o que falta.
         env = dict(carregar_dotenv(raiz / ".env"))
         env.update(os.environ)
-        bins = []
-        for b in (Path(sys.executable).parent, Path(sysconfig.get_path("scripts") or "."),
-                  plataforma.venv_python(raiz).parent):
-            if b not in bins:
-                bins.append(b)
         return cls(raiz=raiz, sistema=platform.system(), arquitetura=platform.machine(), env=env,
                    which=shutil.which,
                    importavel=lambda nome: importlib.util.find_spec(nome) is not None,
-                   executar=_executar_real, http_get=_http_get_real, python=sys.executable,
-                   bins_venv=bins)
+                   executar=_executar_real, http_get=_http_get_real, python=sys.executable)
 
 
 # --- o runner ---------------------------------------------------------------------------------------
