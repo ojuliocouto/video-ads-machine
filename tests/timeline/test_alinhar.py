@@ -138,6 +138,66 @@ def test_a_grafia_e_sempre_a_do_roteiro():
     assert [p[2] for p in out] == ["meu", "Claude."]
 
 
+# ==================================================================================== dentro do áudio
+
+def test_o_fim_da_ultima_palavra_nao_passa_do_fim_do_audio_comigo_em_27_84_numa_voz_de_27_58():
+    """Defeito do ensaio de 20/10/2026: a Mistral deu o fim de "comigo." em 27,84 s para uma voz de 27,584 s. A
+    footage pediu o avatar até 27,84 s e a prancha quebrou (`ERRO seg 08: duracao 2.77s != esperada 3.07s`)."""
+    asr = [(26.76, 27.02, "e"), (27.02, 27.06, "vim"), (27.06, 27.84, "comigo.")]
+    out = AL.casar(asr, ["e", "vim", "comigo."], 27.584)
+    assert out[-1] == (27.06, 27.584, "comigo.")
+    assert out[0] == (26.76, 27.02, "e") and out[1] == (27.02, 27.06, "vim"), "o resto não muda"
+
+
+def test_nenhuma_palavra_nasce_antes_de_zero():
+    out = AL.casar([(-0.2, 0.3, "um"), (0.4, 0.7, "dois")], ["um", "dois"], 5.0)
+    assert out[0] == (0.0, 0.3, "um") and out[1] == (0.4, 0.7, "dois")
+
+
+def test_palavra_que_o_asr_pos_depois_do_fim_do_audio_fica_dentro_com_largura():
+    """O ASR alucinou uma palavra depois do áudio: ela é puxada para dentro, com largura, e nunca passa do fim."""
+    asr = [(0.0, 0.5, "um"), (5.2, 5.4, "dois")]
+    out = AL.casar(asr, ["um", "dois"], 5.0)
+    s, e, t = out[-1]
+    assert t == "dois" and e == 5.0 and 0.0 <= s < e and e - s >= AL.MIN_PALAVRA_S - 1e-9
+
+
+def test_palavra_interpolada_que_passaria_do_audio_tambem_e_limitada():
+    """Sem par e sem vizinha adiante: dura SEM_PAR_S depois da anterior, e a anterior já está no fim do áudio."""
+    asr = [(0.0, 0.5, "um"), (0.6, 5.0, "dois")]
+    out = AL.casar(asr, ["um", "dois", "tres", "quatro"], 5.0)
+    for s, e, _ in out:
+        assert 0.0 <= s < e <= 5.0
+
+
+def test_toda_palavra_fica_dentro_do_audio_com_largura_positiva_qualquer_que_seja_o_asr():
+    asr = [(-1.0, 0.2, "a"), (0.3, 9.0, "b"), (9.5, 12.0, "c"), (12.0, 13.0, "d")]
+    out = AL.casar(asr, ["a", "b", "c", "d"], 8.0)
+    assert len(out) == 4
+    for s, e, _ in out:
+        assert 0.0 <= s < e <= 8.0, (s, e)
+
+
+def test_o_que_ja_cabe_no_audio_nao_muda_nem_um_milissegundo():
+    asr = [(0.0, 0.3, "um"), (0.4, 0.7, "dois"), (0.8, 0.82, "tres")]
+    out = AL.casar(asr, ["um", "dois", "tres"], 0.82)
+    assert out == [(0.0, 0.3, "um"), (0.4, 0.7, "dois"), (0.8, 0.82, "tres")]
+    curta = AL.casar([(0.0, 0.3, "um"), (0.4, 0.405, "dois")], ["um", "dois"], 5.0)
+    assert curta[1] == (0.4, 0.405, "dois"), "palavra estreita que cabe no áudio não é alargada"
+
+
+def test_o_alinhamento_gravado_tambem_vem_limitado_ao_audio_e_a_transcricao_bruta_fica_como_o_asr_deu(tmp_path,
+                                                                                                    monkeypatch):
+    bruta = [{"text": "e", "start": 26.76, "end": 27.02}, {"text": "vim", "start": 27.02, "end": 27.06},
+             {"text": "comigo.", "start": 27.06, "end": 27.84}]
+    monkeypatch.setattr(T, "transcrever", lambda audio, **kw: [dict(p) for p in bruta])
+    al = AL.alinhar(_avatar(tmp_path), ["e", "vim", "comigo."], cache_dir=tmp_path / "c", raiz=tmp_path / "projeto",
+                    duracao=lambda p: 27.584)
+    assert al["palavras"][-1] == {"t": "comigo.", "s": 27.06, "e": 27.584}
+    assert al["transcricao"][-1] == {"text": "comigo.", "start": 27.06, "end": 27.84}, "o registro do ASR não se edita"
+    assert AL.palavras(al)[-1][1] <= al["duracao_audio_s"]
+
+
 # ==================================================================================== uma transcrição
 
 class _Backend(object):

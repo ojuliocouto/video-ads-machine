@@ -52,6 +52,7 @@ VERSAO = 1
 SEM_PAR_S = 0.18          # duração de uma palavra sem par encostada na vizinha
 CAUDA_S = 0.05            # a cauda sem par termina no fim real do áudio e começa isto antes
 PASSO_SEM_PAR_S = 0.3     # nenhum par no roteiro inteiro: uma palavra a cada 0,3 s
+MIN_PALAVRA_S = 0.02      # largura mínima de uma palavra que o limite ao áudio empurrou para o fim (menos de 1 quadro)
 
 
 class ErroAlinhamento(RuntimeError):
@@ -64,10 +65,25 @@ def norm(w):
     return re.sub(r"[^\w]", "", "".join(c for c in w if unicodedata.category(c) != "Mn"))
 
 
+def _dentro_do_audio(inicio, fim, audio_dur):
+    """(início, fim) dentro de [0, audio_dur]. Palavra que cabe no áudio volta igual. O ASR dá o fim da última palavra
+    até 0,3 s DEPOIS do fim do áudio ("comigo." em 27,84 s numa voz de 27,584 s no ensaio de 20/10/2026), e a footage
+    pede o avatar até esse instante. Palavra que o limite deixou sem largura (começou depois do áudio) encosta no fim
+    com `MIN_PALAVRA_S`, e nunca passa dele."""
+    if not audio_dur or audio_dur <= 0:
+        return inicio, fim
+    s, e = max(0.0, inicio), min(fim, audio_dur)
+    if s >= e or s > audio_dur:
+        e = audio_dur
+        s = max(0.0, e - MIN_PALAVRA_S)
+    return s, e
+
+
 def casar(palavras, narr_words, audio_dur):
     """`[(início, fim, palavra do roteiro)]`, uma por palavra da narração.
 
-    `palavras` é a fala ouvida, `[(início, fim, texto)]` em ordem; `audio_dur` é a duração real do áudio.
+    `palavras` é a fala ouvida, `[(início, fim, texto)]` em ordem; `audio_dur` é a duração real do áudio. Todo
+    tempo devolvido cabe em [0, audio_dur]: o transcritor pode dar o fim de uma palavra depois do fim do áudio.
     """
     pk_norm = [norm(c) for *_, c in palavras]
     sn = [norm(w) for w in narr_words]
@@ -99,7 +115,8 @@ def casar(palavras, narr_words, audio_dur):
             else:
                 times[i] = (i * PASSO_SEM_PAR_S, i * PASSO_SEM_PAR_S + PASSO_SEM_PAR_S)
         last = times[i]
-    return [(times[i][0], times[i][1], narr_words[i]) for i in range(len(narr_words))]
+    limitados = [_dentro_do_audio(s, e, audio_dur) for s, e in times]
+    return [(limitados[i][0], limitados[i][1], narr_words[i]) for i in range(len(narr_words))]
 
 
 def palavras_do_asr(transcricao):
