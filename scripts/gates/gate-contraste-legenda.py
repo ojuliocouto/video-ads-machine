@@ -8,6 +8,10 @@ O nome ficou (o laudo e a capacidade C6 citam este gate), mas desde a W5.X ele m
     local (o anel de 4 a 12 px em volta dela, no percentil que apaga a letra), no QUADRO ENTREGUE. Só a dissolução
     de entrada ou de saída (0,15 s) de um texto que lê do outro lado fica de fora.
 
+Quando o relógio lê o overlay fora do quadro que o vídeo mostra (até 2 quadros no demo1-avatar, 20/10/2026), o pedaço
+que reprova é medido de novo no quadro do overlay que CASA com o quadro entregue (`contraste_texto.realinhar`) e sai
+na linha "Realinhado". Texto que não lê nesse quadro reprova igual.
+
 Nasceu (28/08/2026) da legenda branca sobre um mockup de página branca (1,52:1). Foi refeito na W5.X porque o render
 real da W5.A passou com o gancho e a camada apagada ilegíveis, por quatro causas medidas no v1 (ver o docstring do
 `contraste_texto`): tinta só com alfa >= 250, fundo pela média da faixa inteira (faixa pulada sob scrim), aprovação
@@ -63,6 +67,7 @@ def main(argv=None):
           % (len(r["amostras"]), passo, r["medidos"], r["deslocamento_s"]))
     if a.json:
         Path(a.json).write_text(json.dumps({"reprovas": r["reprovas"], "transicoes": r["transicoes"],
+                                            "realinhados": r.get("realinhados", []),
                                             "pior_por_amostra": piores, "passo_s": passo}, indent=1),
                                 encoding="utf-8")
     if not r["medidos"]:
@@ -75,6 +80,14 @@ def main(argv=None):
     if r["transicoes"]:
         print("Dissolução (fora da conta): %d pedaço(s), de %.2f a %.2f s"
               % (len(r["transicoes"]), min(p["t"] for p in r["transicoes"]), max(p["t"] for p in r["transicoes"])))
+    realinhados = r.get("realinhados") or []
+    if realinhados:
+        # o relógio leu o overlay fora do quadro que o vídeo mostra; medido de novo no quadro que casa, o texto lê
+        print("Realinhado (relógio fora do quadro, medido de novo no quadro que o vídeo mostra): %d pedaço(s), "
+              "de %.2f a %.2f s, %s quadro(s) do overlay, pior medida de novo %.2f:1"
+              % (len(realinhados), min(p["t"] for p in realinhados), max(p["t"] for p in realinhados),
+                 "/".join("%+d" % k for k in sorted(set(p["realinhado_quadros"] for p in realinhados))),
+                 min(p["razao_realinhada"] for p in realinhados)))
     if r["reprovas"]:
         ts = sorted(set(p["t"] for p in r["reprovas"]))
         print("\nREPROVA: %d pedaço(s) de texto abaixo de %.1f:1 em %d amostra(s) (%.2f a %.2f s)"

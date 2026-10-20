@@ -48,6 +48,15 @@ quadro da troca mede o texto NOVO do overlay contra o quadro entregue que ainda 
 limpo nos quadros vizinhos). O pedaço que reprova só reprova de verdade se também não lê com o overlay UM quadro antes nem
 UM quadro depois (`le_com_quadro_vizinho`); lido num dos vizinhos, é troca seca e entra em `transicoes` (`troca_seca`).
 
+O RELÓGIO ERRA ATÉ DOIS QUADROS (20/10/2026, ensaio demo1-avatar): o gancho legível a olho reprovou nas 4 rodadas com
+`t=0.20s ... 1.00:1 (tinta 0.981, fundo 0.982)`, e uma legenda na troca seca de 7,80 s também. Medido no mp4: o `-ss 0.20`
+do entregue mostra o gancho do overlay de cerca de 0,18 s; o relógio lê o overlay em 0,2417 s, e o `-ss` do overlay
+devolve o quadro seguinte (0,2667 s). O gancho entra subindo 15 px por quadro do overlay e a haste tem 16 a 18 px: dois
+quadros de erro põem a máscara fora da letra (tinta e fundo do mesmo lado). Por isso o pedaço que ainda reprova depois
+da transição e da troca seca passa por `realinhar`: procura, até REALINHA_QUADROS quadros do overlay para cada lado, o
+quadro cujo texto OPACO casa com o quadro entregue e mede de novo com ele. A escolha é pelo casamento dos pixels, nunca
+pelo contraste: texto claro sobre fundo claro casa em qualquer quadro e continua reprovando.
+
 O relógio: o quadro de `-ss t` no entregue mostra o instante `(t - deslocamento) * aceleração + a0` do overlay, com
 `deslocamento` o start_time do fluxo de vídeo menos o do arquivo (ver `info_video`).
 """
@@ -429,6 +438,75 @@ def le_com_quadro_vizinho(video, overlay, t, relogio, dims, pedaco, piso=PISO):
     return False
 
 
+REALINHA_QUADROS = 3       # a busca do quadro que casa: o relógio errou 2 quadros do overlay no demo1-avatar (20/10/2026)
+REALINHA_MARGEM_PX = 64    # em volta do pedaço: 3 quadros a 15 px (a subida do gancho no pico) mais folga
+REALINHA_GANHO = 0.5       # o quadro achado tem de casar pelo menos 2 vezes melhor que o do relógio
+
+
+def erro_alinhamento(ov, quadro, caixa):
+    """Quanto o quadro entregue CONTRADIZ o overlay nos pixels de tinta (alfa >= ALFA_TINTA) dentro de `caixa`
+    (x0, y0, x1, y1), em níveis de RGB (0 a 255), na média.
+
+    O pixel entregue é cor x alfa + fundo x (1 - alfa), com o fundo desconhecido: ele cai no intervalo
+    [cor x alfa, cor x alfa + 255 x (1 - alfa)]. O erro é a distância até esse intervalo. No quadro do overlay que o
+    vídeo mostra, o erro é só a compressão; no quadro errado, a letra do overlay cai no vão escuro (ou claro) e o pixel
+    sai do intervalo. Pixel opaco é o caso de intervalo de largura zero. A camada apagada do karaokê (alfa 158 a 178,
+    nenhum pixel opaco) também casa: no 7,80 s do ensaio só os opacos deixavam o relógio ganhar do quadro certo.
+    None quando há menos de AREA_MIN pixels de tinta (nada para casar)."""
+    x0, y0, x1, y1 = caixa
+    alfa = ov[y0:y1, x0:x1, 3]
+    tinta = alfa >= ALFA_TINTA
+    if int(tinta.sum()) < AREA_MIN:
+        return None
+    k = alfa[tinta].astype(np.float32)[:, None] / 255.0
+    baixo = ov[y0:y1, x0:x1, :3][tinta].astype(np.float32) * k
+    alto = baixo + 255.0 * (1.0 - k)
+    v = quadro[y0:y1, x0:x1, :3][tinta].astype(np.float32)
+    return float((np.maximum(baixo - v, 0.0) + np.maximum(v - alto, 0.0)).mean())
+
+
+def _tocam(pedacos, caixa):
+    x0, y0, x1, y1 = caixa
+    return [p for p in pedacos if min(x1, p["x1"]) > max(x0, p["x0"]) and min(y1, p["y1"]) > max(y0, p["y0"])]
+
+
+def realinhar(video, overlay, t, relogio, dims, pedaco, piso=PISO, quadros=None):
+    """O quadro do overlay que o vídeo MOSTRA em `t`, quando o relógio erra (ver o docstring do módulo).
+
+    Procura de -`quadros` a +`quadros` quadros do overlay em volta do relógio o que tem o texto opaco casando com o
+    quadro entregue (`erro_alinhamento`, na caixa do pedaço com REALINHA_MARGEM_PX de folga). Escolhe pelo CASAMENTO,
+    nunca pelo contraste: texto claro sobre fundo claro casa em qualquer quadro e continua reprovando. Só troca de
+    quadro se o achado casar REALINHA_GANHO vezes melhor que o do relógio. Devolve (k, pedaços que tocam a caixa,
+    medidos com o quadro k) ou None (o relógio já está no quadro certo, ou não há o que casar)."""
+    quadros = REALINHA_QUADROS if quadros is None else int(quadros)
+    if quadros <= 0:
+        return None
+    larg, alt = dims
+    q = ler_quadro(video, t, larg, alt, canais=3)
+    if q is None:
+        return None
+    m = REALINHA_MARGEM_PX
+    caixa = (max(0, pedaco["x0"] - m), max(0, pedaco["y0"] - m), min(larg, pedaco["x1"] + m),
+             min(alt, pedaco["y1"] + m))
+    base = relogio.overlay(t)
+    erro_relogio, melhor = None, None
+    for k in sorted(range(-quadros, quadros + 1), key=lambda kk: (abs(kk), kk)):   # empate: o mais perto do relógio
+        ov = ler_quadro(overlay, base + k * QUADRO_OVERLAY_S, larg, alt, canais=4)
+        if ov is None:
+            continue
+        e = erro_alinhamento(ov, q, caixa)
+        if e is None:
+            continue
+        if k == 0:
+            erro_relogio = e
+        if melhor is None or e < melhor[0]:
+            melhor = (e, k, ov)
+    if erro_relogio is None or melhor is None or melhor[1] == 0 or melhor[0] >= REALINHA_GANHO * erro_relogio:
+        return None
+    _e, k, ov = melhor
+    return k, _tocam(medir_quadro(ov, q, piso), caixa)
+
+
 def medir_video(video, overlay, aceleracao, a0, passo=PASSO_S, piso=PISO, inicio=None, fim=None,
                 transicao_s=TRANSICAO_S, paralelo=4):
     """Todas as amostras de `video` (de `inicio` a `fim`, no relógio do entregue) a cada `passo`.
@@ -456,7 +534,7 @@ def medir_video(video, overlay, aceleracao, a0, passo=PASSO_S, piso=PISO, inicio
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max(1, int(paralelo))) as ex:
         amostras = list(ex.map(um, alvos))
-    reprovas, transicoes, medidos = [], [], 0
+    reprovas, transicoes, realinhados, medidos = [], [], [], 0
     for tt, pedacos in amostras:
         for p in pedacos:
             medidos += 1
@@ -465,12 +543,19 @@ def medir_video(video, overlay, aceleracao, a0, passo=PASSO_S, piso=PISO, inicio
             item = dict(p, t=round(tt, 3))
             if em_transicao(video, overlay, tt, rel, dims, p, piso, transicao_s):
                 transicoes.append(item)
-            elif le_com_quadro_vizinho(video, overlay, tt, rel, dims, p, piso):
+                continue
+            if le_com_quadro_vizinho(video, overlay, tt, rel, dims, p, piso):
                 transicoes.append(dict(item, troca_seca=True))
+                continue
+            ra = realinhar(video, overlay, tt, rel, dims, p, piso)
+            if ra is not None and ra[1] and all(x["ok"] for x in ra[1]):
+                realinhados.append(dict(item, realinhado_quadros=ra[0],
+                                        razao_realinhada=min(x["razao"] for x in ra[1])))
             else:
                 reprovas.append(item)
     return {"amostras": [(round(tt, 3), p) for tt, p in amostras], "reprovas": reprovas,
-            "transicoes": transicoes, "medidos": medidos, "passo_s": passo, "deslocamento_s": round(desloc, 4)}
+            "transicoes": transicoes, "realinhados": realinhados, "medidos": medidos, "passo_s": passo,
+            "deslocamento_s": round(desloc, 4)}
 
 
 def main(argv=None):
